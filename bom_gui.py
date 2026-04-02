@@ -1,9 +1,14 @@
 # -*- coding: utf-8 -*-
 """
-BOM 转换工具 v4
+BOM 转换工具 v5
 格式A：品牌型号合并列（|| 或多空格分隔，如 MURATA:GRM188||SAMSUNG:CL10）
 格式B：厂家/型号分开列，分号分隔（如 YAGEO;KOA / RC0805;RK73）
 格式C：制造商/型号分开列，冒号分隔，制造商含编号（如 1630-大毅科技[全称]:0362-RALEC[全称]）
+
+输出模式：
+  HQ格式    → 转换为HQ内部评审BOM（整机BOM配置表）
+  原格式展开 → 保留客户BOM所有列，仅将供应商拆成多行，厂商/型号各一列
+
 依赖：pip install openpyxl
 运行：python bom_gui.py
 """
@@ -16,21 +21,20 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter, column_index_from_string
 import os, re, threading
 
-# ───────────────────── 解析 & 输出逻辑 ──────────────────────
+# ───────────────────── 解析逻辑 ─────────────────────────────
 
 SUPPLIER_LABELS = ["主供","二供","三供","四供","五供","六供","七供","八供","九供","十供"]
 
 def parse_combined(raw):
     if not raw or str(raw).strip() == "": return []
     s = str(raw).strip().replace("：",":").replace("∥","||").replace("‖","||")
-    result = []
-    # 判断分隔符：|| 优先，否则看是否多空格分隔（格式：品牌:型号   品牌:型号）
     if "||" in s:
         entries = [e.strip() for e in re.split(r"\|\|", s) if e.strip()]
     elif re.search(r'[^\s]+:[^\s]+\s{2,}[^\s]+:[^\s]+', s):
         entries = [e.strip() for e in re.split(r'\s{2,}', s) if e.strip()]
     else:
         entries = [s.strip()]
+    result = []
     for entry in entries:
         if ":" in entry:
             b, m = entry.split(":", 1); result.append((b.strip(), m.strip()))
@@ -51,28 +55,35 @@ def parse_split(brand_raw, model_raw):
     return result
 
 def parse_format_c(brand_raw, model_raw):
-    """格式C：制造商列含编号格式 1630-大毅科技[全称]:0362-RALEC[全称]:...
-    型号列冒号分隔：RM12JTN221:RTT06221JT:...
-    """
     brand_names = []
     if brand_raw:
         s = str(brand_raw).strip()
-        # 提取每个 XXXX-短名[全称] 中的短名
-        matches = re.findall(r'\d{4}-([^\[:[\]]+)\[', s)
+        matches = re.findall(r'\d{4}-([^\[:\]]+)\[', s)
         if matches:
             brand_names = [m.strip() for m in matches]
         else:
-            # 降级：按冒号分隔
             brand_names = [b.strip() for b in s.split(":") if b.strip()]
-    models = []
-    if model_raw:
-        models = [m.strip() for m in str(model_raw).split(":") if m.strip()]
+    models = [m.strip() for m in str(model_raw or "").split(":") if m.strip()] if model_raw else []
     result = []
     for i in range(max(len(brand_names), len(models), 1)):
         b = brand_names[i] if i < len(brand_names) else ""
         m = models[i] if i < len(models) else ""
         if b or m: result.append((b, m))
     return result
+
+def parse_suppliers(bv, mv, fmt):
+    if fmt == "C": return parse_format_c(bv, mv)
+    if fmt == "B": return parse_split(bv, mv)
+    return parse_combined(bv)
+
+def safe_qty(qv):
+    try:
+        q = float(qv)
+        return int(q) if q == int(q) else q
+    except:
+        return qv if qv not in (None, "") else ""
+
+# ───────────────────── 列检测 ─────────────────────────────
 
 def detect_columns(ws, header_row):
     data_rows = list(range(header_row + 1, min(header_row + 11, ws.max_row + 1)))
@@ -84,12 +95,11 @@ def detect_columns(ws, header_row):
         samples = [ws.cell(row=r, column=ci).value for r in data_rows]
         strs = [str(v).strip() for v in samples if v is not None]
         role = "other"; score = 0
-        # 格式C检测：制造商列含 XXXX-Name[FullName] 模式
+
         b_code = sum(1 for v in strs if re.search(r'\d{4}-[^\[]+\[', v))
         if b_code >= 2 or (any(k in hs for k in ["制造商","Manufacturer"]) and "型号" not in hs and b_code >= 1):
             role = "brand_code"; score = b_code * 25 + (50 if "制造商" in hs else 0)
-        # 格式C型号列：制造商型号，冒号分隔
-        m_code = sum(1 for v in strs if ":" in v and not re.search(r'\d{4}-[^\[]+\[', v) and not "||" in v)
+        m_code = sum(1 for v in strs if ":" in v and not re.search(r'\d{4}-[^\[]+\[', v) and "||" not in v)
         if "制造商型号" in hs or "Manufacturer P/N" in hs:
             if role == "other": role = "model_code"; score = 85
         elif m_code >= 3 and role == "other": role = "model_code"; score = m_code * 12
@@ -105,6 +115,7 @@ def detect_columns(ws, header_row):
         if "型号" in hs and "品牌" not in hs and "制造商" not in hs and role == "other":
             role = "model_split"; score = 80
         elif m_split >= 3 and role == "other": role = "model_split"; score = m_split * 12
+
         numeric = sum(1 for v in samples if v is not None and str(v).replace(".", "").isdigit())
         if any(k in hs for k in ["用量","数量","qty","quantity","Quantity"]): role = "qty"; score = 85
         elif numeric >= len(data_rows) * 0.6 and role == "other": role = "qty"; score = numeric * 10
@@ -119,6 +130,8 @@ def detect_columns(ws, header_row):
         if r != "other" and (r not in best or info["score"] > best[r]["score"]):
             best[r] = {"ci": ci, **info}
     return all_cols, best
+
+# ───────────────────── 输出：HQ格式 ─────────────────────────
 
 def write_review_bom(rows, output_file, project_name):
     wb = Workbook(); ws = wb.active; ws.title = "SW节点整机BOM配置"
@@ -153,27 +166,105 @@ def write_review_bom(rows, output_file, project_name):
         ws.column_dimensions[get_column_letter(i)].width = w
     wb.save(output_file); return dr - 5
 
+# ───────────────────── 输出：原格式展开 ──────────────────────
+
+def write_expanded_bom(ws_in, header_row, col_brand, col_model, col_qty, fmt, out_file):
+    """
+    保留客户BOM所有列，将供应商信息拆成多行。
+    格式A：品牌型号合并列拆成 厂商 + 型号 两列（在原位置展开）。
+    格式B/C：厂家列和型号列已分开，各行写入对应供应商的厂商和型号。
+    主供保留原用量，替代料用量写0。
+    """
+    wb_out = Workbook()
+    ws_out = wb_out.active
+    ws_out.title = ws_in.title
+    thin = Side(style="thin")
+    bdr = Border(left=thin, right=thin, top=thin, bottom=thin)
+    hdr_fill = PatternFill("solid", start_color="D9D9D9")
+    max_col = ws_in.max_column
+
+    # 构建输出列映射：list of (type, src_ci, header)
+    # type: "orig"=原样复制, "brand"=写厂商, "model"=写型号
+    out_map = []
+    for ci in range(1, max_col + 1):
+        h = ws_in.cell(row=header_row, column=ci).value or ""
+        if fmt == "A":
+            if ci == col_brand:
+                out_map.append(("brand", ci, "厂商"))
+                out_map.append(("model", None, "型号"))   # 插入新列
+            else:
+                out_map.append(("orig", ci, str(h)))
+        else:  # B 或 C
+            if ci == col_brand:
+                out_map.append(("brand", ci, "厂商"))
+            elif col_model and ci == col_model:
+                out_map.append(("model", ci, "型号"))
+            else:
+                out_map.append(("orig", ci, str(h)))
+
+    # 写表头
+    for out_ci, (typ, _, h) in enumerate(out_map, 1):
+        c = ws_out.cell(row=1, column=out_ci, value=h)
+        c.font = Font(bold=True)
+        c.fill = hdr_fill
+        c.alignment = Alignment(horizontal="center", vertical="center")
+        c.border = bdr
+        ws_out.column_dimensions[get_column_letter(out_ci)].width = 18
+
+    # 写数据行
+    dr = 2; total = 0; skipped = 0
+    for ri in range(header_row + 1, ws_in.max_row + 1):
+        row_vals = {ci: ws_in.cell(row=ri, column=ci).value for ci in range(1, max_col + 1)}
+        if not any(v is not None and str(v).strip() for v in row_vals.values()):
+            skipped += 1; continue
+
+        bv = row_vals.get(col_brand)
+        mv = row_vals.get(col_model) if col_model else None
+        qv = row_vals.get(col_qty)
+        suppliers = parse_suppliers(bv, mv, fmt)
+        if not suppliers: suppliers = [("", "")]
+        mq = safe_qty(qv)
+
+        for si, (brand, model) in enumerate(suppliers):
+            qty_val = mq if si == 0 else 0
+            for out_ci, (typ, src_ci, _) in enumerate(out_map, 1):
+                if typ == "brand":
+                    val = brand
+                elif typ == "model":
+                    val = model
+                else:  # orig
+                    val = qty_val if src_ci == col_qty else row_vals.get(src_ci)
+                c = ws_out.cell(row=dr, column=out_ci, value=val)
+                c.alignment = Alignment(horizontal="left", vertical="center")
+                c.border = bdr
+            dr += 1; total += 1
+
+    wb_out.save(out_file)
+    return total, skipped
+
 # ───────────────────── GUI ───────────────────────────────────
 
 class BomApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("BOM 转换工具 v4")
-        self.geometry("800x660")
+        self.title("BOM 转换工具 v5")
+        self.geometry("820x700")
         self.resizable(True, True)
 
         self.wb = None; self.ws = None
-        self.col_name_var   = tk.StringVar()
-        self.col_qty_var    = tk.StringVar()
-        self.col_brand_var  = tk.StringVar()
-        self.col_model_var  = tk.StringVar()
-        self.header_row_var = tk.IntVar(value=1)
-        self.project_var    = tk.StringVar()
-        self.output_var     = tk.StringVar(value="内部评审BOM.xlsx")
-        self.input_path     = tk.StringVar()
-        self.sheet_var      = tk.StringVar()
-        self.fmt_var        = tk.StringVar(value="auto")
+        self.col_name_var    = tk.StringVar()
+        self.col_qty_var     = tk.StringVar()
+        self.col_brand_var   = tk.StringVar()
+        self.col_model_var   = tk.StringVar()
+        self.header_row_var  = tk.IntVar(value=1)
+        self.project_var     = tk.StringVar()
+        self.output_var      = tk.StringVar(value="展开多行BOM.xlsx")
+        self.input_path      = tk.StringVar()
+        self.sheet_var       = tk.StringVar()
+        self.fmt_var         = tk.StringVar(value="auto")
+        self.output_mode_var = tk.StringVar(value="expand")  # "expand" | "hq"
 
+        self.output_mode_var.trace_add("write", self._on_mode_change)
         self._build_ui()
 
     def _build_ui(self):
@@ -232,26 +323,16 @@ class BomApp(tk.Tk):
                             value=val).pack(side="left", padx=8)
 
         fm = self._section(p, "列位置（填列字母，如 A / D / G）")
-        rows_cfg = [
+        for i, (lbl, var, hint) in enumerate([
             ("物料名称列",  self.col_name_var,  "物料品名/描述所在列"),
             ("用量列",      self.col_qty_var,   "用量/数量所在列"),
-            ("品牌/厂家列", self.col_brand_var, "格式A=品牌型号合并；格式B=厂家列"),
-            ("型号列",      self.col_model_var, "仅格式B填写，格式A留空"),
-        ]
-        hints_b = {
-            "品牌/厂家列": "格式A=品牌型号合并；格式B=厂家列（分号分隔）；格式C=制造商列（含编号）",
-            "型号列":      "格式B=型号列（分号分隔）；格式C=制造商型号列（冒号分隔）；格式A留空",
-        }
-        rows_cfg2 = [
-            ("物料名称列",  self.col_name_var,  "物料品名/描述所在列"),
-            ("用量列",      self.col_qty_var,   "用量/数量所在列"),
-            ("品牌/厂家列", self.col_brand_var, hints_b["品牌/厂家列"]),
-            ("型号列",      self.col_model_var, hints_b["型号列"]),
-        ]
-        for i, (lbl, var, hint) in enumerate(rows_cfg2):
+            ("品牌/厂家列", self.col_brand_var, "格式A=品牌型号合并；格式B=厂家列（分号）；格式C=制造商列（含编号）"),
+            ("型号列",      self.col_model_var, "格式B/C填写；格式A留空（自动插入新列）"),
+        ]):
             tk.Label(fm, text=lbl+"：", anchor="w", width=14).grid(row=i, column=0, sticky="w", pady=3)
             ttk.Entry(fm, textvariable=var, width=8).grid(row=i, column=1, padx=6)
-            tk.Label(fm, text=hint, fg="#666", wraplength=480, justify="left").grid(row=i, column=2, sticky="w", padx=6)
+            tk.Label(fm, text=hint, fg="#666", wraplength=500,
+                     justify="left").grid(row=i, column=2, sticky="w", padx=6)
 
         f2 = self._section(p, "自动扫描结果")
         self.detect_text = tk.Text(f2, height=10, font=("Consolas", 9),
@@ -265,9 +346,21 @@ class BomApp(tk.Tk):
 
     def _build_tab3(self):
         p = self.tab3
-        f1 = self._section(p, "项目信息")
-        tk.Label(f1, text="项目名称：").grid(row=0, column=0, sticky="w")
-        ttk.Entry(f1, textvariable=self.project_var, width=42).grid(row=0, column=1, padx=6, sticky="w")
+
+        fm = self._section(p, "输出模式")
+        for val, txt, desc in [
+            ("expand", "原格式展开", "保留客户BOM所有列，将供应商拆成多行，厂商/型号各一列"),
+            ("hq",     "转为HQ格式",  "输出为 整机BOM配置表（需填写项目名称）"),
+        ]:
+            r = tk.Frame(fm); r.pack(anchor="w", pady=2)
+            ttk.Radiobutton(r, text=txt, variable=self.output_mode_var,
+                            value=val).pack(side="left")
+            tk.Label(r, text="  "+desc, fg="#555").pack(side="left")
+
+        self.hq_frame = self._section(p, "项目信息（仅HQ格式需要）")
+        tk.Label(self.hq_frame, text="项目名称：").grid(row=0, column=0, sticky="w")
+        ttk.Entry(self.hq_frame, textvariable=self.project_var, width=42).grid(
+            row=0, column=1, padx=6, sticky="w")
 
         f2 = self._section(p, "输出文件")
         tk.Label(f2, text="输出文件名：").grid(row=0, column=0, sticky="w")
@@ -277,9 +370,11 @@ class BomApp(tk.Tk):
         self.run_btn = tk.Button(p, text="开始转换", font=("Arial", 13, "bold"),
                                   bg="#2d6cdf", fg="white", relief="flat",
                                   padx=20, pady=10, command=self._run_convert)
-        self.run_btn.pack(pady=20)
+        self.run_btn.pack(pady=16)
         self.status_label = tk.Label(p, text="", font=("Arial", 11))
         self.status_label.pack()
+
+        self._on_mode_change()
 
     # ── Tab4 ──────────────────────────────────────────────────
 
@@ -291,6 +386,20 @@ class BomApp(tk.Tk):
         ttk.Button(p, text="清空日志", command=self._clear_log).pack(anchor="e", padx=8, pady=4)
 
     # ── 事件 ─────────────────────────────────────────────────
+
+    def _on_mode_change(self, *_):
+        if not hasattr(self, "hq_frame"): return
+        mode = self.output_mode_var.get()
+        if mode == "hq":
+            self.hq_frame.configure(style="")
+            for w in self.hq_frame.winfo_children():
+                w.configure(state="normal")
+            self.output_var.set("内部评审BOM.xlsx")
+        else:
+            for w in self.hq_frame.winfo_children():
+                try: w.configure(state="disabled")
+                except: pass
+            self.output_var.set("展开多行BOM.xlsx")
 
     def _browse_file(self):
         path = filedialog.askopenfilename(
@@ -373,11 +482,12 @@ class BomApp(tk.Tk):
         if path: self.output_var.set(path)
 
     def _run_convert(self):
-        if not self.ws: messagebox.showerror("错误","请先选择输入文件"); return
-        if not self.col_name_var.get() or not self.col_qty_var.get() or not self.col_brand_var.get():
+        if not self.ws:
+            messagebox.showerror("错误","请先选择输入文件"); return
+        if not self.col_brand_var.get():
             messagebox.showerror("错误","请确认列映射（第二步）"); return
-        if not self.project_var.get().strip():
-            messagebox.showerror("错误","请填写项目名称（第三步）"); return
+        if self.output_mode_var.get() == "hq" and not self.project_var.get().strip():
+            messagebox.showerror("错误","HQ格式需要填写项目名称（第三步）"); return
         self.run_btn.configure(state="disabled")
         self.status_label.configure(text="转换中...", fg="#2d6cdf")
         self.nb.select(3)
@@ -386,54 +496,60 @@ class BomApp(tk.Tk):
     def _do_convert(self):
         try:
             hr        = self.header_row_var.get()
-            col_name  = column_index_from_string(self.col_name_var.get().upper())
-            col_qty   = column_index_from_string(self.col_qty_var.get().upper())
             col_brand = column_index_from_string(self.col_brand_var.get().upper())
             col_model = column_index_from_string(self.col_model_var.get().upper()) \
                         if self.col_model_var.get().strip() else None
+            col_qty   = column_index_from_string(self.col_qty_var.get().upper()) \
+                        if self.col_qty_var.get().strip() else None
+            col_name  = column_index_from_string(self.col_name_var.get().upper()) \
+                        if self.col_name_var.get().strip() else None
             fmt       = self.fmt_var.get()
-            project   = self.project_var.get().strip()
             out_file  = self.output_var.get().strip()
+            mode      = self.output_mode_var.get()
+
             # 自动推断格式
             if fmt == "auto":
                 if col_model:
-                    # 检查品牌列是否含格式C特征
-                    sample_brand = str(self.ws.cell(row=hr+1, column=col_brand).value or "")
-                    fmt = "C" if re.search(r'\d{4}-[^\[]+\[', sample_brand) else "B"
+                    sample = str(self.ws.cell(row=hr+1, column=col_brand).value or "")
+                    fmt = "C" if re.search(r'\d{4}-[^\[]+\[', sample) else "B"
                 else:
                     fmt = "A"
 
-            self._log(f"\n开始转换（格式{fmt}）")
-            rows=[]; seq=0; skipped=0
-            for ri in range(hr + 1, self.ws.max_row + 1):
-                nv = self.ws.cell(row=ri, column=col_name).value
-                qv = self.ws.cell(row=ri, column=col_qty).value
-                bv = self.ws.cell(row=ri, column=col_brand).value
-                mv = self.ws.cell(row=ri, column=col_model).value if col_model else None
-                if not nv and not bv: skipped += 1; continue
-                if fmt == "C":
-                    sr = parse_format_c(bv, mv)
-                elif fmt == "B":
-                    sr = parse_split(bv, mv)
-                else:
-                    sr = parse_combined(bv)
-                if not sr: sr = [("", "")]
-                try:
-                    mq = float(qv) if qv not in (None,"") else 0
-                    mq = int(mq) if mq == int(mq) else mq
-                except: mq = qv
-                suppliers = [(b, m, mq if i == 0 else 0) for i, (b, m) in enumerate(sr)]
-                seq += 1; rows.append({"seq": seq, "name": str(nv).strip(), "suppliers": suppliers})
+            self._log(f"\n开始转换（格式{fmt}，模式={'原格式展开' if mode=='expand' else 'HQ格式'}）")
 
-            self._log(f"解析：{len(rows)} 个物料（跳过空行 {skipped}）")
-            total = write_review_bom(rows, out_file, project)
+            if mode == "expand":
+                if not col_qty:
+                    messagebox.showerror("错误","原格式展开需要指定用量列"); return
+                total, skipped = write_expanded_bom(
+                    self.ws, hr, col_brand, col_model, col_qty, fmt, out_file)
+                self._log(f"跳过空行：{skipped}")
+                self._log(f"共写入 {total} 行")
+            else:
+                # HQ格式：需要 col_name
+                project = self.project_var.get().strip()
+                rows = []; seq = 0; skipped = 0
+                for ri in range(hr + 1, self.ws.max_row + 1):
+                    nv = self.ws.cell(row=ri, column=col_name).value if col_name else ""
+                    qv = self.ws.cell(row=ri, column=col_qty).value if col_qty else ""
+                    bv = self.ws.cell(row=ri, column=col_brand).value
+                    mv = self.ws.cell(row=ri, column=col_model).value if col_model else None
+                    if not nv and not bv: skipped += 1; continue
+                    sr = parse_suppliers(bv, mv, fmt)
+                    if not sr: sr = [("", "")]
+                    mq = safe_qty(qv)
+                    suppliers = [(b, m, mq if i == 0 else 0) for i, (b, m) in enumerate(sr)]
+                    seq += 1
+                    rows.append({"seq": seq, "name": str(nv or "").strip(), "suppliers": suppliers})
+                self._log(f"解析：{len(rows)} 个物料（跳过空行 {skipped}）")
+                total = write_review_bom(rows, out_file, project)
+                self._log(f"共写入 {total} 行")
+
             abs_path = os.path.abspath(out_file)
-            self._log(f"输出：{abs_path}")
-            self._log(f"共写入 {total} 行\n✅ 转换成功！")
-
+            self._log(f"输出：{abs_path}\n✅ 转换成功！")
             self.after(0, lambda: self.status_label.configure(
-                text=f"✅ 完成！{len(rows)} 个物料，{total} 行", fg="#2a8a2a"))
+                text=f"✅ 完成！共 {total} 行", fg="#2a8a2a"))
             self.after(0, lambda: messagebox.showinfo("完成", f"转换成功！\n{abs_path}"))
+
         except Exception as e:
             import traceback
             self._log(f"\n❌ 错误：{e}\n{traceback.format_exc()}")
