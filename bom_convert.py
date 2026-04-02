@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 BOM转换脚本：整机BOM配置表 → PLM系统上传格式
 使用方法：python bom_convert.py
