@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-BOM 转换工具 v2
-支持格式A（品牌型号合并列）和格式B（厂家/型号分开列，分号分隔）
+BOM 转换工具 v3
+支持格式A（品牌型号合并列，|| 或多空格分隔）和格式B（厂家/型号分开列，分号分隔）
 依赖：pip install openpyxl
 运行：python bom_gui.py
 """
@@ -22,12 +22,19 @@ def parse_combined(raw):
     if not raw or str(raw).strip() == "": return []
     s = str(raw).strip().replace("：",":").replace("∥","||").replace("‖","||")
     result = []
-    for entry in [e.strip() for e in re.split(r"\|\|", s) if e.strip()]:
+    # 判断分隔符：|| 优先，否则看是否多空格分隔（格式：品牌:型号   品牌:型号）
+    if "||" in s:
+        entries = [e.strip() for e in re.split(r"\|\|", s) if e.strip()]
+    elif re.search(r'[^\s]+:[^\s]+\s{2,}[^\s]+:[^\s]+', s):
+        entries = [e.strip() for e in re.split(r'\s{2,}', s) if e.strip()]
+    else:
+        entries = [s.strip()]
+    for entry in entries:
         if ":" in entry:
             b, m = entry.split(":", 1); result.append((b.strip(), m.strip()))
         elif "/" in entry and len(entry.split("/")) == 2:
             b, m = entry.split("/", 1); result.append((b.strip(), m.strip()))
-        else:
+        elif entry:
             result.append(("", entry.strip()))
     return result
 
