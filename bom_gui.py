@@ -226,14 +226,18 @@ def write_expanded_bom(ws_in, header_row, col_brand, col_model, col_qty, fmt, ou
         mq = safe_qty(qv)
 
         for si, (brand, model) in enumerate(suppliers):
-            qty_val = mq if si == 0 else 0
             for out_ci, (typ, src_ci, _) in enumerate(out_map, 1):
-                if typ == "brand":
-                    val = brand
-                elif typ == "model":
-                    val = model
-                else:  # orig
-                    val = qty_val if src_ci == col_qty else row_vals.get(src_ci)
+                if si == 0:
+                    # 主供：填所有列
+                    if typ == "brand":   val = brand
+                    elif typ == "model": val = model
+                    else: val = mq if src_ci == col_qty else row_vals.get(src_ci)
+                else:
+                    # 替代料：只填厂商、型号、用量，其余留空
+                    if typ == "brand":                         val = brand
+                    elif typ == "model":                       val = model
+                    elif typ == "orig" and src_ci == col_qty: val = 0
+                    else:                                       val = None
                 c = ws_out.cell(row=dr, column=out_ci, value=val)
                 c.alignment = Alignment(horizontal="left", vertical="center")
                 c.border = bdr
