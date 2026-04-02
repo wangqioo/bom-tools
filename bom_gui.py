@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-BOM 转换工具 v3
-支持格式A（品牌型号合并列，|| 或多空格分隔）和格式B（厂家/型号分开列，分号分隔）
+BOM 转换工具 v4
+格式A：品牌型号合并列（|| 或多空格分隔，如 MURATA:GRM188||SAMSUNG:CL10）
+格式B：厂家/型号分开列，分号分隔（如 YAGEO;KOA / RC0805;RK73）
+格式C：制造商/型号分开列，冒号分隔，制造商含编号（如 1630-大毅科技[全称]:0362-RALEC[全称]）
 依赖：pip install openpyxl
 运行：python bom_gui.py
 """
@@ -48,6 +50,30 @@ def parse_split(brand_raw, model_raw):
         if b or m: result.append((b, m))
     return result
 
+def parse_format_c(brand_raw, model_raw):
+    """格式C：制造商列含编号格式 1630-大毅科技[全称]:0362-RALEC[全称]:...
+    型号列冒号分隔：RM12JTN221:RTT06221JT:...
+    """
+    brand_names = []
+    if brand_raw:
+        s = str(brand_raw).strip()
+        # 提取每个 XXXX-短名[全称] 中的短名
+        matches = re.findall(r'\d{4}-([^\[:[\]]+)\[', s)
+        if matches:
+            brand_names = [m.strip() for m in matches]
+        else:
+            # 降级：按冒号分隔
+            brand_names = [b.strip() for b in s.split(":") if b.strip()]
+    models = []
+    if model_raw:
+        models = [m.strip() for m in str(model_raw).split(":") if m.strip()]
+    result = []
+    for i in range(max(len(brand_names), len(models), 1)):
+        b = brand_names[i] if i < len(brand_names) else ""
+        m = models[i] if i < len(models) else ""
+        if b or m: result.append((b, m))
+    return result
+
 def detect_columns(ws, header_row):
     data_rows = list(range(header_row + 1, min(header_row + 11, ws.max_row + 1)))
     all_cols = {}
@@ -58,13 +84,26 @@ def detect_columns(ws, header_row):
         samples = [ws.cell(row=r, column=ci).value for r in data_rows]
         strs = [str(v).strip() for v in samples if v is not None]
         role = "other"; score = 0
+        # 格式C检测：制造商列含 XXXX-Name[FullName] 模式
+        b_code = sum(1 for v in strs if re.search(r'\d{4}-[^\[]+\[', v))
+        if b_code >= 2 or (any(k in hs for k in ["制造商","Manufacturer"]) and "型号" not in hs and b_code >= 1):
+            role = "brand_code"; score = b_code * 25 + (50 if "制造商" in hs else 0)
+        # 格式C型号列：制造商型号，冒号分隔
+        m_code = sum(1 for v in strs if ":" in v and not re.search(r'\d{4}-[^\[]+\[', v) and not "||" in v)
+        if "制造商型号" in hs or "Manufacturer P/N" in hs:
+            if role == "other": role = "model_code"; score = 85
+        elif m_code >= 3 and role == "other": role = "model_code"; score = m_code * 12
+
         b_comb = sum(1 for v in strs if "||" in v or re.search(r"[A-Za-z0-9]+:[A-Za-z0-9]", v))
-        if b_comb >= 2 or "品牌型号" in hs: role = "brand_combined"; score = b_comb * 20 + (40 if "品牌型号" in hs else 0)
+        if role == "other" and (b_comb >= 2 or "品牌型号" in hs):
+            role = "brand_combined"; score = b_comb * 20 + (40 if "品牌型号" in hs else 0)
         b_split = sum(1 for v in strs if ";" in v and not re.search(r"[A-Za-z0-9]+:[A-Za-z0-9]", v))
-        if any(k in hs for k in ["厂家","厂商","制造商","Manufacturer","Brand"]): role = "brand_split"; score = 80
+        if any(k in hs for k in ["厂家","厂商","Manufacturer","Brand"]) and role == "other":
+            role = "brand_split"; score = 80
         elif b_split >= 3 and role == "other": role = "brand_split"; score = b_split * 15
         m_split = sum(1 for v in strs if ";" in v)
-        if "型号" in hs and "品牌" not in hs: role = "model_split"; score = 80
+        if "型号" in hs and "品牌" not in hs and "制造商" not in hs and role == "other":
+            role = "model_split"; score = 80
         elif m_split >= 3 and role == "other": role = "model_split"; score = m_split * 12
         numeric = sum(1 for v in samples if v is not None and str(v).replace(".", "").isdigit())
         if any(k in hs for k in ["用量","数量","qty","quantity","Quantity"]): role = "qty"; score = 85
@@ -119,7 +158,7 @@ def write_review_bom(rows, output_file, project_name):
 class BomApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("BOM 转换工具 v2")
+        self.title("BOM 转换工具 v4")
         self.geometry("800x660")
         self.resizable(True, True)
 
@@ -186,10 +225,11 @@ class BomApp(tk.Tk):
         ff = self._section(p, "品牌型号格式")
         row = tk.Frame(ff); row.pack(anchor="w")
         for val, txt in [("auto","自动识别"),
-                          ("A","格式A：合并列（MURATA:GRM188||SAMSUNG:CL10）"),
-                          ("B","格式B：分开列（厂家 / 型号 各一列，分号分隔）")]:
+                          ("A","格式A：合并列（MURATA:GRM188||SAMSUNG:CL10 或多空格）"),
+                          ("B","格式B：分开列，分号分隔（YAGEO;KOA / RC0805;RK73）"),
+                          ("C","格式C：分开列，冒号分隔（1630-大毅[全称]:0362-RALEC[全称]）")]:
             ttk.Radiobutton(row, text=txt, variable=self.fmt_var,
-                            value=val).pack(side="left", padx=10)
+                            value=val).pack(side="left", padx=8)
 
         fm = self._section(p, "列位置（填列字母，如 A / D / G）")
         rows_cfg = [
@@ -198,10 +238,20 @@ class BomApp(tk.Tk):
             ("品牌/厂家列", self.col_brand_var, "格式A=品牌型号合并；格式B=厂家列"),
             ("型号列",      self.col_model_var, "仅格式B填写，格式A留空"),
         ]
-        for i, (lbl, var, hint) in enumerate(rows_cfg):
+        hints_b = {
+            "品牌/厂家列": "格式A=品牌型号合并；格式B=厂家列（分号分隔）；格式C=制造商列（含编号）",
+            "型号列":      "格式B=型号列（分号分隔）；格式C=制造商型号列（冒号分隔）；格式A留空",
+        }
+        rows_cfg2 = [
+            ("物料名称列",  self.col_name_var,  "物料品名/描述所在列"),
+            ("用量列",      self.col_qty_var,   "用量/数量所在列"),
+            ("品牌/厂家列", self.col_brand_var, hints_b["品牌/厂家列"]),
+            ("型号列",      self.col_model_var, hints_b["型号列"]),
+        ]
+        for i, (lbl, var, hint) in enumerate(rows_cfg2):
             tk.Label(fm, text=lbl+"：", anchor="w", width=14).grid(row=i, column=0, sticky="w", pady=3)
             ttk.Entry(fm, textvariable=var, width=8).grid(row=i, column=1, padx=6)
-            tk.Label(fm, text=hint, fg="#666").grid(row=i, column=2, sticky="w", padx=6)
+            tk.Label(fm, text=hint, fg="#666", wraplength=480, justify="left").grid(row=i, column=2, sticky="w", padx=6)
 
         f2 = self._section(p, "自动扫描结果")
         self.detect_text = tk.Text(f2, height=10, font=("Consolas", 9),
@@ -279,9 +329,11 @@ class BomApp(tk.Tk):
         hr = self.header_row_var.get()
         all_cols, best = detect_columns(self.ws, hr)
         role_label = {
-            "brand_combined": "✅ 品牌型号(合并)",
-            "brand_split":    "✅ 厂家(分开)",
-            "model_split":    "✅ 型号(分开)",
+            "brand_combined": "✅ 品牌型号(合并A)",
+            "brand_split":    "✅ 厂家(分开B)",
+            "model_split":    "✅ 型号(分开B)",
+            "brand_code":     "✅ 制造商(编号C)",
+            "model_code":     "✅ 制造商型号(C)",
             "qty":            "✅ 用量",
             "name":           "✅ 物料名称",
             "other":          "   -",
@@ -299,7 +351,11 @@ class BomApp(tk.Tk):
 
         if "name"  in best: self.col_name_var.set(best["name"]["letter"])
         if "qty"   in best: self.col_qty_var.set(best["qty"]["letter"])
-        if "brand_combined" in best:
+        if "brand_code" in best:
+            self.col_brand_var.set(best["brand_code"]["letter"])
+            if "model_code" in best: self.col_model_var.set(best["model_code"]["letter"])
+            self.fmt_var.set("C")
+        elif "brand_combined" in best:
             self.col_brand_var.set(best["brand_combined"]["letter"])
             self.col_model_var.set(""); self.fmt_var.set("A")
         elif "brand_split" in best:
@@ -338,9 +394,16 @@ class BomApp(tk.Tk):
             fmt       = self.fmt_var.get()
             project   = self.project_var.get().strip()
             out_file  = self.output_var.get().strip()
-            use_split = (fmt == "B") or (fmt == "auto" and col_model is not None)
+            # 自动推断格式
+            if fmt == "auto":
+                if col_model:
+                    # 检查品牌列是否含格式C特征
+                    sample_brand = str(self.ws.cell(row=hr+1, column=col_brand).value or "")
+                    fmt = "C" if re.search(r'\d{4}-[^\[]+\[', sample_brand) else "B"
+                else:
+                    fmt = "A"
 
-            self._log(f"\n开始转换（{'格式B' if use_split else '格式A'}）")
+            self._log(f"\n开始转换（格式{fmt}）")
             rows=[]; seq=0; skipped=0
             for ri in range(hr + 1, self.ws.max_row + 1):
                 nv = self.ws.cell(row=ri, column=col_name).value
@@ -348,7 +411,12 @@ class BomApp(tk.Tk):
                 bv = self.ws.cell(row=ri, column=col_brand).value
                 mv = self.ws.cell(row=ri, column=col_model).value if col_model else None
                 if not nv and not bv: skipped += 1; continue
-                sr = parse_split(bv, mv) if use_split else parse_combined(bv)
+                if fmt == "C":
+                    sr = parse_format_c(bv, mv)
+                elif fmt == "B":
+                    sr = parse_split(bv, mv)
+                else:
+                    sr = parse_combined(bv)
                 if not sr: sr = [("", "")]
                 try:
                     mq = float(qv) if qv not in (None,"") else 0
