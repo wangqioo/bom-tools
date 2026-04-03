@@ -271,6 +271,7 @@ class BomApp(tk.Tk):
         self.output_mode_var = tk.StringVar(value="expand")  # "expand" | "hq"
 
         self.output_mode_var.trace_add("write", self._on_mode_change)
+        self.fmt_var.trace_add("write", self._on_fmt_change)
         self._build_ui()
 
     def _build_ui(self):
@@ -329,16 +330,23 @@ class BomApp(tk.Tk):
                             value=val).pack(side="left", padx=8)
 
         fm = self._section(p, "列位置（填列字母，如 A / D / G）")
-        for i, (lbl, var, hint) in enumerate([
+        rows_def = [
             ("物料名称列",  self.col_name_var,  "物料品名/描述所在列"),
             ("用量列",      self.col_qty_var,   "用量/数量所在列"),
             ("品牌/厂家列", self.col_brand_var, "格式A=品牌型号合并；格式B=厂家列（分号）；格式C=制造商列（含编号）"),
-            ("型号列",      self.col_model_var, "格式B/C填写；格式A留空（自动插入新列）"),
-        ]):
+            ("型号列",      self.col_model_var, "格式B/C需填写；格式A无需填写（自动拆分）"),
+        ]
+        for i, (lbl, var, hint) in enumerate(rows_def):
             tk.Label(fm, text=lbl+"：", anchor="w", width=14).grid(row=i, column=0, sticky="w", pady=3)
-            ttk.Entry(fm, textvariable=var, width=8).grid(row=i, column=1, padx=6)
-            tk.Label(fm, text=hint, fg="#666", wraplength=500,
-                     justify="left").grid(row=i, column=2, sticky="w", padx=6)
+            e = ttk.Entry(fm, textvariable=var, width=8)
+            e.grid(row=i, column=1, padx=6)
+            if lbl == "型号列":
+                self.col_model_entry = e
+                self.col_model_hint  = tk.Label(fm, text=hint, fg="#666", wraplength=500, justify="left")
+                self.col_model_hint.grid(row=i, column=2, sticky="w", padx=6)
+            else:
+                tk.Label(fm, text=hint, fg="#666", wraplength=500,
+                         justify="left").grid(row=i, column=2, sticky="w", padx=6)
 
         f2 = self._section(p, "自动扫描结果")
         self.detect_text = tk.Text(f2, height=10, font=("Consolas", 9),
@@ -392,6 +400,19 @@ class BomApp(tk.Tk):
         ttk.Button(p, text="清空日志", command=self._clear_log).pack(anchor="e", padx=8, pady=4)
 
     # ── 事件 ─────────────────────────────────────────────────
+
+    def _on_fmt_change(self, *_):
+        """格式A：型号列不需要，自动清空并禁用；B/C/auto：启用。"""
+        if not hasattr(self, "col_model_entry"): return
+        fmt = self.fmt_var.get()
+        if fmt == "A":
+            self.col_model_var.set("")
+            self.col_model_entry.configure(state="disabled")
+            self.col_model_hint.configure(text="格式A合并列，无需填写", fg="#aaa")
+        else:
+            self.col_model_entry.configure(state="normal")
+            self.col_model_hint.configure(
+                text="格式B/C需填写；格式A无需填写（自动拆分）", fg="#666")
 
     def _default_out_path(self, mode=None):
         """根据当前模式和输入文件路径，生成默认输出路径。"""
@@ -530,6 +551,17 @@ class BomApp(tk.Tk):
                     fmt = "C" if re.search(r'\d{4}-[^\[]+\[', sample) else "B"
                 else:
                     fmt = "A"
+
+            # 检查输出文件是否被占用（Windows 下 Excel 打开时会锁定）
+            if os.path.exists(out_file):
+                try:
+                    with open(out_file, "a"):
+                        pass
+                except PermissionError:
+                    self.after(0, lambda: messagebox.showerror(
+                        "文件被占用",
+                        f"无法写入输出文件，请先关闭 Excel 中已打开的同名文件：\n{out_file}"))
+                    return
 
             self._log(f"\n开始转换（格式{fmt}，模式={'原格式展开' if mode=='expand' else 'HQ格式'}）")
 
