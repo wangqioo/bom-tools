@@ -13,7 +13,7 @@ BOM 转换工具 v5.2
 运行：python bom_gui.py
 """
 
-import sys, subprocess, importlib
+import sys, subprocess, importlib, importlib.util
 
 def _ensure(pkg, import_name=None):
     name = import_name or pkg
