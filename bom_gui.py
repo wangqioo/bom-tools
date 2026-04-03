@@ -21,6 +21,25 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter, column_index_from_string
 import os, re, threading
 
+def _unique_path(path):
+    """若 path 已存在或被占用，则自动叠加 (1)(2)… 直到找到可写路径。"""
+    if not os.path.exists(path):
+        return path
+    base, ext = os.path.splitext(path)
+    n = 1
+    while True:
+        candidate = f"{base}({n}){ext}"
+        if not os.path.exists(candidate):
+            # 再确认能写入（防止文件存在但被占用）
+            try:
+                with open(candidate, "ab"):
+                    pass
+                os.remove(candidate)
+                return candidate
+            except PermissionError:
+                pass
+        n += 1
+
 # ───────────────────── 解析逻辑 ─────────────────────────────
 
 SUPPLIER_LABELS = ["主供","二供","三供","四供","五供","六供","七供","八供","九供","十供"]
@@ -552,16 +571,8 @@ class BomApp(tk.Tk):
                 else:
                     fmt = "A"
 
-            # 检查输出文件是否被占用（Windows 下 Excel 打开时会锁定）
-            if os.path.exists(out_file):
-                try:
-                    with open(out_file, "a"):
-                        pass
-                except PermissionError:
-                    self.after(0, lambda: messagebox.showerror(
-                        "文件被占用",
-                        f"无法写入输出文件，请先关闭 Excel 中已打开的同名文件：\n{out_file}"))
-                    return
+            # 若同名文件已存在或被占用，自动在文件名后叠加序号
+            out_file = _unique_path(out_file)
 
             self._log(f"\n开始转换（格式{fmt}，模式={'原格式展开' if mode=='expand' else 'HQ格式'}）")
 
