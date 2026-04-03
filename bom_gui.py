@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-BOM 转换工具 v5.7
+BOM 转换工具 v5.8
 格式A：品牌型号合并列（|| 或多空格分隔，如 MURATA:GRM188||SAMSUNG:CL10）
 格式B：厂家/型号分开列，分号分隔（如 YAGEO;KOA / RC0805;RK73）
 格式C：制造商/型号分开列，冒号分隔，制造商含编号（如 1630-大毅科技[全称]:0362-RALEC[全称]）
@@ -282,7 +282,7 @@ def write_expanded_bom(ws_in, header_row, col_brand, col_model, col_qty, fmt, ou
 class BomApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("BOM 转换工具 v5.7")
+        self.title("BOM 转换工具 v5.8")
         self.geometry("820x700")
         self.resizable(True, True)
 
@@ -651,22 +651,20 @@ class BomApp(tk.Tk):
             abs_path = os.path.abspath(out_file)
             folder   = os.path.dirname(abs_path)
             self._log(f"输出：{abs_path}\n✅ 转换成功！")
+            # 在后台线程里立刻打开文件夹（比在主线程调度更早）
+            try:
+                if sys.platform == "win32":
+                    os.startfile(folder)        # 最快：直接走 Shell API
+                elif sys.platform == "darwin":
+                    subprocess.Popen(["open", folder])
+                else:
+                    subprocess.Popen(["xdg-open", folder])
+            except Exception:
+                pass
             self.after(0, self._stop_spinner)
             self.after(0, lambda: self.status_label.configure(
                 text=f"✅ 完成！共 {total} 行", fg="#2a8a2a"))
-            # 先触发文件夹弹出（非阻塞），再弹成功提示，两者并行
-            def _finish():
-                try:
-                    if sys.platform == "win32":
-                        subprocess.Popen(["explorer", f"/select,{abs_path}"])
-                    elif sys.platform == "darwin":
-                        subprocess.Popen(["open", folder])
-                    else:
-                        subprocess.Popen(["xdg-open", folder])
-                except Exception:
-                    pass
-                messagebox.showinfo("完成", f"转换成功！\n{abs_path}")
-            self.after(0, _finish)
+            self.after(0, lambda: messagebox.showinfo("完成", f"转换成功！\n{abs_path}"))
 
         except Exception as e:
             import traceback
