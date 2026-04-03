@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-BOM 转换工具 v5
+BOM 转换工具 v5.2
 格式A：品牌型号合并列（|| 或多空格分隔，如 MURATA:GRM188||SAMSUNG:CL10）
 格式B：厂家/型号分开列，分号分隔（如 YAGEO;KOA / RC0805;RK73）
 格式C：制造商/型号分开列，冒号分隔，制造商含编号（如 1630-大毅科技[全称]:0362-RALEC[全称]）
@@ -184,8 +184,8 @@ def write_expanded_bom(ws_in, header_row, col_brand, col_model, col_qty, fmt, ou
     max_col = ws_in.max_column
 
     # 构建输出列映射：list of (type, src_ci, header)
-    # type: "orig"=原样复制, "brand"=写厂商, "model"=写型号
-    out_map = []
+    # type: "seq"=序号, "orig"=原样复制, "brand"=写厂商, "model"=写型号
+    out_map = [("seq", None, "序号")]   # 第一列固定为序号
     for ci in range(1, max_col + 1):
         h = ws_in.cell(row=header_row, column=ci).value or ""
         if fmt == "A":
@@ -209,10 +209,10 @@ def write_expanded_bom(ws_in, header_row, col_brand, col_model, col_qty, fmt, ou
         c.fill = hdr_fill
         c.alignment = Alignment(horizontal="center", vertical="center")
         c.border = bdr
-        ws_out.column_dimensions[get_column_letter(out_ci)].width = 18
+        ws_out.column_dimensions[get_column_letter(out_ci)].width = 6 if typ == "seq" else 18
 
     # 写数据行
-    dr = 2; total = 0; skipped = 0
+    dr = 2; total = 0; skipped = 0; seq = 0
     for ri in range(header_row + 1, ws_in.max_row + 1):
         row_vals = {ci: ws_in.cell(row=ri, column=ci).value for ci in range(1, max_col + 1)}
         if not any(v is not None and str(v).strip() for v in row_vals.values()):
@@ -224,20 +224,22 @@ def write_expanded_bom(ws_in, header_row, col_brand, col_model, col_qty, fmt, ou
         suppliers = parse_suppliers(bv, mv, fmt)
         if not suppliers: suppliers = [("", "")]
         mq = safe_qty(qv)
+        seq += 1  # 同一组替代料共享同一序号
 
         for si, (brand, model) in enumerate(suppliers):
             for out_ci, (typ, src_ci, _) in enumerate(out_map, 1):
-                if si == 0:
+                if typ == "seq":
+                    val = seq
+                elif si == 0:
                     # 主供：填所有列
                     if typ == "brand":   val = brand
                     elif typ == "model": val = model
                     else: val = mq if src_ci == col_qty else row_vals.get(src_ci)
                 else:
-                    # 替代料：只填厂商、型号、用量，其余留空
-                    if typ == "brand":                         val = brand
-                    elif typ == "model":                       val = model
-                    elif typ == "orig" and src_ci == col_qty: val = 0
-                    else:                                       val = None
+                    # 替代料：只填厂商、型号，其余留空（用量也留空）
+                    if typ == "brand":   val = brand
+                    elif typ == "model": val = model
+                    else:                val = None
                 c = ws_out.cell(row=dr, column=out_ci, value=val)
                 c.alignment = Alignment(horizontal="left", vertical="center")
                 c.border = bdr
@@ -251,7 +253,7 @@ def write_expanded_bom(ws_in, header_row, col_brand, col_model, col_qty, fmt, ou
 class BomApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("BOM 转换工具 v5")
+        self.title("BOM 转换工具 v5.2")
         self.geometry("820x700")
         self.resizable(True, True)
 
@@ -391,6 +393,16 @@ class BomApp(tk.Tk):
 
     # ── 事件 ─────────────────────────────────────────────────
 
+    def _default_out_path(self, mode=None):
+        """根据当前模式和输入文件路径，生成默认输出路径。"""
+        if mode is None:
+            mode = self.output_mode_var.get()
+        name = "内部评审BOM.xlsx" if mode == "hq" else "展开多行BOM.xlsx"
+        in_path = self.input_path.get().strip()
+        if in_path:
+            return os.path.join(os.path.dirname(in_path), name)
+        return name
+
     def _on_mode_change(self, *_):
         if not hasattr(self, "hq_frame"): return
         mode = self.output_mode_var.get()
@@ -398,12 +410,11 @@ class BomApp(tk.Tk):
             self.hq_frame.configure(style="")
             for w in self.hq_frame.winfo_children():
                 w.configure(state="normal")
-            self.output_var.set("内部评审BOM.xlsx")
         else:
             for w in self.hq_frame.winfo_children():
                 try: w.configure(state="disabled")
                 except: pass
-            self.output_var.set("展开多行BOM.xlsx")
+        self.output_var.set(self._default_out_path(mode))
 
     def _browse_file(self):
         path = filedialog.askopenfilename(
@@ -411,6 +422,7 @@ class BomApp(tk.Tk):
             filetypes=[("Excel文件","*.xlsx *.xlsm *.xls"),("所有文件","*.*")])
         if not path: return
         self.input_path.set(path)
+        self.output_var.set(self._default_out_path())   # 自动对应输入文件目录
         self._log(f"文件：{path}")
         try:
             self.wb = openpyxl.load_workbook(path, data_only=True)
