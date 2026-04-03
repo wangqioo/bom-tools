@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-BOM 转换工具 v5.2
+BOM 转换工具 v5.5
 格式A：品牌型号合并列（|| 或多空格分隔，如 MURATA:GRM188||SAMSUNG:CL10）
 格式B：厂家/型号分开列，分号分隔（如 YAGEO;KOA / RC0805;RK73）
 格式C：制造商/型号分开列，冒号分隔，制造商含编号（如 1630-大毅科技[全称]:0362-RALEC[全称]）
@@ -112,6 +112,23 @@ def safe_qty(qv):
     except:
         return qv if qv not in (None, "") else ""
 
+def build_merge_info(ws):
+    """
+    合并单元格检测：返回 (continuation, merge_origin)
+    continuation  : set of (row,col)  合并区内非左上角的格 → 属于上方主行的替代料延续行
+    merge_origin  : dict (row,col)->(orig_row,orig_col)  所有合并格到左上角的映射
+    """
+    continuation = set()
+    merge_origin = {}
+    for rng in ws.merged_cells.ranges:
+        mr, mc = rng.min_row, rng.min_col
+        for r in range(rng.min_row, rng.max_row + 1):
+            for c in range(rng.min_col, rng.max_col + 1):
+                merge_origin[(r, c)] = (mr, mc)
+                if (r, c) != (mr, mc):
+                    continuation.add((r, c))
+    return continuation, merge_origin
+
 # ───────────────────── 列检测 ─────────────────────────────
 
 def detect_columns(ws, header_row):
@@ -202,7 +219,8 @@ def write_expanded_bom(ws_in, header_row, col_brand, col_model, col_qty, fmt, ou
     保留客户BOM所有列，将供应商信息拆成多行。
     格式A：品牌型号合并列拆成 厂商 + 型号 两列（在原位置展开）。
     格式B/C：厂家列和型号列已分开，各行写入对应供应商的厂商和型号。
-    主供保留原用量，替代料用量写0。
+    支持合并单元格BOM：qty列为合并延续格时识别为替代料行（seq不变，只填厂商/型号）。
+    主供保留原用量；替代料用量留空。
     """
     wb_out = Workbook()
     ws_out = wb_out.active
@@ -240,10 +258,41 @@ def write_expanded_bom(ws_in, header_row, col_brand, col_model, col_qty, fmt, ou
         c.border = bdr
         ws_out.column_dimensions[get_column_letter(out_ci)].width = 6 if typ == "seq" else 18
 
-    # 写数据行
+    # ── 合并单元格分析 ────────────────────────────────────────
+    continuation, merge_origin = build_merge_info(ws_in)
+    # qty 列作为锚定列：若该列是合并延续格，则此行为替代料行
+    use_merge = bool(ws_in.merged_cells.ranges) and col_qty is not None
+
+    # ── 读单元格值（跟随合并起点）────────────────────────────
+    def rv(ri, ci):
+        origin = merge_origin.get((ri, ci))
+        if origin:
+            return ws_in.cell(row=origin[0], column=origin[1]).value
+        return ws_in.cell(row=ri, column=ci).value
+
+    # ── 写数据行 ──────────────────────────────────────────────
     dr = 2; total = 0; skipped = 0; seq = 0
     for ri in range(header_row + 1, ws_in.max_row + 1):
-        row_vals = {ci: ws_in.cell(row=ri, column=ci).value for ci in range(1, max_col + 1)}
+
+        # 情况1：合并单元格替代料延续行（qty列在合并区内且非左上角）
+        if use_merge and (ri, col_qty) in continuation:
+            brand = ws_in.cell(row=ri, column=col_brand).value
+            model = ws_in.cell(row=ri, column=col_model).value if col_model else None
+            if not brand and not model:
+                continue  # 完全空的延续行，跳过
+            for out_ci, (typ, src_ci, _) in enumerate(out_map, 1):
+                if   typ == "seq":   val = seq        # 与主供同一序号
+                elif typ == "brand": val = brand
+                elif typ == "model": val = model
+                else:                val = None       # 其余列留空
+                c = ws_out.cell(row=dr, column=out_ci, value=val)
+                c.alignment = Alignment(horizontal="left", vertical="center")
+                c.border = bdr
+            dr += 1; total += 1
+            continue
+
+        # 情况2：主料行（或非合并BOM的所有行）
+        row_vals = {ci: rv(ri, ci) for ci in range(1, max_col + 1)}
         if not any(v is not None and str(v).strip() for v in row_vals.values()):
             skipped += 1; continue
 
@@ -253,7 +302,7 @@ def write_expanded_bom(ws_in, header_row, col_brand, col_model, col_qty, fmt, ou
         suppliers = parse_suppliers(bv, mv, fmt)
         if not suppliers: suppliers = [("", "")]
         mq = safe_qty(qv)
-        seq += 1  # 同一组替代料共享同一序号
+        seq += 1  # 新主料递增序号
 
         for si, (brand, model) in enumerate(suppliers):
             for out_ci, (typ, src_ci, _) in enumerate(out_map, 1):
@@ -265,7 +314,7 @@ def write_expanded_bom(ws_in, header_row, col_brand, col_model, col_qty, fmt, ou
                     elif typ == "model": val = model
                     else: val = mq if src_ci == col_qty else row_vals.get(src_ci)
                 else:
-                    # 替代料：只填厂商、型号，其余留空（用量也留空）
+                    # 替代料（同行多供，格式A/B/C）：只填厂商型号，其余留空
                     if typ == "brand":   val = brand
                     elif typ == "model": val = model
                     else:                val = None
@@ -282,7 +331,7 @@ def write_expanded_bom(ws_in, header_row, col_brand, col_model, col_qty, fmt, ou
 class BomApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("BOM 转换工具 v5.2")
+        self.title("BOM 转换工具 v5.5")
         self.geometry("820x700")
         self.resizable(True, True)
 
