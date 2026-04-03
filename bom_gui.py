@@ -13,19 +13,15 @@ BOM 转换工具 v5.2
 运行：python bom_gui.py
 """
 
-import sys, subprocess, importlib, importlib.util
+import sys, subprocess
 
-def _ensure(pkg, import_name=None):
-    name = import_name or pkg
-    if importlib.util.find_spec(name) is None:
-        import tkinter as _tk; import tkinter.messagebox as _mb
-        _r = _tk.Tk(); _r.withdraw()
-        if not _mb.askyesno("缺少依赖",
-                f"未检测到 {pkg}，是否自动安装？\n（需要联网，约几秒钟）"):
-            sys.exit(0)
-        subprocess.check_call([sys.executable, "-m", "pip", "install", pkg])
-
-_ensure("openpyxl")
+try:
+    import openpyxl
+except ImportError:
+    print("未检测到 openpyxl，正在自动安装，请稍候...")
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "openpyxl"])
+    print("安装完成！正在启动程序...")
+    import openpyxl
 
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, scrolledtext
