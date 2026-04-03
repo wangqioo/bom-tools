@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-BOM 转换工具 v5.6
+BOM 转换工具 v5.7
 格式A：品牌型号合并列（|| 或多空格分隔，如 MURATA:GRM188||SAMSUNG:CL10）
 格式B：厂家/型号分开列，分号分隔（如 YAGEO;KOA / RC0805;RK73）
 格式C：制造商/型号分开列，冒号分隔，制造商含编号（如 1630-大毅科技[全称]:0362-RALEC[全称]）
@@ -282,7 +282,7 @@ def write_expanded_bom(ws_in, header_row, col_brand, col_model, col_qty, fmt, ou
 class BomApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("BOM 转换工具 v5.6")
+        self.title("BOM 转换工具 v5.7")
         self.geometry("820x700")
         self.resizable(True, True)
 
@@ -325,7 +325,8 @@ class BomApp(tk.Tk):
         f1 = self._section(p, "客户 BOM 文件")
         tk.Label(f1, text="文件路径：").grid(row=0, column=0, sticky="w")
         ttk.Entry(f1, textvariable=self.input_path, width=52).grid(row=0, column=1, padx=6)
-        ttk.Button(f1, text="浏览...", command=self._browse_file).grid(row=0, column=2)
+        self.browse_btn = ttk.Button(f1, text="浏览...", command=self._browse_file)
+        self.browse_btn.grid(row=0, column=2)
 
         f2 = self._section(p, "Sheet / 表头行")
         tk.Label(f2, text="Sheet：").grid(row=0, column=0, sticky="w")
@@ -474,10 +475,9 @@ class BomApp(tk.Tk):
         self.input_path.set(path)
         self.output_var.set(self._default_out_path())
         self._log(f"文件：{path}")
-        # 禁用按钮、显示加载动画，后台线程读文件
+        # 按钮变文字提示，后台线程读文件
+        self.browse_btn.configure(text="加载中...", state="disabled")
         self.run_btn.configure(state="disabled")
-        self._start_spinner()
-        self.status_label.configure(text="⏳ 正在加载文件...", fg="#2d6cdf")
         threading.Thread(target=self._load_workbook_bg, args=(path,), daemon=True).start()
 
     def _load_workbook_bg(self, path):
@@ -487,13 +487,11 @@ class BomApp(tk.Tk):
             self.after(0, self._on_wb_loaded)
         except Exception as e:
             self.after(0, lambda: messagebox.showerror("错误", f"无法打开文件：\n{e}"))
-            self.after(0, lambda: self.status_label.configure(text="", fg="black"))
-            self.after(0, self._stop_spinner)
+            self.after(0, lambda: self.browse_btn.configure(text="浏览...", state="normal"))
             self.after(0, lambda: self.run_btn.configure(state="normal"))
 
     def _on_wb_loaded(self):
-        self._stop_spinner()
-        self.status_label.configure(text="", fg="black")
+        self.browse_btn.configure(text="浏览...", state="normal")
         self.run_btn.configure(state="normal")
         self.sheet_cb["values"] = self.wb.sheetnames
         self.sheet_var.set(self.wb.sheetnames[0])
