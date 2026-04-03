@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-BOM 转换工具 v5.5
+BOM 转换工具 v5.6
 格式A：品牌型号合并列（|| 或多空格分隔，如 MURATA:GRM188||SAMSUNG:CL10）
 格式B：厂家/型号分开列，分号分隔（如 YAGEO;KOA / RC0805;RK73）
 格式C：制造商/型号分开列，冒号分隔，制造商含编号（如 1630-大毅科技[全称]:0362-RALEC[全称]）
@@ -282,7 +282,7 @@ def write_expanded_bom(ws_in, header_row, col_brand, col_model, col_qty, fmt, ou
 class BomApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("BOM 转换工具 v5.5")
+        self.title("BOM 转换工具 v5.6")
         self.geometry("820x700")
         self.resizable(True, True)
 
@@ -472,15 +472,32 @@ class BomApp(tk.Tk):
             filetypes=[("Excel文件","*.xlsx *.xlsm *.xls"),("所有文件","*.*")])
         if not path: return
         self.input_path.set(path)
-        self.output_var.set(self._default_out_path())   # 自动对应输入文件目录
+        self.output_var.set(self._default_out_path())
         self._log(f"文件：{path}")
+        # 禁用按钮、显示加载动画，后台线程读文件
+        self.run_btn.configure(state="disabled")
+        self._start_spinner()
+        self.status_label.configure(text="⏳ 正在加载文件...", fg="#2d6cdf")
+        threading.Thread(target=self._load_workbook_bg, args=(path,), daemon=True).start()
+
+    def _load_workbook_bg(self, path):
         try:
-            self.wb = openpyxl.load_workbook(path, data_only=True)
-            self.sheet_cb["values"] = self.wb.sheetnames
-            self.sheet_var.set(self.wb.sheetnames[0])
-            self._load_sheet()
+            wb = openpyxl.load_workbook(path, data_only=True)
+            self.wb = wb
+            self.after(0, self._on_wb_loaded)
         except Exception as e:
-            messagebox.showerror("错误", f"无法打开文件：\n{e}")
+            self.after(0, lambda: messagebox.showerror("错误", f"无法打开文件：\n{e}"))
+            self.after(0, lambda: self.status_label.configure(text="", fg="black"))
+            self.after(0, self._stop_spinner)
+            self.after(0, lambda: self.run_btn.configure(state="normal"))
+
+    def _on_wb_loaded(self):
+        self._stop_spinner()
+        self.status_label.configure(text="", fg="black")
+        self.run_btn.configure(state="normal")
+        self.sheet_cb["values"] = self.wb.sheetnames
+        self.sheet_var.set(self.wb.sheetnames[0])
+        self._load_sheet()
 
     def _load_sheet(self):
         if not self.wb: return
@@ -636,12 +653,11 @@ class BomApp(tk.Tk):
             abs_path = os.path.abspath(out_file)
             folder   = os.path.dirname(abs_path)
             self._log(f"输出：{abs_path}\n✅ 转换成功！")
-            self.after(0, lambda: self._stop_spinner())
+            self.after(0, self._stop_spinner)
             self.after(0, lambda: self.status_label.configure(
                 text=f"✅ 完成！共 {total} 行", fg="#2a8a2a"))
-            self.after(0, lambda: messagebox.showinfo("完成", f"转换成功！\n{abs_path}"))
-            # 打开输出文件夹
-            def _open_folder():
+            # 先触发文件夹弹出（非阻塞），再弹成功提示，两者并行
+            def _finish():
                 try:
                     if sys.platform == "win32":
                         subprocess.Popen(["explorer", f"/select,{abs_path}"])
@@ -651,7 +667,8 @@ class BomApp(tk.Tk):
                         subprocess.Popen(["xdg-open", folder])
                 except Exception:
                     pass
-            self.after(300, _open_folder)
+                messagebox.showinfo("完成", f"转换成功！\n{abs_path}")
+            self.after(0, _finish)
 
         except Exception as e:
             import traceback
