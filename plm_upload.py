@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-PLM 上传工具 v1.4
+PLM 上传工具 v1.5
 整机BOM配置表 → PLM 系统导入格式
 
 【源文件（整机BOM配置表）关键列】
@@ -210,11 +210,9 @@ def do_convert(in_file, sheet_name, header_row,
         c.border = bdr
         ws_out.column_dimensions[get_column_letter(col_num)].width = 14
 
-    # 料号列和主辅BOM标记列加宽
+    # 料号列加宽
     ws_out.column_dimensions[
         get_column_letter(PLM_COL_START + PLM_IDX_HQPN)].width = 22
-    ws_out.column_dimensions[
-        get_column_letter(PLM_COL_START + PLM_IDX_BOM_MARK)].width = 24
     ws_out.row_dimensions[PLM_HEADER_ROW].height = 60
 
     # ── 写数据行（从第 4 行开始）────────────────────────────────
@@ -274,7 +272,7 @@ def do_convert(in_file, sheet_name, header_row,
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("PLM 上传工具 v1.4")
+        self.title("PLM 上传工具 v1.5")
         self.resizable(False, False)
 
         self._in_file   = tk.StringVar()
