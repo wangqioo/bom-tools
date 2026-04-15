@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """
-PLM 上传工具 v1.1
+PLM 上传工具 v1.2
 整机BOM配置表 → PLM 系统导入格式
 
 【源文件（整机BOM配置表）关键列】
   序号   —— 相同序号 = 同一组主二供
-  HQ PN  —— HQ 料号，写入 PLM「型号」列
+  HQ PN  —— HQ 料号，写入 PLM「料号」列
   主二供 —— 主供 / 二供 / 三供 / 四供…
   用量   —— 单耗
 
@@ -16,8 +16,8 @@ PLM 上传工具 v1.1
   4. 二供/三供/…        → 导入，「单耗」留空，「主辅BOM标记」填「二供」「三供」…
 
 【PLM 输出格式】
-  数据从 C 列开始（A/B 列留空，由系统填写）
-  第 4 行为列表头，第 5 行起为数据
+  从 A 列开始：序号(A) 料号(B) 型号(C) 物料描述(D) 单耗(E) …
+  第 3 行为列表头，第 4 行起为数据
 
 依赖：pip install openpyxl
 运行：python plm_upload.py
@@ -41,10 +41,14 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter, column_index_from_string
 
 
-# ── PLM 输出列定义（从 C 列 = 第 3 列开始）──────────────────────
-PLM_COL_START = 3   # C 列
+# ── PLM 输出列定义（从 A 列 = 第 1 列开始）──────────────────────
+PLM_COL_START  = 1    # A 列
+PLM_HEADER_ROW = 3    # 列表头在第 3 行
+PLM_DATA_ROW   = 4    # 数据从第 4 行开始
 
 PLM_HEADERS = [
+    "序号",
+    "料号",
     "型号",
     "物料描述",
     "单耗",
@@ -70,10 +74,11 @@ PLM_HEADERS = [
     "ECCN",
 ]
 
-# 关键列在 PLM_HEADERS 列表中的偏移
-PLM_IDX_MODEL    = 0   # 型号
-PLM_IDX_QTY      = 2   # 单耗
-PLM_IDX_BOM_MARK = 9   # 主辅BOM标记
+# 关键列在 PLM_HEADERS 列表中的偏移（0-based）
+PLM_IDX_SEQ      = 0   # A：序号
+PLM_IDX_HQPN     = 1   # B：料号 ← HQ PN
+PLM_IDX_QTY      = 4   # E：单耗
+PLM_IDX_BOM_MARK = 11  # L：主辅BOM标记
 
 
 # ── 工具函数 ────────────────────────────────────────────────────
@@ -182,38 +187,42 @@ def do_convert(in_file, sheet_name, header_row,
     hdr_font = Font(bold=True, color="FFFFFF", size=9)
     meta_font = Font(bold=True, size=10)
 
-    # 行 1-3：PLM 模板头部信息
+    # ── 行 1-2：PLM 模板头部信息 ─────────────────────────────────
+    # 行1: 料号: [  ]  描述: [  ]  项目配置名: [project]  工程师: [  ]
+    ws_out.cell(row=1, column=1, value="料号:").font = meta_font
     ws_out.cell(row=1, column=3, value="描述:").font = meta_font
-    ws_out.cell(row=1, column=8, value="项目配置").font = meta_font
-    ws_out.cell(row=1, column=9, value=project_name or "").font = Font(size=10)
-    ws_out.cell(row=1, column=11, value="工程师:").font = meta_font
+    ws_out.cell(row=1, column=5, value="项目配置名:").font = meta_font
+    ws_out.cell(row=1, column=6, value=project_name or "").font = Font(size=10)
+    ws_out.cell(row=1, column=8, value="工程师:").font = meta_font
 
+    # 行2: 版本: [  ]  替代项 [  ]  BOM名称: [  ]  归档部门: [  ]
+    ws_out.cell(row=2, column=1, value="版本:").font = meta_font
     ws_out.cell(row=2, column=3, value="替代项").font = meta_font
     ws_out.cell(row=2, column=5, value="BOM名称:").font = meta_font
-    ws_out.cell(row=2, column=8, value="归档部门:").font = meta_font
+    ws_out.cell(row=2, column=7, value="归档部门:").font = meta_font
 
-    # 行 4：列表头
+    # ── 行 3：列表头 ──────────────────────────────────────────────
     for offset, hdr_txt in enumerate(PLM_HEADERS):
         col_num = PLM_COL_START + offset
-        c = ws_out.cell(row=4, column=col_num, value=hdr_txt)
-        c.font = hdr_font
-        c.fill = hdr_fill
+        c = ws_out.cell(row=PLM_HEADER_ROW, column=col_num, value=hdr_txt)
+        c.font = Font(bold=True, color="FF0000", size=9)   # 红色加粗，与模板一致
         c.alignment = Alignment(horizontal="center", vertical="center",
                                 wrap_text=True)
         c.border = bdr
         ws_out.column_dimensions[get_column_letter(col_num)].width = 14
 
-    # 型号列和主辅BOM标记列加宽
+    # 料号列和主辅BOM标记列加宽
     ws_out.column_dimensions[
-        get_column_letter(PLM_COL_START + PLM_IDX_MODEL)].width = 22
+        get_column_letter(PLM_COL_START + PLM_IDX_HQPN)].width = 22
     ws_out.column_dimensions[
         get_column_letter(PLM_COL_START + PLM_IDX_BOM_MARK)].width = 24
-    ws_out.row_dimensions[4].height = 60
+    ws_out.row_dimensions[PLM_HEADER_ROW].height = 60
 
-    # ── 写数据行（从第 5 行开始）────────────────────────────────
-    dr = 5
+    # ── 写数据行（从第 4 行开始）────────────────────────────────
+    dr = PLM_DATA_ROW
     total = 0
     skipped = 0
+    seq = 0   # PLM 序号计数器
 
     for rv in data_rows:
         hqpn    = rv.get(col_hqpn)
@@ -236,13 +245,20 @@ def do_convert(in_file, sheet_name, header_row,
         is_primary = (stype_str == "主供" or stype_str == "")
         bom_mark   = "" if is_primary else stype_str   # 二供/三供/四供…
 
+        # 主供行才递增序号
+        if is_primary:
+            seq += 1
+
         def wc(idx, val, row=dr):
             cc = ws_out.cell(row=row, column=PLM_COL_START + idx, value=val)
             cc.alignment = Alignment(horizontal="left", vertical="center")
             cc.border = bdr
 
-        # 型号 ← HQ PN（每行必填）
-        wc(PLM_IDX_MODEL, str(hqpn).strip())
+        # 序号（每行都填，同一组相同序号）
+        wc(PLM_IDX_SEQ, seq)
+
+        # 料号 ← HQ PN（每行必填）
+        wc(PLM_IDX_HQPN, str(hqpn).strip())
 
         # 单耗：主供且用量 > 0 才填
         if is_primary and qty > 0:
@@ -264,7 +280,7 @@ def do_convert(in_file, sheet_name, header_row,
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("PLM 上传工具 v1.1")
+        self.title("PLM 上传工具 v1.2")
         self.resizable(False, False)
 
         self._in_file   = tk.StringVar()
