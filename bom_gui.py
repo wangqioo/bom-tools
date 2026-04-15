@@ -329,7 +329,8 @@ class BomApp(tk.Tk):
         f1 = self._section(p, "客户 BOM 文件")
         tk.Label(f1, text="文件路径：").grid(row=0, column=0, sticky="w")
         ttk.Entry(f1, textvariable=self.input_path, width=52).grid(row=0, column=1, padx=6)
-        ttk.Button(f1, text="浏览...", command=self._browse_file).grid(row=0, column=2)
+        self.browse_btn = ttk.Button(f1, text="浏览...", command=self._browse_file)
+        self.browse_btn.grid(row=0, column=2)
 
         f2 = self._section(p, "Sheet / 表头行")
         tk.Label(f2, text="Sheet：").grid(row=0, column=0, sticky="w")
@@ -476,15 +477,29 @@ class BomApp(tk.Tk):
             filetypes=[("Excel文件","*.xlsx *.xlsm *.xls"),("所有文件","*.*")])
         if not path: return
         self.input_path.set(path)
-        self.output_var.set(self._default_out_path())   # 自动对应输入文件目录
+        self.output_var.set(self._default_out_path())
         self._log(f"文件：{path}")
+        # 按钮变文字提示，后台线程读文件
+        self.browse_btn.configure(text="加载中...", state="disabled")
+        self.run_btn.configure(state="disabled")
+        threading.Thread(target=self._load_workbook_bg, args=(path,), daemon=True).start()
+
+    def _load_workbook_bg(self, path):
         try:
-            self.wb = openpyxl.load_workbook(path, data_only=True)
-            self.sheet_cb["values"] = self.wb.sheetnames
-            self.sheet_var.set(self.wb.sheetnames[0])
-            self._load_sheet()
+            wb = openpyxl.load_workbook(path, data_only=True)
+            self.wb = wb
+            self.after(0, self._on_wb_loaded)
         except Exception as e:
-            messagebox.showerror("错误", f"无法打开文件：\n{e}")
+            self.after(0, lambda: messagebox.showerror("错误", f"无法打开文件：\n{e}"))
+            self.after(0, lambda: self.browse_btn.configure(text="浏览...", state="normal"))
+            self.after(0, lambda: self.run_btn.configure(state="normal"))
+
+    def _on_wb_loaded(self):
+        self.browse_btn.configure(text="浏览...", state="normal")
+        self.run_btn.configure(state="normal")
+        self.sheet_cb["values"] = self.wb.sheetnames
+        self.sheet_var.set(self.wb.sheetnames[0])
+        self._load_sheet()
 
     def _load_sheet(self):
         if not self.wb: return
@@ -551,6 +566,26 @@ class BomApp(tk.Tk):
             defaultextension=".xlsx", filetypes=[("Excel文件","*.xlsx")])
         if path: self.output_var.set(path)
 
+    # ── 转圈动画 ─────────────────────────────────────────────
+
+    def _start_spinner(self):
+        self._spinning = True
+        self._spin_step = 0
+        self._spin()
+
+    def _spin(self):
+        if not self._spinning: return
+        frames = ["◐ 转换中，请稍候...", "◓ 转换中，请稍候...",
+                  "◑ 转换中，请稍候...", "◒ 转换中，请稍候..."]
+        self.status_label.configure(text=frames[self._spin_step % len(frames)], fg="#2d6cdf")
+        self._spin_step += 1
+        self._spin_job = self.after(200, self._spin)
+
+    def _stop_spinner(self):
+        self._spinning = False
+        if hasattr(self, "_spin_job"):
+            self.after_cancel(self._spin_job)
+
     def _run_convert(self):
         if not self.ws:
             messagebox.showerror("错误","请先选择输入文件"); return
@@ -559,7 +594,7 @@ class BomApp(tk.Tk):
         if self.output_mode_var.get() == "hq" and not self.project_var.get().strip():
             messagebox.showerror("错误","HQ格式需要填写项目名称（第三步）"); return
         self.run_btn.configure(state="disabled")
-        self.status_label.configure(text="转换中...", fg="#2d6cdf")
+        self._start_spinner()
         self.nb.select(3)
         threading.Thread(target=self._do_convert, daemon=True).start()
 
@@ -618,7 +653,19 @@ class BomApp(tk.Tk):
                 self._log(f"共写入 {total} 行")
 
             abs_path = os.path.abspath(out_file)
+            folder   = os.path.dirname(abs_path)
             self._log(f"输出：{abs_path}\n✅ 转换成功！")
+            # 在后台线程里立刻打开文件夹（比在主线程调度更早）
+            try:
+                if sys.platform == "win32":
+                    os.startfile(folder)        # 最快：直接走 Shell API
+                elif sys.platform == "darwin":
+                    subprocess.Popen(["open", folder])
+                else:
+                    subprocess.Popen(["xdg-open", folder])
+            except Exception:
+                pass
+            self.after(0, self._stop_spinner)
             self.after(0, lambda: self.status_label.configure(
                 text=f"✅ 完成！共 {total} 行", fg="#2a8a2a"))
             self.after(0, lambda: messagebox.showinfo("完成", f"转换成功！\n{abs_path}"))
@@ -626,6 +673,7 @@ class BomApp(tk.Tk):
         except Exception as e:
             import traceback
             self._log(f"\n❌ 错误：{e}\n{traceback.format_exc()}")
+            self.after(0, lambda: self._stop_spinner())
             self.after(0, lambda: self.status_label.configure(text="❌ 转换失败，请查看日志", fg="red"))
             self.after(0, lambda: messagebox.showerror("错误", str(e)))
         finally:
