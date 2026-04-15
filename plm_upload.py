@@ -119,22 +119,32 @@ def _int_to_col(n):
 
 def _detect_columns(ws, header_row):
     """
-    扫描表头行，返回 {字段名: 列号(int)} 字典。
+    扫描表头行，返回 ({字段名: 列号}, 已读列名列表)。
     字段名：seq / hq_pn / supply_type / qty
+    宽松匹配：忽略换行、空格、括号内附注。
     """
     result = {}
-    for ci in range(1, ws.max_column + 1):
-        h = str(ws.cell(row=header_row, column=ci).value or "").strip()
+    found_headers = []
+    # 向后多扫几列，防止 max_column 偏小
+    scan_cols = max((ws.max_column or 0) + 5, 30)
+    for ci in range(1, scan_cols + 1):
+        raw = ws.cell(row=header_row, column=ci).value
+        if raw is None:
+            continue
+        # 清洗：去掉换行、多余空格，保留原始文本供调试
+        h  = str(raw).replace("\n", "").replace("\r", "").strip()
         hl = h.lower().replace(" ", "")
+        if h:
+            found_headers.append(f"{_int_to_col(ci)}:{h}")
         if "序号" in h:
             result.setdefault("seq", ci)
         if "hq" in hl and "pn" in hl:
             result.setdefault("hq_pn", ci)
-        if "主二供" in h or ("主" in h and "供" in h and "二" in h):
+        if "主二供" in h or "主供" in h:
             result.setdefault("supply_type", ci)
-        if h in ("用量", "单耗"):
+        if "用量" in h or "单耗" in h:
             result.setdefault("qty", ci)
-    return result
+    return result, found_headers
 
 
 # ── 转换核心 ─────────────────────────────────────────────────────
@@ -372,7 +382,7 @@ class App(tk.Tk):
         try:
             wb   = openpyxl.load_workbook(path, read_only=True, data_only=True)
             ws   = wb[sheet]
-            found = _detect_columns(ws, hdr_row)
+            found, raw_headers = _detect_columns(ws, hdr_row)
             wb.close()
         except Exception as e:
             self._dlog(f"识别失败: {e}")
@@ -390,8 +400,12 @@ class App(tk.Tk):
             var_map[field].set(col_l)
             parts.append(f"{label_map[field]} → {col_l}({ci})")
 
-        self._dlog("自动识别：" + "  |  ".join(parts)
-                   if parts else "未能识别任何列，请手动填写列字母")
+        if parts:
+            self._dlog("自动识别：" + "  |  ".join(parts))
+        else:
+            # 显示实际读到的列名，帮助排查
+            preview = "  ".join(raw_headers[:15]) if raw_headers else "（该行为空）"
+            self._dlog(f"未识别到目标列。第{hdr_row}行实际内容：\n{preview}")
 
     def _dlog(self, text):
         self._detect_log.configure(state="normal")
