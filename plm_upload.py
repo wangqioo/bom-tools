@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-PLM 上传工具 v1.3
+PLM 上传工具 v1.4
 整机BOM配置表 → PLM 系统导入格式
 
 【源文件（整机BOM配置表）关键列】
@@ -274,7 +274,7 @@ def do_convert(in_file, sheet_name, header_row,
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("PLM 上传工具 v1.3")
+        self.title("PLM 上传工具 v1.4")
         self.resizable(False, False)
 
         self._in_file   = tk.StringVar()
@@ -284,8 +284,13 @@ class App(tk.Tk):
         self._col_stype = tk.StringVar()
         self._col_qty   = tk.StringVar()
         self._proj_name = tk.StringVar()
+        self._hdr_debounce = None   # 防抖定时器
 
         self._build_ui()
+
+        # 表头行变更时自动触发识别（防抖 800ms）
+        self._hdr_row.trace_add("write", self._on_hdr_change)
+
 
     # ── 界面构建 ──────────────────────────────────────────────
     def _build_ui(self):
@@ -305,6 +310,7 @@ class App(tk.Tk):
         self._sheet_cb = ttk.Combobox(r2, textvariable=self._sheet,
                                       state="readonly", width=22)
         self._sheet_cb.pack(side="left", padx=4)
+        self._sheet_cb.bind("<<ComboboxSelected>>", lambda e: self._auto_detect())
         ttk.Label(r2, text="  表头行：").pack(side="left")
         ttk.Entry(r2, textvariable=self._hdr_row, width=4).pack(side="left")
         ttk.Button(r2, text="加载 / 刷新", command=self._load).pack(side="left", padx=8)
@@ -381,6 +387,12 @@ class App(tk.Tk):
         if sheets and self._sheet.get() not in sheets:
             self._sheet.set(sheets[0])
         self._auto_detect()
+
+    def _on_hdr_change(self, *_):
+        """表头行输入变化时防抖触发识别（延迟 800ms，避免逐字触发）。"""
+        if self._hdr_debounce:
+            self.after_cancel(self._hdr_debounce)
+        self._hdr_debounce = self.after(800, self._auto_detect)
 
     def _auto_detect(self):
         path  = self._in_file.get().strip()
