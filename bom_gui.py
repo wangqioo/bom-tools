@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-BOM 转换工具 v5.9
+BOM 转换工具 v5.10
 格式A：品牌型号合并列（|| 或多空格分隔，如 MURATA:GRM188||SAMSUNG:CL10）
 格式B：厂家/型号分开列，分号分隔（如 YAGEO;KOA / RC0805;RK73）
 格式C：制造商/型号分开列，冒号分隔，制造商含编号（如 1630-大毅科技[全称]:0362-RALEC[全称]）
@@ -217,7 +217,7 @@ def write_expanded_bom(ws_in, header_row, col_brand, col_model, col_qty, fmt, ou
     max_col = ws_in.max_column
 
     # 构建输出列映射：list of (type, src_ci, header)
-    # type: "seq"=序号, "orig"=原样复制, "brand"=写厂商, "model"=写型号
+    # type: "seq"=序号, "orig"=原样复制, "brand"=写厂商, "model"=写型号, "sole"=是否独供
     out_map = [("seq", None, "序号")]   # 第一列固定为序号
     for ci in range(1, max_col + 1):
         h = ws_in.cell(row=header_row, column=ci).value or ""
@@ -234,6 +234,7 @@ def write_expanded_bom(ws_in, header_row, col_brand, col_model, col_qty, fmt, ou
                 out_map.append(("model", ci, "型号"))
             else:
                 out_map.append(("orig", ci, str(h)))
+    out_map.append(("sole", None, "是否独供"))   # 最后一列固定为是否独供
 
     # 写表头
     for out_ci, (typ, _, h) in enumerate(out_map, 1):
@@ -242,7 +243,7 @@ def write_expanded_bom(ws_in, header_row, col_brand, col_model, col_qty, fmt, ou
         c.fill = hdr_fill
         c.alignment = Alignment(horizontal="center", vertical="center")
         c.border = bdr
-        ws_out.column_dimensions[get_column_letter(out_ci)].width = 6 if typ == "seq" else 18
+        ws_out.column_dimensions[get_column_letter(out_ci)].width = 6 if typ == "seq" else (10 if typ == "sole" else 18)
 
     # 写数据行
     dr = 2; total = 0; skipped = 0; seq = 0
@@ -258,11 +259,14 @@ def write_expanded_bom(ws_in, header_row, col_brand, col_model, col_qty, fmt, ou
         if not suppliers: suppliers = [("", "")]
         mq = safe_qty(qv)
         seq += 1  # 同一组替代料共享同一序号
+        sole_val = "是" if len(suppliers) == 1 else "否"   # 独供判断
 
         for si, (brand, model) in enumerate(suppliers):
             for out_ci, (typ, src_ci, _) in enumerate(out_map, 1):
                 if typ == "seq":
                     val = seq
+                elif typ == "sole":
+                    val = sole_val
                 elif si == 0:
                     # 主供：填所有列
                     if typ == "brand":   val = brand
@@ -286,7 +290,7 @@ def write_expanded_bom(ws_in, header_row, col_brand, col_model, col_qty, fmt, ou
 class BomApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("BOM 转换工具 v5.9")
+        self.title("BOM 转换工具 v5.10")
         self.geometry("820x700")
         self.resizable(True, True)
 
