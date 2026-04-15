@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-PLM 上传工具 v1.0
+PLM 上传工具 v1.1
 整机BOM配置表 → PLM 系统导入格式
 
 【源文件（整机BOM配置表）关键列】
@@ -264,7 +264,7 @@ def do_convert(in_file, sheet_name, header_row,
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("PLM 上传工具 v1.0")
+        self.title("PLM 上传工具 v1.1")
         self.resizable(False, False)
 
         self._in_file   = tk.StringVar()
