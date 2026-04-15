@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-BOM 转换工具 v5.2
+BOM 转换工具 v5.9
 格式A：品牌型号合并列（|| 或多空格分隔，如 MURATA:GRM188||SAMSUNG:CL10）
 格式B：厂家/型号分开列，分号分隔（如 YAGEO;KOA / RC0805;RK73）
 格式C：制造商/型号分开列，冒号分隔，制造商含编号（如 1630-大毅科技[全称]:0362-RALEC[全称]）
@@ -286,7 +286,7 @@ def write_expanded_bom(ws_in, header_row, col_brand, col_model, col_qty, fmt, ou
 class BomApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("BOM 转换工具 v5.2")
+        self.title("BOM 转换工具 v5.9")
         self.geometry("820x700")
         self.resizable(True, True)
 
