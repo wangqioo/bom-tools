@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-PLM 上传工具 v1.5
+PLM 上传工具 v1.6
 整机BOM配置表 → PLM 系统导入格式
 
 【源文件（整机BOM配置表）关键列】
@@ -192,7 +192,7 @@ def do_convert(in_file, sheet_name, header_row,
     ws_out.cell(row=1, column=3, value="描述:").font = meta_font
     ws_out.cell(row=1, column=5, value="项目配置名:").font = meta_font
     ws_out.cell(row=1, column=6, value=project_name or "").font = Font(size=10)
-    ws_out.cell(row=1, column=8, value="工程师:").font = meta_font
+    ws_out.cell(row=1, column=7, value="工程师:").font = meta_font
 
     # 行2: 版本: [  ]  替代项 [  ]  BOM名称: [  ]  归档部门: [  ]
     ws_out.cell(row=2, column=1, value="版本:").font = meta_font
@@ -272,7 +272,7 @@ def do_convert(in_file, sheet_name, header_row,
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("PLM 上传工具 v1.5")
+        self.title("PLM 上传工具 v1.6")
         self.resizable(False, False)
 
         self._in_file   = tk.StringVar()
@@ -500,7 +500,7 @@ class App(tk.Tk):
                 self._wlog(f"输出文件：{out_file}")
                 self.after(0, lambda: messagebox.showinfo(
                     "转换完成",
-                    f"成功写入 {total} 行，跳过 {skipped} 行。\n\n{out_file}"
+                    f"完成！共写入 {total} 行，跳过 {skipped} 行（用量为空不导入）。\n\n{out_file}"
                 ))
                 # 打开输出文件所在文件夹
                 def _open_dir():
