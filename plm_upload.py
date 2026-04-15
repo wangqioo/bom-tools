@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-PLM 上传工具 v1.2
+PLM 上传工具 v1.3
 整机BOM配置表 → PLM 系统导入格式
 
 【源文件（整机BOM配置表）关键列】
@@ -75,10 +75,9 @@ PLM_HEADERS = [
 ]
 
 # 关键列在 PLM_HEADERS 列表中的偏移（0-based）
-PLM_IDX_SEQ      = 0   # A：序号
-PLM_IDX_HQPN     = 1   # B：料号 ← HQ PN
-PLM_IDX_QTY      = 4   # E：单耗
-PLM_IDX_BOM_MARK = 11  # L：主辅BOM标记
+PLM_IDX_SEQ  = 0   # A：序号
+PLM_IDX_HQPN = 1   # B：料号 ← HQ PN
+PLM_IDX_QTY  = 4   # E：单耗（只填主供，替代料留空让 PLM 自动归组）
 
 
 # ── 工具函数 ────────────────────────────────────────────────────
@@ -241,9 +240,8 @@ def do_convert(in_file, sheet_name, header_row,
             continue
 
         # 判断主供 / 替代料
-        stype_str = str(stype or "").strip()
+        stype_str  = str(stype or "").strip()
         is_primary = (stype_str == "主供" or stype_str == "")
-        bom_mark   = "" if is_primary else stype_str   # 二供/三供/四供…
 
         # 主供行才递增序号
         if is_primary:
@@ -254,19 +252,15 @@ def do_convert(in_file, sheet_name, header_row,
             cc.alignment = Alignment(horizontal="left", vertical="center")
             cc.border = bdr
 
-        # 序号（每行都填，同一组相同序号）
+        # 序号（同一组相同序号）
         wc(PLM_IDX_SEQ, seq)
 
         # 料号 ← HQ PN（每行必填）
         wc(PLM_IDX_HQPN, str(hqpn).strip())
 
-        # 单耗：主供且用量 > 0 才填
+        # 单耗：主供且用量 > 0 才填；替代料留空，PLM系统自动归组
         if is_primary and qty > 0:
             wc(PLM_IDX_QTY, qty)
-
-        # 主辅BOM标记：非主供才填
-        if bom_mark:
-            wc(PLM_IDX_BOM_MARK, bom_mark)
 
         dr += 1
         total += 1
@@ -280,7 +274,7 @@ def do_convert(in_file, sheet_name, header_row,
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("PLM 上传工具 v1.2")
+        self.title("PLM 上传工具 v1.3")
         self.resizable(False, False)
 
         self._in_file   = tk.StringVar()
