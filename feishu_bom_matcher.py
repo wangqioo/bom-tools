@@ -120,6 +120,18 @@ class ConfigManager:
         with open(CONFIG_FILE, "w", encoding="utf-8") as f:
             json.dump(self.data, f, ensure_ascii=False, indent=2)
 
+    def set_connection(self, base_url, origin, user_id):
+        self.data["base_url"] = base_url
+        self.data["origin"]   = origin
+        self.data["user_id"]  = user_id
+        self.save()
+
+    def is_configured(self):
+        return (self.data.get("base_url", "").startswith("http") and
+                "example.com" not in self.data.get("base_url", "") and
+                bool(self.data.get("origin")) and
+                bool(self.data.get("user_id")))
+
     @property
     def base_url(self): return self.data.get("base_url", DEFAULT_BASE_URL)
     @property
@@ -530,12 +542,16 @@ class App(tk.Tk):
         self._build_ui()
         self._refresh_lib_tree()
         self._update_cache_label()
+        # 首次运行未配置时自动跳到设置页
+        if not self.cfg.is_configured():
+            self.nb.select(self._tab_settings)
 
     def _build_ui(self):
         self.nb = ttk.Notebook(self)
         self.nb.pack(fill="both", expand=True, padx=10, pady=8)
         for name, attr in [("库管理","_tab_lib"),("同步数据","_tab_sync"),
-                            ("BOM匹配","_tab_bom"),("日志","_tab_log")]:
+                            ("BOM匹配","_tab_bom"),("日志","_tab_log"),
+                            ("⚙ 设置","_tab_settings")]:
             f = ttk.Frame(self.nb)
             setattr(self, attr, f)
             self.nb.add(f, text=f"  {name}  ")
@@ -543,6 +559,7 @@ class App(tk.Tk):
         self._build_sync()
         self._build_bom()
         self._build_log()
+        self._build_settings()
 
     # ── Tab: 库管理 ──────────────────────────────────────────────────
     def _build_lib(self):
@@ -860,6 +877,48 @@ class App(tk.Tk):
             self.after(0, lambda: messagebox.showerror("错误", msg))
         finally:
             self.after(0, lambda: self.btn_match.configure(state="normal"))
+
+    # ── Tab: 设置 ────────────────────────────────────────────────────
+    def _build_settings(self):
+        p = self._tab_settings
+        f = ttk.LabelFrame(p, text="飞书 API 网关配置（保存后永久生效）", padding=16)
+        f.pack(fill="x", padx=20, pady=20)
+
+        self.v_set_url    = tk.StringVar(value=self.cfg.base_url)
+        self.v_set_origin = tk.StringVar(value=self.cfg.origin)
+        self.v_set_uid    = tk.StringVar(value=self.cfg.user_id)
+
+        rows = [
+            ("网关地址：",       self.v_set_url,    "企业内部 API 网关地址，例如 https://mcenter.example.com"),
+            ("Origin / AppId：", self.v_set_origin, "飞书应用的 App ID，例如 cli_xxxxxxxxxxxxxxxx"),
+            ("工号 (userId)：",  self.v_set_uid,    "你的员工工号（纯数字）"),
+        ]
+        for i, (lbl, var, tip) in enumerate(rows):
+            tk.Label(f, text=lbl, width=18, anchor="w").grid(row=i, column=0, sticky="w", pady=6)
+            ttk.Entry(f, textvariable=var, width=46).grid(row=i, column=1, sticky="w", padx=6)
+            tk.Label(f, text=tip, fg="#888").grid(row=i, column=2, sticky="w", padx=4)
+
+        hint = tk.Label(p,
+            text="这些配置保存在本地 feishu_bom_data/ 文件夹中，不会上传到任何服务器。",
+            fg="#888")
+        hint.pack(anchor="w", padx=22)
+
+        self.lbl_save_status = tk.Label(p, text="", fg="#555")
+        self.lbl_save_status.pack(anchor="w", padx=22, pady=4)
+
+        ttk.Button(p, text="保存设置", command=self._save_settings, width=16).pack(
+            anchor="w", padx=22, pady=8)
+
+    def _save_settings(self):
+        url    = self.v_set_url.get().strip().rstrip("/")
+        origin = self.v_set_origin.get().strip()
+        uid    = self.v_set_uid.get().strip()
+        if not url or not origin or not uid:
+            self.lbl_save_status.configure(text="请填写全部三项", fg="red"); return
+        self.cfg.set_connection(url, origin, uid)
+        self.api = FeishuAPI(url, origin, uid)
+        self.lbl_save_status.configure(text="✓ 已保存，配置立即生效", fg="#2a8a2a")
+        self._log(f"设置已保存：网关={url}  Origin={origin}  工号={uid}")
 
     # ── 日志 ─────────────────────────────────────────────────────────
     def _log(self, msg):
