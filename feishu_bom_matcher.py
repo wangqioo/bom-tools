@@ -407,9 +407,11 @@ class AddLibraryDialog(tk.Toplevel):
         tk.Label(top, text="库名称：",    width=12, anchor="w").grid(row=0, column=0, sticky="w", pady=3)
         self.v_name = tk.StringVar()
         ttk.Entry(top, textvariable=self.v_name, width=36).grid(row=0, column=1, sticky="w", padx=4)
-        tk.Label(top, text="表格Token：", width=12, anchor="w").grid(row=1, column=0, sticky="w", pady=3)
+        tk.Label(top, text="表格URL/Token：", width=14, anchor="w").grid(row=1, column=0, sticky="w", pady=3)
         self.v_token = tk.StringVar()
-        ttk.Entry(top, textvariable=self.v_token, width=46).grid(row=1, column=1, sticky="w", padx=4)
+        ttk.Entry(top, textvariable=self.v_token, width=54).grid(row=1, column=1, sticky="w", padx=4)
+        tk.Label(top, text="（粘贴完整飞书表格链接即可，自动提取 Token）",
+                 fg="#888").grid(row=2, column=1, sticky="w", padx=4)
         self.btn_fetch = ttk.Button(top, text="获取 Sheet 列表", command=self._do_fetch)
         self.btn_fetch.grid(row=1, column=2, padx=8)
         self.lbl_fetch = tk.Label(top, text="", fg="#555")
@@ -438,10 +440,20 @@ class AddLibraryDialog(tk.Toplevel):
         self.btn_ok.pack(side="left", padx=6)
         ttk.Button(btn_row, text="取消", command=self.destroy, width=10).pack(side="left")
 
+    @staticmethod
+    def _extract_token(raw):
+        """支持完整 URL 或纯 token，从 /sheets/ 和 /base/ 后面提取 token"""
+        import re
+        raw = raw.strip()
+        m = re.search(r"/(?:sheets|base)/([A-Za-z0-9]+)", raw)
+        return m.group(1) if m else raw
+
     def _do_fetch(self):
-        token = self.v_token.get().strip()
-        if not token:
-            messagebox.showwarning("提示", "请先填写表格Token", parent=self); return
+        raw = self.v_token.get().strip()
+        if not raw:
+            messagebox.showwarning("提示", "请先填写表格 URL 或 Token", parent=self); return
+        token = self._extract_token(raw)
+        self.v_token.set(token)   # 回写提取出的纯 token
         self.btn_fetch.configure(state="disabled")
         self.lbl_fetch.configure(text="获取中...", fg="#2d6cdf")
         threading.Thread(target=self._fetch_bg, args=(token,), daemon=True).start()
