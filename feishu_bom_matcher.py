@@ -140,11 +140,16 @@ class ConfigManager:
                 bool(self.data.get("user_id")))
 
     @property
-    def base_url(self): return self.data.get("base_url", DEFAULT_BASE_URL)
+    def base_url(self):
+        v = self.data.get("base_url", "").strip().strip("`")
+        return v if v and "example.com" not in v else DEFAULT_BASE_URL
     @property
-    def origin(self):   return self.data.get("origin", DEFAULT_ORIGIN)
+    def origin(self):
+        v = self.data.get("origin", "").strip().strip("`")
+        return v if v else DEFAULT_ORIGIN
     @property
-    def user_id(self):  return self.data.get("user_id", DEFAULT_USER_ID)
+    def user_id(self):
+        return self.data.get("user_id", "").strip()
     @property
     def libraries(self): return self.data.get("libraries", [])
 
@@ -900,7 +905,7 @@ class App(tk.Tk):
     # ── Tab: 设置 ────────────────────────────────────────────────────
     def _build_settings(self):
         p = self._tab_settings
-        f = ttk.LabelFrame(p, text="飞书 API 网关配置（保存后永久生效）", padding=16)
+        f = ttk.LabelFrame(p, text="飞书连接配置（保存后永久生效）", padding=16)
         f.pack(fill="x", padx=20, pady=20)
 
         self.v_set_url    = tk.StringVar(value=self.cfg.base_url)
@@ -908,29 +913,25 @@ class App(tk.Tk):
         self.v_set_uid    = tk.StringVar(value=self.cfg.user_id)
 
         rows = [
-            ("网关地址：",       self.v_set_url,    "企业内部 API 网关地址，例如 https://mcenter.example.com"),
-            ("Origin / AppId：", self.v_set_origin, "飞书应用的 App ID，例如 cli_xxxxxxxxxxxxxxxx"),
-            ("工号 (userId)：",  self.v_set_uid,    "你的员工工号（纯数字）"),
+            ("网关地址：",       self.v_set_url,    46, ""),
+            ("Origin / AppId：", self.v_set_origin, 46, ""),
+            ("工号 (userId)：",  self.v_set_uid,    24, "首次使用请填写你的员工工号（纯数字）"),
         ]
-        for i, (lbl, var, tip) in enumerate(rows):
+        for i, (lbl, var, w, tip) in enumerate(rows):
             tk.Label(f, text=lbl, width=18, anchor="w").grid(row=i, column=0, sticky="w", pady=6)
-            ttk.Entry(f, textvariable=var, width=46).grid(row=i, column=1, sticky="w", padx=6)
-            tk.Label(f, text=tip, fg="#888").grid(row=i, column=2, sticky="w", padx=4)
-
-        hint = tk.Label(p,
-            text="这些配置保存在本地 feishu_bom_data/ 文件夹中，不会上传到任何服务器。",
-            fg="#888")
-        hint.pack(anchor="w", padx=22)
+            ttk.Entry(f, textvariable=var, width=w).grid(row=i, column=1, sticky="w", padx=6)
+            if tip:
+                tk.Label(f, text=tip, fg="#888").grid(row=i, column=2, sticky="w", padx=4)
 
         self.lbl_save_status = tk.Label(p, text="", fg="#555")
         self.lbl_save_status.pack(anchor="w", padx=22, pady=4)
 
-        ttk.Button(p, text="保存设置", command=self._save_settings, width=16).pack(
+        ttk.Button(p, text="保存设置", command=self._save_settings, width=14).pack(
             anchor="w", padx=22, pady=8)
 
     def _save_settings(self):
-        url    = self.v_set_url.get().strip().rstrip("/")
-        origin = self.v_set_origin.get().strip()
+        url    = self.v_set_url.get().strip().strip("`").rstrip("/")
+        origin = self.v_set_origin.get().strip().strip("`")
         uid    = self.v_set_uid.get().strip()
         if not url or not origin or not uid:
             self.lbl_save_status.configure(text="请填写全部三项", fg="red"); return
