@@ -107,14 +107,21 @@ class ConfigManager:
         self.data = self._load()
 
     def _load(self):
+        data = {"base_url": DEFAULT_BASE_URL, "origin": DEFAULT_ORIGIN,
+                "user_id": DEFAULT_USER_ID, "libraries": []}
         if os.path.exists(CONFIG_FILE):
             try:
                 with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-                    return json.load(f)
+                    saved = json.load(f)
+                data.update(saved)
             except Exception:
                 pass
-        return {"base_url": DEFAULT_BASE_URL, "origin": DEFAULT_ORIGIN,
-                "user_id": DEFAULT_USER_ID, "libraries": []}
+        # 若保存的是旧占位符，用新默认值覆盖
+        if not data.get("base_url") or "example.com" in data.get("base_url", ""):
+            data["base_url"] = DEFAULT_BASE_URL
+        if not data.get("origin") or data["origin"] == "":
+            data["origin"] = DEFAULT_ORIGIN
+        return data
 
     def save(self):
         with open(CONFIG_FILE, "w", encoding="utf-8") as f:
