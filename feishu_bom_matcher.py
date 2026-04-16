@@ -34,9 +34,9 @@ DATA_DIR     = os.path.join(BASE_DIR, "feishu_bom_data")
 os.makedirs(DATA_DIR, exist_ok=True)          # 首次运行自动创建数据目录
 CONFIG_FILE  = os.path.join(DATA_DIR, "feishu_libraries.json")
 CACHE_FILE   = os.path.join(DATA_DIR, "feishu_cache.db")
-DEFAULT_BASE_URL = "https://your-gateway.example.com"  # 替换为实际网关地址
-DEFAULT_ORIGIN   = ""   # 替换为你的 App ID
-DEFAULT_USER_ID  = ""   # 替换为你的工号
+DEFAULT_BASE_URL = "https://mcenter.huaqin.com"
+DEFAULT_ORIGIN   = "cli_a96ac38049f8d0e5"
+DEFAULT_USER_ID  = ""   # 首次使用时填写工号
 
 # ─────────────────────────────────────────────────────────────────────
 # 工具函数
