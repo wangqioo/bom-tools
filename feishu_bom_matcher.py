@@ -5,9 +5,9 @@
 - 本地 SQLite 缓存，同步一次即可离线匹配
 - 每次拿到新表格 token，添加进来配置好列映射即可纳入全局匹配
 
-认证方式：华勤内部 API 网关（origin + 工号，无需 App Secret）
+认证方式：企业内部 API 网关（origin + 工号，无需 App Secret）
 依赖：pip install openpyxl requests（首次运行自动安装）
-运行：python feishu_match.py
+运行：python feishu_bom_matcher.py
 """
 
 import sys, subprocess
@@ -32,9 +32,9 @@ VERSION      = "v3.0"
 BASE_DIR     = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE  = os.path.join(BASE_DIR, "feishu_libraries.json")
 CACHE_FILE   = os.path.join(BASE_DIR, "feishu_cache.db")
-DEFAULT_BASE_URL = "https://mcenter.huaqin.com"
-DEFAULT_ORIGIN   = "cli_a96ac38049f8d0e5"
-DEFAULT_USER_ID  = "100448405"
+DEFAULT_BASE_URL = "https://your-gateway.example.com"  # 替换为实际网关地址
+DEFAULT_ORIGIN   = ""   # 替换为你的 App ID
+DEFAULT_USER_ID  = ""   # 替换为你的工号
 
 # ─────────────────────────────────────────────────────────────────────
 # 工具函数
