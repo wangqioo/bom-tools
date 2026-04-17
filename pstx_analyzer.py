@@ -415,7 +415,165 @@ def analyze_derating(components: Dict, nets: Dict,
 
 
 # ══════════════════════════════════════════════════════════
-# 六、Excel 导出
+# 六、电阻检查（上拉 / 下拉 / 串阻）
+# ══════════════════════════════════════════════════════════
+
+def _parse_ohms(value_str: str) -> Optional[float]:
+    """解析电阻值字符串为欧姆数，支持 k/M/R/Ω 后缀，如 10k→10000, 4.7k→4700, 100R→100"""
+    if not value_str:
+        return None
+    s = re.sub(r'\s', '', value_str.upper())
+    s = s.replace('Ω', 'R').replace('OHM', 'R').replace('OHMS', 'R')
+    m = re.match(r'^([\d.]+)([KMGR]?)$', s)
+    if not m:
+        return None
+    val = float(m.group(1))
+    return val * {'K': 1e3, 'M': 1e6, 'G': 1e9, 'R': 1, '': 1}.get(m.group(2), 1)
+
+
+def _net_is_power(net: str) -> bool:
+    return bool(re.search(r'^P\d|^[0-9]+V|VCC|VDD|VBAT|VCORE|VCCIO|PVDD|AVDD|DVDD', net, re.I))
+
+
+def _net_is_gnd(net: str) -> bool:
+    return bool(re.search(r'GND|AGND|SGND|PGND|DGND', net, re.I))
+
+
+# 常见 OD/OC 信号名特征（不区分大小写）
+_OD_OC_PATTERNS = [
+    r'\bSDA\b', r'\bSCL\b', r'SMBA', r'SMBALERT',
+    r'\bFAULT\b', r'_FAULT', r'VR_FAULT', r'VRD_FAULT',
+    r'\bALERT\b', r'_ALERT',
+    r'\bPGD\b', r'_PGD', r'VRD_PGD', r'VR_PGD',
+    r'OC_N', r'_OC\b',
+    r'\bPRESENT\b', r'\bPRSNT\b', r'_PRSNT',
+    r'INT_N', r'IRQ_N',
+]
+
+
+def analyze_resistors(components: Dict, nets: Dict) -> dict:
+    """检测上拉/下拉/串阻相关设计问题"""
+    pullups:   Dict[str, list] = defaultdict(list)
+    pulldowns: Dict[str, list] = defaultdict(list)
+    series_list: list = []
+
+    for refdes, comp in components.items():
+        if comp.get('comp_type') != 'RES':
+            continue
+        pin_nets = list(comp.get('nets', {}).values())
+        if len(pin_nets) < 2:
+            continue
+        net_a, net_b = pin_nets[0], pin_nets[1]
+        ohms    = _parse_ohms(comp.get('value', ''))
+        val_str = comp.get('value', '')
+        page    = comp.get('page', '')
+
+        a_pwr, b_pwr = _net_is_power(net_a), _net_is_power(net_b)
+        a_gnd, b_gnd = _net_is_gnd(net_a),   _net_is_gnd(net_b)
+
+        if a_pwr and not b_pwr and not b_gnd:
+            pullups[net_b].append({'refdes': refdes, 'ohms': ohms, 'value': val_str,
+                                   'power_net': net_a, 'page': page})
+        elif b_pwr and not a_pwr and not a_gnd:
+            pullups[net_a].append({'refdes': refdes, 'ohms': ohms, 'value': val_str,
+                                   'power_net': net_b, 'page': page})
+        elif a_gnd and not b_gnd and not b_pwr:
+            pulldowns[net_b].append({'refdes': refdes, 'ohms': ohms,
+                                     'value': val_str, 'page': page})
+        elif b_gnd and not a_gnd and not a_pwr:
+            pulldowns[net_a].append({'refdes': refdes, 'ohms': ohms,
+                                     'value': val_str, 'page': page})
+        elif not a_pwr and not b_pwr and not a_gnd and not b_gnd:
+            series_list.append({'refdes': refdes, 'net_a': net_a, 'net_b': net_b,
+                                 'ohms': ohms, 'value': val_str, 'page': page})
+
+    # ── 检查1：重复上拉 ───────────────────────────────────
+    dup_pullups = []
+    for sig_net, pu_list in sorted(pullups.items()):
+        if len(pu_list) > 1:
+            dup_pullups.append({
+                '信号网络':  sig_net,
+                '上拉数量':  len(pu_list),
+                '位号':      ', '.join(r['refdes'] for r in pu_list),
+                '阻值':      ', '.join(r['value']  for r in pu_list),
+                '上拉电源':  ', '.join(dict.fromkeys(r['power_net'] for r in pu_list)),
+                '页面':      ', '.join(dict.fromkeys(r['page']      for r in pu_list)),
+            })
+
+    # ── 检查2：重复下拉 ───────────────────────────────────
+    dup_pulldowns = []
+    for sig_net, pd_list in sorted(pulldowns.items()):
+        if len(pd_list) > 1:
+            dup_pulldowns.append({
+                '信号网络': sig_net,
+                '下拉数量': len(pd_list),
+                '位号':     ', '.join(r['refdes'] for r in pd_list),
+                '阻值':     ', '.join(r['value']  for r in pd_list),
+                '页面':     ', '.join(dict.fromkeys(r['page'] for r in pd_list)),
+            })
+
+    # ── 检查3：串阻 + 上拉分压风险 ───────────────────────
+    divider_risks = []
+    seen_pairs: set = set()
+    for sr in series_list:
+        for pu_net in (sr['net_a'], sr['net_b']):
+            if pu_net not in pullups:
+                continue
+            for pu in pullups[pu_net]:
+                pair_key = (sr['refdes'], pu['refdes'])
+                if pair_key in seen_pairs:
+                    continue
+                seen_pairs.add(pair_key)
+                sr_ohms, pu_ohms = sr['ohms'], pu['ohms']
+                if sr_ohms is not None and pu_ohms is not None and pu_ohms > 0:
+                    ratio = sr_ohms / pu_ohms
+                    if pu_ohms < 1000:
+                        status = '❌ 高风险' if ratio > 0.1 else '✅ 正常'
+                    else:
+                        status = '⚠️ 关注'   if ratio > 0.1 else '✅ 正常'
+                else:
+                    ratio, status = None, '⚪ 阻值未填，无法计算'
+                divider_risks.append({
+                    '串阻位号':   sr['refdes'],
+                    '串阻值':     sr['value'],
+                    '上拉位号':   pu['refdes'],
+                    '上拉值':     pu['value'],
+                    '上拉电源':   pu['power_net'],
+                    '公共节点':   pu_net,
+                    '串/拉比':    f'{ratio:.3f}' if ratio is not None else '',
+                    '上拉 < 1k':  '是' if (pu_ohms or 0) < 1000 else '否',
+                    '状态':       status,
+                    '页面':       sr['page'],
+                })
+            break
+    divider_risks.sort(key=lambda r: 0 if r['状态'].startswith('❌')
+                       else 1 if r['状态'].startswith('⚠') else 2)
+
+    # ── 检查4：OD/OC 信号缺上拉 ──────────────────────────
+    od_missing = []
+    for net_name in sorted(nets.keys()):
+        if any(re.search(p, net_name, re.I) for p in _OD_OC_PATTERNS):
+            if net_name not in pullups:
+                nodes = nets[net_name]
+                od_missing.append({
+                    '网络名':   net_name,
+                    '节点数':   len(nodes),
+                    '连接元件': ', '.join(n['refdes'] for n in nodes[:6]),
+                    '说明':     '疑似 OD/OC 信号，未找到上拉电阻',
+                })
+
+    return {
+        'dup_pullups':    dup_pullups,
+        'dup_pulldowns':  dup_pulldowns,
+        'divider_risks':  divider_risks,
+        'od_missing':     od_missing,
+        'pullups':        dict(pullups),
+        'pulldowns':      dict(pulldowns),
+    }
+
+
+# ══════════════════════════════════════════════════════════
+# 八、Excel 导出
 # ══════════════════════════════════════════════════════════
 
 _BL = PatternFill("solid", fgColor="1F4E79")
@@ -569,7 +727,7 @@ def export_to_excel(data: dict, out_path: str) -> str:
 
 
 # ══════════════════════════════════════════════════════════
-# 七、GUI
+# 九、GUI
 # ══════════════════════════════════════════════════════════
 
 def _make_tree(parent, columns, height=12):
@@ -633,7 +791,7 @@ class PstxApp(tk.Tk):
 
         self._components = {}; self._nets = {}
         self._dn = []; self._dd = []; self._mn = []; self._md = []
-        self._na = {}; self._drc = {}; self._drt = []
+        self._na = {}; self._drc = {}; self._drt = []; self._res = {}
 
         self.prt_path    = tk.StringVar()
         self.net_path    = tk.StringVar()
@@ -666,6 +824,7 @@ class PstxApp(tk.Tk):
             ('  BOM 管理  ', self._build_bom),
             ('  网络分析  ', self._build_net),
             ('  设计检查  ', self._build_drc),
+            ('  电阻检查  ', self._build_res),
             ('  电容降额  ', self._build_derating),
             ('  元件查询  ', self._build_query),
             ('  日志      ', self._build_log),
@@ -780,6 +939,30 @@ class PstxApp(tk.Tk):
             ('TBD 属性',   ['位号', '属性', '当前值', '类型', '页面'],                     '_tree_drc_tbd'),
             ('单端网络',   ['网络名', '连接元件', '引脚', '页面'],                         '_tree_drc_single'),
             ('BOM_OPTION', ['实际填写值', '疑似应为', '编辑距离', '使用该值的位号', '风险'], '_tree_drc_opt'),
+        ]:
+            f = ttk.Frame(sub); sub.add(f, text=f'  {title}  ')
+            outer, tree = _make_tree(f, cols, height=15)
+            outer.pack(fill='both', expand=True)
+            setattr(self, attr, tree)
+
+    # ── Tab：电阻检查 ──────────────────────────────────────
+
+    def _build_res(self, p):
+        sub = ttk.Notebook(p); sub.pack(fill='both', expand=True, padx=10, pady=8)
+        for title, cols, attr in [
+            ('串阻分压风险',
+             ['串阻位号', '串阻值', '上拉位号', '上拉值', '上拉电源',
+              '公共节点', '串/拉比', '上拉 < 1k', '状态', '页面'],
+             '_tree_res_div'),
+            ('重复上拉',
+             ['信号网络', '上拉数量', '位号', '阻值', '上拉电源', '页面'],
+             '_tree_res_dup_pu'),
+            ('重复下拉',
+             ['信号网络', '下拉数量', '位号', '阻值', '页面'],
+             '_tree_res_dup_pd'),
+            ('OD/OC 缺上拉',
+             ['网络名', '节点数', '连接元件', '说明'],
+             '_tree_res_od'),
         ]:
             f = ttk.Frame(sub); sub.add(f, text=f'  {title}  ')
             outer, tree = _make_tree(f, cols, height=15)
@@ -959,10 +1142,11 @@ class PstxApp(tk.Tk):
             na  = analyze_networks(nets, comps)
             drc = check_drc(comps, nets)
             drt = analyze_derating(comps, nets, self.ratio_var.get(), self._volt_map())
+            res = analyze_resistors(comps, nets)
 
             self._components = comps; self._nets = nets
             self._dn = dn; self._dd = dd; self._mn = mn; self._md = md
-            self._na = na; self._drc = drc; self._drt = drt
+            self._na = na; self._drc = drc; self._drt = drt; self._res = res
 
             drc_total = sum(len(v) for v in drc.values() if isinstance(v, list))
             self._log(f'  贴装 {len(mn)} 种 / {sum(r.get("数量",0) for r in mn)} 个')
@@ -983,6 +1167,7 @@ class PstxApp(tk.Tk):
         self._refresh_bom()
         self._refresh_net()
         self._refresh_drc()
+        self._refresh_res()
         self._refresh_derating()
         self.nb.select(1)
 
@@ -1064,6 +1249,24 @@ class PstxApp(tk.Tk):
                    ['网络名', '连接元件', '引脚', '页面'])
         _fill_tree(self._tree_drc_opt,    drc.get('bom_option_typos', []),
                    ['实际填写值', '疑似应为', '编辑距离', '使用该值的位号', '风险'])
+
+    # ──────── 电阻检查 ─────────────────────────────────────
+
+    def _refresh_res(self):
+        ra = self._res
+        _fill_tree(self._tree_res_div,
+                   ra.get('divider_risks', []),
+                   ['串阻位号', '串阻值', '上拉位号', '上拉值', '上拉电源',
+                    '公共节点', '串/拉比', '上拉 < 1k', '状态', '页面'])
+        _fill_tree(self._tree_res_dup_pu,
+                   ra.get('dup_pullups', []),
+                   ['信号网络', '上拉数量', '位号', '阻值', '上拉电源', '页面'])
+        _fill_tree(self._tree_res_dup_pd,
+                   ra.get('dup_pulldowns', []),
+                   ['信号网络', '下拉数量', '位号', '阻值', '页面'])
+        _fill_tree(self._tree_res_od,
+                   ra.get('od_missing', []),
+                   ['网络名', '节点数', '连接元件', '说明'])
 
     # ──────── 降额 ─────────────────────────────────────────
 
