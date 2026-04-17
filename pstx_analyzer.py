@@ -346,11 +346,30 @@ _VOLT_RULES: List[Tuple[str, float]] = [
 ]
 
 
+# OD/PG 信号模式：这类网络的电压由外部上拉决定，无法从网络名直接推断
+_OD_SKIP_PATTERNS = re.compile(
+    r'\bPG\b|PGOOD|_PG_|_PGD\b|PG_N|PWRGD|POWER_GOOD'
+    r'|\bFAULT\b|_FAULT|VR_FAULT'
+    r'|\bALERT\b|_ALERT|SMBALERT'
+    r'|\bSDA\b|\bSCL\b'
+    r'|\bOC_N\b|_OC\b'
+    r'|\bPRSNT\b|\bPRESENT\b'
+    r'|\bINT_N\b|\bIRQ_N\b',
+    re.IGNORECASE,
+)
+
+
 def _infer_voltage(net_name: str) -> Optional[float]:
+    if _OD_SKIP_PATTERNS.search(net_name):
+        return None          # OD/PG 信号跳过，避免错误推断
     for pattern, volt in _VOLT_RULES:
         if re.search(pattern, net_name, re.IGNORECASE):
             return volt
     return None
+
+
+def _is_od_net(net_name: str) -> bool:
+    return bool(_OD_SKIP_PATTERNS.search(net_name))
 
 
 def analyze_derating(components: Dict, nets: Dict,
@@ -388,7 +407,13 @@ def analyze_derating(components: Dict, nets: Dict,
                     if v is not None and v > 0 and (max_v is None or v > max_v):
                         max_v, from_net = v, net_name
                 if max_v is None:
-                    status, derating = '⚪ 无法推断工作电压', None
+                    # 判断是否因为连接了 OD/PG 网络导致无法推断
+                    od_nets = [n for n in comp_nets.get(refdes, []) if _is_od_net(n)]
+                    if od_nets:
+                        status = f'⚪ OD/PG信号（{od_nets[0]}），工作电压由上拉决定，请手动确认'
+                    else:
+                        status = '⚪ 无法推断工作电压'
+                    derating = None
                 else:
                     usage_pct = max_v / rated_v * 100        # 工作电压占额定的 %
                     derating  = rated_v / max_v              # 仍保留降额比供参考
