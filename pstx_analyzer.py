@@ -653,8 +653,10 @@ class PstxApp(tk.Tk):
         fa = self._section(p, '快速加载 — 选择文件夹自动识别')
         ttk.Button(fa, text='选择文件夹…',
                    command=self._auto_detect).pack(side='left', padx=4)
-        self.auto_detect_lbl = tk.Label(fa, text='（在所选目录及一级子目录中自动匹配三个 .dat 文件）',
-                                         fg='#666')
+        self.auto_detect_lbl = tk.Label(
+            fa,
+            text='请选择 worklib 中该项目的文件夹，工具将自动在其中查找三个 .dat 文件',
+            fg='#666')
         self.auto_detect_lbl.pack(side='left', padx=8)
 
         # 单文件手动选择区
