@@ -777,8 +777,46 @@ class PstxApp(tk.Tk):
         self.volt_entry = tk.Text(fc, height=3, width=38, font=('Consolas', 9))
         self.volt_entry.grid(row=1, column=1, columnspan=2, padx=8, sticky='w')
         self.volt_entry.insert('1.0', '# 示例：VBUS=5.0\n# P12V_AUX=12.0')
-        ttk.Button(fc, text='重新计算',
-                   command=self._recalc_derating).grid(row=2, column=1, sticky='w', pady=4)
+        btn_row = tk.Frame(fc); btn_row.grid(row=2, column=1, sticky='w', pady=4)
+        ttk.Button(btn_row, text='重新计算',
+                   command=self._recalc_derating).pack(side='left')
+        self._rules_visible = False
+        self._rules_btn = ttk.Button(btn_row, text='查看内置电压匹配规则 ▾',
+                                     command=self._toggle_rules)
+        self._rules_btn.pack(side='left', padx=12)
+
+        # 可折叠的规则说明区
+        self._rules_frame = tk.Frame(fc, relief='sunken', bd=1, bg='#f8f8f8')
+        self._rules_frame.grid(row=3, column=0, columnspan=3, sticky='ew', padx=0, pady=(0, 4))
+        self._rules_frame.grid_remove()          # 默认隐藏
+
+        rules_txt = scrolledtext.ScrolledText(
+            self._rules_frame, font=('Consolas', 9), height=10,
+            bg='#f8f8f8', relief='flat', state='normal')
+        rules_txt.pack(fill='both', expand=True, padx=6, pady=4)
+
+        algo_text = (
+            "【工作电压推断算法】\n"
+            "  1. 读取该电容连接的所有网络名\n"
+            "  2. 对每个网络名逐条匹配下方规则，取最大非零值作为工作电压\n"
+            "  3. 若用户填写了自定义映射（NET前缀=电压），优先匹配\n"
+            "  4. 降额比 = 额定电压 ÷ 推断工作电压，≥ 降额系数 则合格\n\n"
+            "【内置电压匹配规则（按匹配优先级）】\n"
+            f"  {'网络名关键字':<20} {'推断电压 (V)'}\n"
+            f"  {'-'*36}\n"
+        )
+        for pattern, volt in _VOLT_RULES:
+            # 去掉正则符号，展示可读关键字
+            readable = re.sub(r'[\\b\\(\\)\\?!^]', '', pattern).replace('\\', '')
+            algo_text += f"  {readable:<20} {volt}\n"
+        algo_text += (
+            "\n【⚪ 无法判断的常见原因】\n"
+            "  · 原理图未填写 VOLTAGE 属性\n"
+            "  · 连接网络全用自定义命名（如 NET_A、SIGNAL_1），无法匹配规则\n"
+            "    → 解决：在上方自定义映射框里手动添加 NET前缀=电压\n"
+        )
+        rules_txt.insert('1.0', algo_text)
+        rules_txt.configure(state='disabled')
 
         cols = ['位号', '值', '封装', '类型', '额定电压', '推断工作电压(V)',
                 '推断来源网络', '降额比', '状态', '页面', 'DEPOP']
@@ -1020,6 +1058,15 @@ class PstxApp(tk.Tk):
             self._components, self._nets, self.ratio_var.get(), self._volt_map())
         self._refresh_derating()
         self._log(f'降额重新计算完成（系数={self.ratio_var.get():.1f}）')
+
+    def _toggle_rules(self):
+        self._rules_visible = not self._rules_visible
+        if self._rules_visible:
+            self._rules_frame.grid()
+            self._rules_btn.configure(text='收起内置电压匹配规则 ▴')
+        else:
+            self._rules_frame.grid_remove()
+            self._rules_btn.configure(text='查看内置电压匹配规则 ▾')
 
     def _volt_map(self):
         result = {}
