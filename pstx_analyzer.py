@@ -354,8 +354,9 @@ def _infer_voltage(net_name: str) -> Optional[float]:
 
 
 def analyze_derating(components: Dict, nets: Dict,
-                     ratio: float = 2.0,
+                     pct: float = 70.0,
                      custom_volt_map: Optional[Dict[str, float]] = None) -> List[dict]:
+    """pct: 工作电压上限占额定电压的百分比，默认 70（即工作电压 ≤ 额定 × 70% 视为合格）"""
     comp_nets: Dict[str, List[str]] = defaultdict(list)
     for net_name, nodes in nets.items():
         for node in nodes:
@@ -389,9 +390,12 @@ def analyze_derating(components: Dict, nets: Dict,
                 if max_v is None:
                     status, derating = '⚪ 无法推断工作电压', None
                 else:
-                    derating = rated_v / max_v
-                    status = (f'✅ 合格 ({derating:.1f}x)' if derating >= ratio
-                              else f'❌ 不合格 ({derating:.2f}x < {ratio}x)')
+                    usage_pct = max_v / rated_v * 100        # 工作电压占额定的 %
+                    derating  = rated_v / max_v              # 仍保留降额比供参考
+                    if usage_pct <= pct:
+                        status = f'✅ 合格 ({usage_pct:.0f}% ≤ {pct:.0f}%)'
+                    else:
+                        status = f'❌ 不合格 ({usage_pct:.0f}% > {pct:.0f}%)'
         rows.append({
             '位号':            refdes,
             '值':              comp.get('value', ''),
@@ -639,7 +643,7 @@ class PstxApp(tk.Tk):
         self.bom_search  = tk.StringVar()
         self.query_mode  = tk.StringVar(value='位号')
         self.query_text  = tk.StringVar()
-        self.ratio_var   = tk.DoubleVar(value=2.0)
+        self.ratio_var   = tk.DoubleVar(value=70.0)
 
         self.bom_filter.trace_add('write', lambda *_: self._refresh_bom())
         self.bom_search.trace_add('write', lambda *_: self._refresh_bom())
@@ -786,13 +790,13 @@ class PstxApp(tk.Tk):
 
     def _build_derating(self, p):
         fc = self._section(p, '参数设置')
-        tk.Label(fc, text='降额系数（额定/工作 ≥ X）：').grid(row=0, column=0, sticky='w')
-        ttk.Scale(fc, from_=1.0, to=5.0, orient='horizontal',
+        tk.Label(fc, text='工作电压上限（额定电压的 %）：').grid(row=0, column=0, sticky='w')
+        ttk.Scale(fc, from_=50, to=100, orient='horizontal',
                   variable=self.ratio_var, length=200).grid(row=0, column=1, padx=8)
-        self.ratio_lbl = tk.Label(fc, text='2.0', width=5, font=('Arial', 11, 'bold'))
+        self.ratio_lbl = tk.Label(fc, text='70%', width=6, font=('Arial', 11, 'bold'))
         self.ratio_lbl.grid(row=0, column=2)
         self.ratio_var.trace_add('write', lambda *_: self.ratio_lbl.configure(
-            text=f'{self.ratio_var.get():.1f}'))
+            text=f'{self.ratio_var.get():.0f}%'))
 
         tk.Label(fc, text='自定义电压映射\n（每行 NET前缀=电压V）：',
                  justify='left').grid(row=1, column=0, sticky='nw', pady=6)
@@ -822,7 +826,7 @@ class PstxApp(tk.Tk):
             "  1. 读取该电容连接的所有网络名\n"
             "  2. 对每个网络名逐条匹配下方规则，取最大非零值作为工作电压\n"
             "  3. 若用户填写了自定义映射（NET前缀=电压），优先匹配\n"
-            "  4. 降额比 = 额定电压 ÷ 推断工作电压，≥ 降额系数 则合格\n\n"
+            "  4. 合格条件：工作电压 ≤ 额定电压 × 上限百分比（默认 70%）\n\n"
             "【内置电压匹配规则（按匹配优先级）】\n"
             f"  {'网络名关键字':<20} {'推断电压 (V)'}\n"
             f"  {'-'*36}\n"
@@ -1079,7 +1083,7 @@ class PstxApp(tk.Tk):
         self._drt = analyze_derating(
             self._components, self._nets, self.ratio_var.get(), self._volt_map())
         self._refresh_derating()
-        self._log(f'降额重新计算完成（系数={self.ratio_var.get():.1f}）')
+        self._log(f'降额重新计算完成（上限={self.ratio_var.get():.0f}%）')
 
     def _toggle_rules(self):
         self._rules_visible = not self._rules_visible
