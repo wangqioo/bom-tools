@@ -649,6 +649,15 @@ class PstxApp(tk.Tk):
     # ── Tab：文件加载 ──────────────────────────────────────
 
     def _build_load(self, p):
+        # 自动识别区
+        fa = self._section(p, '快速加载 — 选择文件夹自动识别')
+        ttk.Button(fa, text='选择文件夹…',
+                   command=self._auto_detect).pack(side='left', padx=4)
+        self.auto_detect_lbl = tk.Label(fa, text='（在所选目录及一级子目录中自动匹配三个 .dat 文件）',
+                                         fg='#666')
+        self.auto_detect_lbl.pack(side='left', padx=8)
+
+        # 单文件手动选择区
         for label, var in [
             ('pstxprt.dat  【必须】元件属性 — 位号、料号、封装、电气参数等', self.prt_path),
             ('pstxnet.dat  【必须】网络连接 — 引脚与网络的映射关系',          self.net_path),
@@ -798,6 +807,46 @@ class PstxApp(tk.Tk):
             filetypes=[('DAT 文件', '*.dat'), ('所有文件', '*.*')])
         if path:
             var.set(path); self._log(f'选择文件：{path}')
+
+    def _auto_detect(self):
+        folder = filedialog.askdirectory(title='选择包含 PST 文件的文件夹')
+        if not folder:
+            return
+        # 在当前目录 + 一级子目录中搜索
+        candidates = [folder] + [
+            os.path.join(folder, d) for d in os.listdir(folder)
+            if os.path.isdir(os.path.join(folder, d))
+        ]
+        targets = {'pstxprt.dat': self.prt_path,
+                   'pstxnet.dat': self.net_path,
+                   'pstxref.dat': self.ref_path}
+        found, missing = {}, []
+        for name, var in targets.items():
+            hit = None
+            for d in candidates:
+                p = os.path.join(d, name)
+                if os.path.isfile(p):
+                    hit = p; break
+            if hit:
+                var.set(hit)
+                found[name] = hit
+            else:
+                missing.append(name)
+        # 更新提示标签
+        if found:
+            msg = f'找到 {len(found)} 个：{", ".join(found.keys())}'
+            if missing:
+                msg += f'    未找到：{", ".join(missing)}'
+            color = '#2a8a2a' if 'pstxprt.dat' in found and 'pstxnet.dat' in found else '#b06000'
+        else:
+            msg = f'未在该目录下找到任何 PST 文件'
+            color = 'red'
+        self.auto_detect_lbl.configure(text=msg, fg=color)
+        self._log(f'\n自动识别文件夹：{folder}')
+        for name, path in found.items():
+            self._log(f'  ✅ {name} → {path}')
+        for name in missing:
+            self._log(f'  ⚪ {name} 未找到')
 
     # ──────── 解析流程 ────────────────────────────────────
 
