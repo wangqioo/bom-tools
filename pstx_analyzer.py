@@ -611,6 +611,7 @@ class PstxApp(tk.Tk):
 
         self.prt_path    = tk.StringVar()
         self.net_path    = tk.StringVar()
+        self.ref_path    = tk.StringVar()
         self.project_var = tk.StringVar()
         self.bom_filter  = tk.StringVar(value='贴装')
         self.bom_search  = tk.StringVar()
@@ -648,8 +649,11 @@ class PstxApp(tk.Tk):
     # ── Tab：文件加载 ──────────────────────────────────────
 
     def _build_load(self, p):
-        for label, var in [('pstxprt.dat（元件属性）', self.prt_path),
-                            ('pstxnet.dat（网络连接）', self.net_path)]:
+        for label, var in [
+            ('pstxprt.dat  【必须】元件属性 — 位号、料号、封装、电气参数等', self.prt_path),
+            ('pstxnet.dat  【必须】网络连接 — 引脚与网络的映射关系',          self.net_path),
+            ('pstxref.dat  【可选】交叉参考 — 元件与原理图符号的交叉索引',    self.ref_path),
+        ]:
             f = self._section(p, label)
             tk.Label(f, text='文件路径：').grid(row=0, column=0, sticky='w')
             ttk.Entry(f, textvariable=var, width=58).grid(row=0, column=1, padx=6)
@@ -799,7 +803,7 @@ class PstxApp(tk.Tk):
 
     def _run_parse(self):
         if not self.prt_path.get().strip() or not self.net_path.get().strip():
-            messagebox.showerror('错误', '请先选择 pstxprt.dat 和 pstxnet.dat')
+            messagebox.showerror('错误', '请先选择 pstxprt.dat 和 pstxnet.dat（pstxref.dat 可选）')
             return
         self.parse_btn.configure(state='disabled')
         self._start_spinner('解析中')
@@ -812,7 +816,13 @@ class PstxApp(tk.Tk):
                 prt = f.read()
             with open(self.net_path.get(), encoding='utf-8', errors='replace') as f:
                 net = f.read()
-            self._log(f'  pstxprt：{len(prt):,} 字节    pstxnet：{len(net):,} 字节')
+            ref_p = self.ref_path.get().strip()
+            if ref_p and os.path.isfile(ref_p):
+                with open(ref_p, encoding='utf-8', errors='replace') as f:
+                    _ref = f.read()
+                self._log(f'  pstxprt：{len(prt):,} 字节    pstxnet：{len(net):,} 字节    pstxref：{len(_ref):,} 字节')
+            else:
+                self._log(f'  pstxprt：{len(prt):,} 字节    pstxnet：{len(net):,} 字节    pstxref：未加载')
 
             comps, nets, _ = parse_all(prt, net)
             self._log(f'  元件：{len(comps)} 个    网络：{len(nets)} 个')
