@@ -583,6 +583,27 @@ def _make_tree(parent, columns, height=12):
     return outer, tree
 
 
+def _sort_tree(tree, col, reverse: bool):
+    """点击表头时对 Treeview 排序，自动区分数值 / 字符串，循环切换升降序。"""
+    items = [(tree.set(iid, col), iid) for iid in tree.get_children('')]
+    try:
+        items.sort(key=lambda t: (float(t[0]) if t[0] else float('-inf')), reverse=reverse)
+    except ValueError:
+        items.sort(key=lambda t: t[0].lower(), reverse=reverse)
+    for idx, (_, iid) in enumerate(items):
+        tree.move(iid, '', idx)
+    # 更新所有列标题：当前排序列显示箭头，其他列恢复原名
+    arrow = ' ▲' if not reverse else ' ▼'
+    for c in tree['columns']:
+        base = tree.heading(c, 'text').rstrip(' ▲▼')
+        if c == col:
+            tree.heading(c, text=base + arrow,
+                         command=lambda _c=c: _sort_tree(tree, _c, not reverse))
+        else:
+            tree.heading(c, text=base,
+                         command=lambda _c=c: _sort_tree(tree, _c, False))
+
+
 def _fill_tree(tree, rows: list, columns: list = None):
     tree.delete(*tree.get_children())
     if not rows:
@@ -590,7 +611,8 @@ def _fill_tree(tree, rows: list, columns: list = None):
     cols = columns or list(rows[0].keys())
     tree['columns'] = cols
     for c in cols:
-        tree.heading(c, text=c, anchor='w')
+        tree.heading(c, text=c, anchor='w',
+                     command=lambda _c=c: _sort_tree(tree, _c, False))
         tree.column(c, width=min(max(len(c)*9, 80), 220), anchor='w', stretch=True)
     for row in rows:
         tree.insert('', 'end', values=[str(row.get(c, '')) for c in cols])
