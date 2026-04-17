@@ -649,17 +649,30 @@ class PstxApp(tk.Tk):
     # ── Tab：文件加载 ──────────────────────────────────────
 
     def _build_load(self, p):
-        # 自动识别区
-        fa = self._section(p, '快速加载 — 选择文件夹自动识别')
-        ttk.Button(fa, text='选择文件夹…',
-                   command=self._auto_detect).pack(side='left', padx=4)
+        # ── 主操作区：自动识别（突出显示）──────────────────────
+        fa = tk.Frame(p, bg='#e8f0fe', relief='groove', bd=1)
+        fa.pack(fill='x', padx=10, pady=(10, 4))
+        inner = tk.Frame(fa, bg='#e8f0fe')
+        inner.pack(padx=14, pady=10)
+        tk.Label(inner, text='快速加载', font=('Arial', 11, 'bold'),
+                 bg='#e8f0fe', fg='#1a3a8f').pack(side='left', padx=(0, 10))
+        tk.Button(inner, text='  选择文件夹…  ', font=('Arial', 10, 'bold'),
+                  bg='#2d6cdf', fg='white', relief='flat', padx=8, pady=4,
+                  command=self._auto_detect).pack(side='left')
         self.auto_detect_lbl = tk.Label(
-            fa,
-            text='请选择 worklib 中该项目的文件夹，工具将自动在其中查找三个 .dat 文件',
-            fg='#666')
-        self.auto_detect_lbl.pack(side='left', padx=8)
+            inner,
+            text='选择 worklib 中该项目的文件夹，自动识别并填入下方路径',
+            bg='#e8f0fe', fg='#444')
+        self.auto_detect_lbl.pack(side='left', padx=12)
 
-        # 单文件手动选择区
+        # ── 分隔线 + 说明 ───────────────────────────────────────
+        sep_row = tk.Frame(p)
+        sep_row.pack(fill='x', padx=10, pady=(6, 0))
+        ttk.Separator(sep_row, orient='horizontal').pack(side='left', fill='x', expand=True, pady=6)
+        tk.Label(sep_row, text='  或手动选择各文件  ', fg='#888').pack(side='left')
+        ttk.Separator(sep_row, orient='horizontal').pack(side='left', fill='x', expand=True, pady=6)
+
+        # ── 次级区：单文件手动选择 ─────────────────────────────
         for label, var in [
             ('pstxprt.dat  【必须】元件属性 — 位号、料号、封装、电气参数等', self.prt_path),
             ('pstxnet.dat  【必须】网络连接 — 引脚与网络的映射关系',          self.net_path),
