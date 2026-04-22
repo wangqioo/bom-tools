@@ -381,17 +381,21 @@ def _resolve_component_page(comp: Dict, page_map_index: Optional[Dict],
 def resolve_component_pages(components: Dict, project_root: str = '') -> List[str]:
     """用 page.map / page*.csv 把逻辑页转换为真实页，返回警告列表"""
     if not project_root:
-        # 无项目根目录：直接用 page_path_raw 里的页码
+        # 无项目根目录：PHYS_PAGE 已在解析时写入，这里只补全缺失项
         for comp in components.values():
-            lp = _extract_top_level_logical_page(str(comp.get('page_path_raw', '') or comp.get('drawing', '')))
-            comp['page'] = lp
-            comp['page_logical'] = lp
-            comp['page_real'] = ''
+            if not comp.get('page'):
+                lp = _extract_top_level_logical_page(
+                    str(comp.get('page_path_raw', '') or comp.get('drawing', '')))
+                comp['page'] = lp
+                comp['page_logical'] = lp
         return []
     pm_index = _build_page_map_index(project_root)
     csv_index = _build_page_csv_index(project_root)
     warnings = list(pm_index.get('warnings', [])) + list(csv_index.get('warnings', []))
     for comp in components.values():
+        # 若已有 PHYS_PAGE，直接用，不再覆盖
+        if comp.get('page_real'):
+            continue
         logical_path = str(comp.get('page_path_raw', '') or comp.get('drawing', ''))
         top_seg = _pick_top_schematic_segment(logical_path, pm_index, csv_index)
         top_logical = top_seg.get('raw_page', '') or _extract_top_level_logical_page(logical_path)
@@ -477,6 +481,10 @@ def parse_pstxprt(content: str) -> Dict[str, dict]:
         refdes, part_name = m.group(1), m.group(2)
         attrs = _extract_attrs(block)
         page_path_raw, page_path_source = _select_component_page_source(block, attrs)
+        logical_page = _extract_top_level_logical_page(page_path_raw or attrs.get('DRAWING', ''))
+        # PHYS_PAGE 是工程师印刷原理图上看到的实际页码，优先使用
+        phys_raw = attrs.get('PHYS_PAGE', '').strip()
+        phys_page = f'PAGE{phys_raw}' if phys_raw.isdigit() else ''
         components[refdes] = {
             'refdes':           refdes,
             'part_name':        part_name,
@@ -494,9 +502,9 @@ def parse_pstxprt(content: str) -> Dict[str, dict]:
             'drawing':          attrs.get('DRAWING', ''),
             'page_path_raw':    page_path_raw,
             'page_path_source': page_path_source,
-            'page':             _extract_top_level_logical_page(page_path_raw or attrs.get('DRAWING', '')),
-            'page_logical':     _extract_top_level_logical_page(page_path_raw or attrs.get('DRAWING', '')),
-            'page_real':        '',
+            'page':             phys_page or logical_page,
+            'page_logical':     logical_page,
+            'page_real':        phys_page,
             'comp_type':        _get_comp_type(refdes, part_name),
         }
     return components
