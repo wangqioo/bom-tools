@@ -1697,6 +1697,7 @@ class PstxApp(tk.Tk):
             ('单端网络',   ['网络名', '连接元件', '引脚', '页面'],                         '_tree_drc_single'),
             ('BOM_OPTION', ['实际填写值', '疑似应为', '编辑距离', '使用该值的位号', '风险'], '_tree_drc_opt'),
             ('BOM_OPTION清单', ['位号', '类型', 'BOM_OPTION值', '是否DEPOP', '页面'],      '_tree_drc_bom_opt'),
+            ('未命名网络',     ['网络名', '节点数'],                                         '_tree_drc_unnamed'),
         ]:
             f = ttk.Frame(sub); sub.add(f, text=f'  {title}  ')
             outer, tree = _make_tree(f, cols, height=15)
@@ -2024,6 +2025,8 @@ class PstxApp(tk.Tk):
                    ['实际填写值', '疑似应为', '编辑距离', '使用该值的位号', '风险'])
         _fill_tree(self._tree_drc_bom_opt, drc.get('bom_option_components', []),
                    ['位号', '类型', 'BOM_OPTION值', '是否DEPOP', '页面'])
+        _fill_tree(self._tree_drc_unnamed, drc.get('unnamed_nets', []),
+                   ['网络名', '节点数'])
 
     # ──────── 电阻检查 ─────────────────────────────────────
 
