@@ -724,23 +724,25 @@ def check_drc(components: Dict, nets: Dict) -> dict:
         if re.search(r'^UNNAMED_', net_name, re.I):
             unnamed.append({'网络名': net_name, '节点数': len(nodes)})
 
-    option_map: Dict[str, List[str]] = defaultdict(list)
-    for refdes, comp in components.items():
-        option_map[(comp.get('bom_option') or '').strip().upper()].append(refdes)
-    typos = []
-    for val, refs in sorted(option_map.items()):
-        if val in _VALID_BOM_OPTIONS:
+    # 计算每个 BOM_OPTION 值的拼写风险
+    risk_per_value: Dict[str, str] = {}
+    for val in set(str(comp.get('bom_option', '') or '').strip().upper() for comp in components.values()):
+        if not val:
             continue
-        min_d   = min(_edit_distance(val, kw) for kw in _FUZZY_KEYWORDS)
-        nearest = min(_FUZZY_KEYWORDS, key=lambda kw: _edit_distance(val, kw))
-        typos.append({'实际填写值': val, '疑似应为': nearest if min_d <= 2 else '未知',
-                      '编辑距离': min_d, '使用该值的位号': ', '.join(sorted(refs, key=_natural_sort_key)),
-                      '数量': len(refs), '风险': '❌ 疑似拼错' if min_d <= 2 else '⚠ 未知值'})
+        if val in _VALID_BOM_OPTIONS:
+            risk_per_value[val] = '✅ 合法'
+        else:
+            min_d = min(_edit_distance(val, kw) for kw in _FUZZY_KEYWORDS)
+            risk_per_value[val] = '❌ 疑似拼错' if min_d <= 2 else '⚠ 未知值'
+
+    # 将风险信息写入每个元件行
+    for item in bom_option_components:
+        item['拼写风险'] = risk_per_value.get(item['BOM_OPTION值'], '')
+
     return {
         'missing_hq_code': missing_hq, 'missing_value': missing_val,
         'missing_package': missing_pkg, 'tbd_attrs': tbd_attrs,
         'single_pin_nets': single_pin, 'unnamed_nets': unnamed,
-        'bom_option_typos': typos,
         'bom_option_components': sorted(bom_option_components, key=lambda r: _natural_sort_key(r['位号'])),
     }
 
@@ -1439,8 +1441,7 @@ def export_to_excel(data: dict, out_path: str) -> str:
         ('缺少封装',       'missing_package',   _RF),
         ('单端网络',       'single_pin_nets',   _GY),
         ('未命名网络',     'unnamed_nets',      _GY),
-        ('BOM_OPTION 拼写', 'bom_option_typos', _OR),
-        ('BOM_OPTION 元件清单', 'bom_option_components', _BL),
+        ('BOM_OPTION 元件清单（含拼写风险）', 'bom_option_components', _BL),
     ]:
         _xl_section(ws, title, fill)
         _xl_write_rows(ws, drc.get(key, []), fill, freeze=False)
@@ -1695,8 +1696,7 @@ class PstxApp(tk.Tk):
             ('缺封装',     ['位号', '类型', '页面'],                                       '_tree_drc_pkg'),
             ('TBD 属性',   ['位号', '属性', '当前值', '类型', '页面'],                     '_tree_drc_tbd'),
             ('单端网络',   ['网络名', '连接元件', '引脚', '页面'],                         '_tree_drc_single'),
-            ('BOM_OPTION', ['实际填写值', '疑似应为', '编辑距离', '使用该值的位号', '风险'], '_tree_drc_opt'),
-            ('BOM_OPTION清单', ['位号', '类型', 'BOM_OPTION值', '是否DEPOP', '页面'],      '_tree_drc_bom_opt'),
+            ('BOM_OPTION', ['位号', '类型', 'BOM_OPTION值', '是否DEPOP', '拼写风险', '页面'], '_tree_drc_bom_opt'),
             ('未命名网络',     ['网络名', '节点数'],                                         '_tree_drc_unnamed'),
         ]:
             f = ttk.Frame(sub); sub.add(f, text=f'  {title}  ')
@@ -2021,10 +2021,8 @@ class PstxApp(tk.Tk):
                    ['位号', '属性', '当前值', '类型', '页面'])
         _fill_tree(self._tree_drc_single, drc.get('single_pin_nets', []),
                    ['网络名', '连接元件', '引脚', '页面'])
-        _fill_tree(self._tree_drc_opt,    drc.get('bom_option_typos', []),
-                   ['实际填写值', '疑似应为', '编辑距离', '使用该值的位号', '风险'])
         _fill_tree(self._tree_drc_bom_opt, drc.get('bom_option_components', []),
-                   ['位号', '类型', 'BOM_OPTION值', '是否DEPOP', '页面'])
+                   ['位号', '类型', 'BOM_OPTION值', '是否DEPOP', '拼写风险', '页面'])
         _fill_tree(self._tree_drc_unnamed, drc.get('unnamed_nets', []),
                    ['网络名', '节点数'])
 
