@@ -482,9 +482,13 @@ def parse_pstxprt(content: str) -> Dict[str, dict]:
         attrs = _extract_attrs(block)
         page_path_raw, page_path_source = _select_component_page_source(block, attrs)
         logical_page = _extract_top_level_logical_page(page_path_raw or attrs.get('DRAWING', ''))
-        # PHYS_PAGE 是工程师印刷原理图上看到的实际页码，优先使用
+        # PHYS_PAGE 是工程师印刷原理图上看到的实际页码。
+        # 但层次化设计中，深度≥2的子模块内元件 PHYS_PAGE 是子模块内页码，不是主图页码。
+        # 只有直接放置在顶层（路径中仅1个 SCH_1 层级）时，PHYS_PAGE 才是主图物理页码。
         phys_raw = attrs.get('PHYS_PAGE', '').strip()
-        phys_page = f'PAGE{phys_raw}' if phys_raw.isdigit() else ''
+        path_for_depth = page_path_raw or attrs.get('DRAWING', '')
+        sch1_depth = len(re.findall(r'\(sch_1\)', path_for_depth, re.IGNORECASE))
+        phys_page = f'PAGE{phys_raw}' if (phys_raw.isdigit() and sch1_depth <= 1) else ''
         components[refdes] = {
             'refdes':           refdes,
             'part_name':        part_name,
