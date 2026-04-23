@@ -923,6 +923,18 @@ def _find_ac_coupling_candidates(components: Dict,
     return candidates
 
 
+def _calc_board_max_voltage(nets: Dict, custom_volt_map: Optional[Dict]) -> float:
+    """扫描全板所有网络名，推断板级最高工作电压（用于快速 pass 高额定电容）"""
+    max_v = 0.0
+    for net_name in nets:
+        v = _match_custom_voltage(net_name, custom_volt_map)
+        if v is None:
+            v = _infer_voltage(net_name)
+        if v is not None and v > max_v:
+            max_v = v
+    return max_v
+
+
 def analyze_derating(components: Dict, nets: Dict,
                      pct: float = 70.0,
                      custom_volt_map: Optional[Dict[str, float]] = None,
@@ -930,6 +942,7 @@ def analyze_derating(components: Dict, nets: Dict,
     """pct: 工作电压上限占额定电压的百分比（默认 70%）"""
     comp_nets = _collect_component_nets(nets)
     ac_coupling_caps = _find_ac_coupling_candidates(components, comp_nets, nets)
+    board_max_v = _calc_board_max_voltage(nets, custom_volt_map)
 
     rows = []
     for refdes, comp in components.items():
@@ -950,6 +963,12 @@ def analyze_derating(components: Dict, nets: Dict,
             rated_v = float(m.group(1)) if m else None
             if rated_v is None:
                 status = '⚪ 无法解析额定电压'
+            elif board_max_v > 0 and rated_v * (pct / 100) >= board_max_v:
+                # 额定电压 × 降额比 ≥ 板级最高电压 → 无论接哪个网络都安全，直接 pass
+                threshold_v = rated_v * (pct / 100)
+                status = (f'✅ 板级直通 (额定{rated_v:.0f}V×{pct:.0f}%={threshold_v:.1f}V'
+                          f' ≥ 板级最高{board_max_v:.1f}V)')
+                source_type = '板级直通'
             elif refdes in ac_coupling_caps:
                 status = '⚪ 疑似 AC 耦合电容，不推断电压'
                 source_type = 'AC 耦合候选'
