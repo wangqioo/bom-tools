@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PSTX 原理图审查平台</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+</head>
+<body data-page="home">
+  <div class="app-shell">
+    <header class="poster-hero">
+      <div class="poster-copy" data-reveal>
+        <p class="eyebrow">PSTX SCHEMATIC REVIEW</p>
+        <h1>PSTX 原理图审查平台</h1>
+        <p class="hero-lead">
+          输入本地项目根路径，系统会自动读取 <code>packaged/</code> 下的 PSTX 导出文件，
+          并结合项目中的 <code>sch_1/page*.csv</code> 建立逻辑页码与真实页码的对照关系，生成结构化审查报告。
+          服务仅在当前设备本地运行。
+        </p>
+      </div>
+      <div class="hero-notes" data-reveal>
+        <div class="note-row">
+          <span class="note-label">访问方式</span>
+          <strong>{{ listen_host }} 本机访问</strong>
+        </div>
+        <div class="note-row">
+          <span class="note-label">服务端口</span>
+          <strong>{{ listen_port }}</strong>
+        </div>
+        <div class="note-row">
+          <span class="note-label">分析模块</span>
+          <strong>BOM / 网络 / DRC / 电阻 / 降额 / 查询 / 导出</strong>
+        </div>
+      </div>
+    </header>
+
+    <main class="home-grid">
+      <section class="form-stage" data-reveal>
+        <div class="section-heading">
+          <p class="eyebrow">NEW TASK</p>
+          <h2>创建分析任务</h2>
+          <p>提供项目根路径和分析参数后，系统会在本地自动生成对应报告。</p>
+        </div>
+
+        <form id="analyze-form" class="upload-form">
+          <label class="field">
+            <span>项目根路径</span>
+            <input type="text" name="project_root" placeholder="例如：E:\projects\GPU_2SW_BOARD" required>
+            <small>
+              路径应位于 <code>packaged</code> 和 <code>sch_1</code> 所在层级。系统会自动读取
+              <code>packaged/pstxprt.dat</code>、<code>packaged/pstxnet.dat</code> 和可选的
+              <code>packaged/pstxref.dat</code>。
+            </small>
+          </label>
+
+          <label class="field">
+            <span>项目名称</span>
+            <input type="text" name="project_name" placeholder="例如：MB_A00 Rev.B（留空则使用根目录名）">
+          </label>
+
+          <div class="field-grid compact">
+            <label class="field">
+              <span>降额阈值 (%)</span>
+              <input type="number" name="ratio_limit" min="50" max="100" step="1" value="70">
+            </label>
+
+            <label class="field">
+              <span>建议值</span>
+              <div class="inline-note">默认值为 70%，适用于常规电容降额复核场景。</div>
+            </label>
+          </div>
+
+          <label class="field">
+            <span>自定义电压映射</span>
+            <textarea name="custom_volt_map" rows="6" placeholder="# 每行一个前缀=电压V&#10;MBUS=5.0&#10;P12V_AUX=12.0"></textarea>
+            <small>用于补充网络前缀与电压的明确映射。未命中的网络仍按保守策略处理。</small>
+          </label>
+
+          <label class="field toggle-field">
+            <span>DEPOP 参与排查</span>
+            <div class="toggle-option">
+              <input type="checkbox" name="include_depop" value="on">
+              <div class="toggle-copy">
+                <strong>默认关闭</strong>
+                <small>
+                  关闭时会先识别 <code>BOM_OPTION=DEPOP/DNP</code> 元器件，后续网络、设计检查、电阻、电容降额和查询中将其视为不存在。
+                </small>
+              </div>
+            </div>
+          </label>
+
+          <div class="action-row">
+            <button type="submit" class="primary-btn">生成报告</button>
+            <p id="form-status" class="status-line" aria-live="polite">请输入项目根路径。</p>
+          </div>
+        </form>
+      </section>
+
+      <aside class="home-side" data-reveal>
+        <div class="section-heading">
+          <p class="eyebrow">DELIVERABLES</p>
+          <h2>分析输出</h2>
+        </div>
+        <ul class="bullet-list">
+          <li>结构化报告首页，集中展示核心统计、输入来源与重点提示。</li>
+          <li>分区结果视图，支持按模块展开、浏览和筛选详细数据。</li>
+          <li>位号与网络查询入口，可快速定位对象与关联信息。</li>
+          <li>Excel 导出结果，可用于离线归档与进一步复核。</li>
+        </ul>
+      </aside>
+    </main>
+  </div>
+
+  <div id="loading-mask" class="loading-mask" hidden>
+    <div class="loading-panel">
+      <p class="eyebrow">PROCESSING</p>
+      <h3>正在生成分析报告</h3>
+      <p>任务完成后将自动跳转到报告页面。</p>
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+</body>
+</html>

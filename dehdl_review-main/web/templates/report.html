@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ report.project_name }} - PSTX 原理图审查平台</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+</head>
+<body data-page="report" data-run-id="{{ run_id }}">
+  <div class="app-shell report-shell">
+    <div class="report-layout">
+      <aside class="sticky-nav" data-reveal>
+        <div class="nav-brand">
+          <div class="nav-logo-mark">PSTX</div>
+          <p>原理图审查平台</p>
+        </div>
+        <div class="nav-header">
+          <div class="nav-copy">
+            <p class="eyebrow">NAVIGATION</p>
+            <h3 class="nav-title">结果导航</h3>
+          </div>
+          <button id="sidebar-toggle" class="ghost-btn nav-toggle" type="button" aria-expanded="true">收起导航</button>
+        </div>
+        <nav id="section-nav" class="section-nav"></nav>
+        <div class="nav-note">
+          <p>当前页面仅展示本次任务结果。</p>
+          <p>建议先查看概览，再按分区展开详细数据。</p>
+        </div>
+      </aside>
+
+      <header class="report-topbar" data-reveal>
+        <div class="report-brand">
+          <span class="topbar-label">项目</span>
+          <h1>{{ report.project_name }}</h1>
+          <span class="status-pill"><span class="status-dot"></span>分析完成</span>
+        </div>
+        <div class="report-topbar-meta">
+          <span id="topbar-generated-at">正在加载报告</span>
+          <span>localhost only</span>
+        </div>
+        <div class="hero-actions">
+          <a class="ghost-btn" href="{{ url_for('home') }}">新建任务</a>
+          <a class="primary-btn inline-btn" id="export-link" href="{{ url_for('export_report', run_id=run_id) }}">导出报告</a>
+        </div>
+      </header>
+
+      <main class="report-main">
+        <section id="summary" class="report-section intro-section" data-reveal>
+          <div class="section-heading">
+            <p class="eyebrow">SUMMARY</p>
+            <h2>分析概览</h2>
+            <p id="generated-at" class="section-subline">加载中…</p>
+          </div>
+          <div id="metric-strip" class="metric-strip"></div>
+          <div id="top-insights" class="top-insights"></div>
+          <div id="section-cards" class="section-cards"></div>
+          <details class="summary-details">
+            <summary>输入文件与快速摘要</summary>
+            <div class="summary-columns">
+              <div>
+                <h3>输入文件</h3>
+                <ul id="file-meta" class="meta-list"></ul>
+              </div>
+              <div>
+                <h3>快速摘要</h3>
+                <ul id="summary-lines" class="meta-list"></ul>
+              </div>
+            </div>
+          </details>
+          <div id="warning-list" class="warning-list" hidden></div>
+        </section>
+
+        <div id="report-sections"></div>
+
+        <section id="query" class="report-section query-section" data-reveal>
+          <div class="section-heading">
+            <p class="eyebrow">QUERY</p>
+            <h2>元件 / 网络查询</h2>
+            <p>按位号或网络名快速定位对象，查看关联属性与连接信息。</p>
+          </div>
+          <form id="query-form" class="query-form">
+            <label class="field compact-field">
+              <span>查询类型</span>
+              <select name="mode">
+                <option value="位号">位号</option>
+                <option value="网络名">网络名</option>
+              </select>
+            </label>
+            <label class="field grow">
+              <span>关键字</span>
+              <input type="text" name="keyword" placeholder="例如：U1 或 P3V3">
+            </label>
+            <button type="submit" class="primary-btn inline-btn">查询</button>
+          </form>
+          <div id="query-results" class="query-results">
+            <div class="query-empty">请输入条件后执行查询。</div>
+          </div>
+        </section>
+      </main>
+
+      <aside class="report-inspector" data-reveal>
+        <div class="inspector-block">
+          <p class="eyebrow">CURRENT VIEW</p>
+          <h3>当前视图</h3>
+          <p id="inspector-current">概览</p>
+        </div>
+        <div class="inspector-block">
+          <h3>操作提示</h3>
+          <ul class="inspector-list">
+            <li>表格标题区显示记录量和判断类型分布。</li>
+            <li>展开表格后可筛选、排序、隐藏列和调整列宽。</li>
+            <li>长文本默认保持单行可扫读，可切换密度查看更完整内容。</li>
+          </ul>
+        </div>
+        <div class="inspector-block">
+          <h3>页码原则</h3>
+          <p>结果展示优先使用真实页；子模块映射页单独保留，便于复核层级来源。</p>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <script>
+    window.PSTX_REPORT_CONTEXT = {{ {'runId': run_id, 'projectName': report.project_name}|tojson }};
+  </script>
+  <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+</body>
+</html>
