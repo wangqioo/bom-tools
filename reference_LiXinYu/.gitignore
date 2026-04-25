@@ -4,6 +4,7 @@ tests/__pycache__/
 .codex-smoke/
 test-results/
 output/
+logs/
 output_web.err.log
 output_web.out.log
 *.pyc

@@ -13,10 +13,13 @@ def _pick_free_port() -> int:
 
 
 class LocalUiTests(unittest.TestCase):
+    def test_default_port_tracks_web_entrypoint(self):
+        self.assertEqual(44441, pstx_local_ui.DEFAULT_PORT)
+
     def test_runtime_url_uses_localhost_port(self):
         self.assertEqual(
-            'http://127.0.0.1:8765/',
-            pstx_local_ui._runtime_url('127.0.0.1', 8765),
+            'http://127.0.0.1:44441/',
+            pstx_local_ui._runtime_url('127.0.0.1', 44441),
         )
 
     def test_local_ui_session_serves_home_page(self):

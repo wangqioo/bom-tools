@@ -172,7 +172,7 @@ def launch_local_ui(
 
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(description='Run PSTX desktop local UI shell')
-    parser.add_argument('--port', type=int, default=DEFAULT_PORT, help='preferred localhost port, default 8765')
+    parser.add_argument('--port', type=int, default=DEFAULT_PORT, help='preferred localhost port, default 44441')
     parser.add_argument('--title', default=WINDOW_TITLE, help='desktop window title')
     parser.add_argument('--browser', action='store_true', help='open the localhost UI in the system browser')
     parser.add_argument('--install-pywebview', action='store_true', help='try to install pywebview when it is missing')

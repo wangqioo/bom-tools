@@ -54,6 +54,77 @@
           <div id="metric-strip" class="metric-strip"></div>
           <div id="top-insights" class="top-insights"></div>
           <div id="section-cards" class="section-cards"></div>
+          <button id="aster-float-launcher" type="button" class="aster-float-launcher" aria-controls="aster-assist">
+            <span>AI</span>
+            <strong>Aster 审查</strong>
+          </button>
+          <section id="aster-assist" class="aster-assist-panel is-collapsed" aria-label="Aster AI 浮窗审查助手">
+            <div class="aster-window-head">
+              <div>
+                <p class="eyebrow">ASTER ASSIST</p>
+                <h3>AI 浮窗审查助手</h3>
+                <p>汇总 BOM、网络、DRC、电阻、降额和 CSA 规范，生成可复核的审查建议。</p>
+              </div>
+              <div class="aster-window-actions">
+                <button id="aster-summary-button" type="button" class="primary-btn inline-btn">生成审查</button>
+                <button id="aster-panel-minimize" type="button" class="ghost-btn" aria-label="收起 Aster 浮窗">收起</button>
+              </div>
+            </div>
+            <div class="aster-window-body">
+              <form id="aster-credential-form" class="aster-credential-form" autocomplete="off">
+                <div class="aster-credential-head">
+                  <div>
+                    <strong>临时 Aster 凭据</strong>
+                    <p>仅写入当前 Python 进程内存，重启服务后失效；密钥不会回显。</p>
+                  </div>
+                  <button id="aster-credential-clear" type="button" class="ghost-btn">清除临时凭据</button>
+                </div>
+                <label>
+                  <span>模式</span>
+                  <select name="mode">
+                    <option value="live">live</option>
+                    <option value="mock">mock</option>
+                    <option value="off">off</option>
+                  </select>
+                </label>
+                <label>
+                  <span>后端</span>
+                  <select name="backend">
+                    <option value="chat-flow">chat-flow</option>
+                    <option value="room">room</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Aster 服务地址</span>
+                  <input type="url" name="base_url" placeholder="https://aigc.huaqin.com">
+                </label>
+                <label>
+                  <span>员工号</span>
+                  <input type="text" name="emp_no" placeholder="100019100" autocomplete="off">
+                </label>
+                <label>
+                  <span>ChatFlow API Key</span>
+                  <input type="password" name="api_key" placeholder="仅当前进程临时保存" autocomplete="new-password">
+                </label>
+                <label>
+                  <span>Room App ID</span>
+                  <input type="text" name="app_id" placeholder="ag_xxx" autocomplete="off">
+                </label>
+                <label>
+                  <span>Room Validate Origin</span>
+                  <input type="text" name="origin" placeholder="默认使用服务地址域名，可填 test-aigc-api.huaqin.com" autocomplete="off">
+                </label>
+                <label>
+                  <span>Room App Secret</span>
+                  <input type="password" name="app_secret" placeholder="仅 room 后端需要" autocomplete="new-password">
+                </label>
+                <button type="submit" class="primary-btn inline-btn">应用临时凭据</button>
+                <p id="aster-credential-message" class="aster-credential-message" aria-live="polite"></p>
+              </form>
+              <div id="aster-auth-status" class="aster-auth-status" hidden>正在读取 Aster 认证状态…</div>
+              <div id="aster-summary-result" class="aster-summary-result" hidden></div>
+            </div>
+          </section>
           <details class="summary-details">
             <summary>输入文件与快速摘要</summary>
             <div class="summary-columns">
@@ -68,6 +139,14 @@
             </div>
           </details>
           <div id="warning-list" class="warning-list" hidden></div>
+          <div id="project-manager" class="project-manager project-manager-inline">
+            <div class="project-manager-header">
+              <p class="eyebrow">PROJECTS</p>
+              <h3>项目管理 / 对比</h3>
+              <p>选择当前会话中的两个项目，对比指标、元件、网络和检查结果差异。</p>
+            </div>
+            <div class="project-manager-body">正在读取会话项目…</div>
+          </div>
         </section>
 
         <div id="report-sections"></div>

@@ -7,6 +7,7 @@ from openpyxl import load_workbook
 from openpyxl import Workbook
 
 import pstx_analyzer
+import pstx_csa_geometry
 import pstx_page_logic
 
 
@@ -83,6 +84,92 @@ def make_res(refdes, net_a, net_b, value='10k', bom_option='', page='PAGE1', pag
         'comp_type': 'RES',
         'nets': {'1': net_a, '2': net_b},
     }
+
+
+CSA_PAGE_T_WITH_DOT = (
+    "FILE_TYPE = MACRO_DRAWING;\n"
+    "SET PAGE_NUMBER P1;\n"
+    "WIRE 16 -1 (0 0)(100 0);\n"
+    "FORCEPROP 2 LAST SIG_NAME T_H\n"
+    "WIRE 16 -1 (50 0)(50 100);\n"
+    "FORCEPROP 2 LAST SIG_NAME T_V\n"
+    "DOT 1 (50 0);\n"
+    "CIRCLE 16 -1 (1000 1000)(1100 1000);\n"
+)
+
+CSA_PAGE_DOTLESS_CROSS = (
+    "FILE_TYPE = MACRO_DRAWING;\n"
+    "SET PAGE_NUMBER P2;\n"
+    "WIRE 16 -1 (200 0)(300 0);\n"
+    "FORCEPROP 2 LAST SIG_NAME CROSS_NO_DOT_H\n"
+    "WIRE 16 -1 (250 -50)(250 50);\n"
+    "FORCEPROP 2 LAST SIG_NAME CROSS_NO_DOT_V\n"
+    "CIRCLE 16 -1 (2000 2000) 150;\n"
+)
+
+CSA_PAGE_DOT_CROSS = (
+    "FILE_TYPE = MACRO_DRAWING;\n"
+    "SET PAGE_NUMBER P3;\n"
+    "WIRE 16 -1 (400 0)(500 0);\n"
+    "FORCEPROP 2 LAST SIG_NAME CROSS_DOT_H\n"
+    "WIRE 16 -1 (450 -50)(450 50);\n"
+    "FORCEPROP 2 LAST SIG_NAME CROSS_DOT_V\n"
+    "DOT 1 (450 0);\n"
+)
+
+CSA_PAGE_SPLIT_CROSS_WITH_ARC = (
+    "FILE_TYPE = MACRO_DRAWING;\n"
+    "SET PAGE_NUMBER P4;\n"
+    "WIRE 16 -1 (600 0)(650 0);\n"
+    "FORCEPROP 2 LAST SIG_NAME SPLIT_CROSS_L\n"
+    "WIRE 16 -1 (650 0)(700 0);\n"
+    "FORCEPROP 2 LAST SIG_NAME SPLIT_CROSS_R\n"
+    "WIRE 16 -1 (650 -50)(650 0);\n"
+    "FORCEPROP 2 LAST SIG_NAME SPLIT_CROSS_D\n"
+    "WIRE 16 -1 (650 0)(650 50);\n"
+    "FORCEPROP 2 LAST SIG_NAME SPLIT_CROSS_U\n"
+    "DOT 1 (650 0);\n"
+    "ARC 16 -1 (3000 3000)(3100 3000)(3050 3050);\n"
+)
+
+
+class CsaGeometryTests(unittest.TestCase):
+    def test_csa_geometry_matches_reference_demo_rules(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            sch_dir = root / 'sch_1'
+            sch_dir.mkdir()
+            (sch_dir / 'page1.csa').write_text(CSA_PAGE_T_WITH_DOT, encoding='utf-8')
+            (sch_dir / 'page2.csa').write_text(CSA_PAGE_DOTLESS_CROSS, encoding='utf-8')
+            (sch_dir / 'page3.csa').write_text(CSA_PAGE_DOT_CROSS, encoding='utf-8')
+            (sch_dir / 'page4.csa').write_text(CSA_PAGE_SPLIT_CROSS_WITH_ARC, encoding='utf-8')
+
+            result = pstx_csa_geometry.analyze_csa_geometry(root)
+
+        self.assertTrue(result['enabled'])
+        self.assertEqual(4, result['page_count'])
+        self.assertEqual(2, result['cross_count'])
+        self.assertEqual(3, result['circle_count'])
+        self.assertEqual(['PAGE3', 'PAGE4'], [row['页面'] for row in result['dot_cross_rows']])
+        self.assertEqual(['(450,0)', '(650,0)'], [row['坐标'] for row in result['dot_cross_rows']])
+        self.assertEqual(0, next(row for row in result['summary_rows'] if row['页面'] == 'PAGE1')['DOT四向十字数'])
+        self.assertEqual(0, next(row for row in result['summary_rows'] if row['页面'] == 'PAGE2')['DOT四向十字数'])
+
+    def test_analyze_project_contents_includes_csa_geometry_when_sch1_has_csa(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / 'sch_1').mkdir()
+            (root / 'sch_1' / 'page3.csa').write_text(CSA_PAGE_DOT_CROSS, encoding='utf-8')
+            bundle = pstx_analyzer.analyze_project_contents(
+                "PART_NAME\nU1 'IC_CPU'\nHQ_CODE='PN'\nVALUE='CPU'\nPACKAGE='BGA'\n",
+                "NET_NAME\n'N1'\nNODE_NAME U1 1\n'PIN1':\n",
+                project_name='demo',
+                project_root=str(root),
+            )
+
+        self.assertEqual(1, bundle['csa_geometry']['page_count'])
+        self.assertEqual(1, bundle['csa_geometry']['cross_count'])
+        self.assertEqual('PAGE3', bundle['csa_geometry']['dot_cross_rows'][0]['页面'])
 
 
 class ParseTests(unittest.TestCase):
@@ -1167,6 +1254,40 @@ class RuleTests(unittest.TestCase):
         self.assertEqual(1, row_map[('XU3', 'B2')]['隔串阻下拉数量'])
         self.assertEqual('R1', row_map[('XU3', 'B2')]['隔串阻下拉串阻链'])
 
+    def test_ground_detection_treats_analog_ground_variants_as_ground(self):
+        for net_name in ['AGND', 'AGND1', 'AGND_ADC', 'GNDA', 'VSSA', 'AVSS', '0V', '0']:
+            self.assertTrue(pstx_analyzer._net_is_gnd(net_name), net_name)
+
+    def test_analyze_resistors_treats_agnd_variants_as_ground_not_series_path(self):
+        components = {
+            'U1': make_ic('U1', {'1': 'SIG'}),
+            'R1': make_res('R1', 'SIG', 'AGND1', value='22R'),
+            'R2': make_res('R2', 'P3V3', 'AGND1', value='10k'),
+        }
+        nets = {
+            'SIG': [
+                {'refdes': 'U1', 'pin': '1', 'pin_name': 'GPIO'},
+                {'refdes': 'R1', 'pin': '1', 'pin_name': '1'},
+            ],
+            'AGND1': [
+                {'refdes': 'R1', 'pin': '2', 'pin_name': '2'},
+                {'refdes': 'R2', 'pin': '2', 'pin_name': '2'},
+            ],
+            'P3V3': [{'refdes': 'R2', 'pin': '1', 'pin_name': '1'}],
+        }
+
+        result = pstx_analyzer.analyze_resistors(components, nets)
+        row = {
+            (item['芯片位号'], item['引脚']): item
+            for item in result['chip_pin_rows']
+        }[('U1', '1')]
+
+        self.assertEqual('否', row['有串阻'])
+        self.assertEqual('是', row['有下拉'])
+        self.assertEqual('否', row['有上拉'])
+        self.assertEqual([], result['indirect_pullups'].get('SIG', []))
+        self.assertEqual([], result['divider_risks'])
+
     def test_analyze_resistors_finds_bias_across_multiple_series_resistors(self):
         components = {
             'XU1': make_ic('XU1', {'B2': 'NET_IN'}, page='PAGE10', page_real='PAGE510'),
@@ -1569,11 +1690,20 @@ class ExportTests(unittest.TestCase):
                     'od_missing': [],
                     'chip_pin_rows': [],
                 },
+                'csa_geometry': {
+                    'page_count': 1,
+                    'cross_count': 1,
+                    'circle_count': 0,
+                    'summary_rows': [{'页面': 'PAGE3', 'DOT四向十字数': 1}],
+                    'dot_cross_rows': [{'页面': 'PAGE3', '坐标': '(450,0)'}],
+                    'circle_rows': [],
+                },
             }, path)
             wb = load_workbook(out)
             try:
                 self.assertIn('电阻检查', wb.sheetnames)
                 self.assertIn('芯片引脚电阻', wb.sheetnames)
+                self.assertIn('规范检查', wb.sheetnames)
             finally:
                 wb.close()
         finally:

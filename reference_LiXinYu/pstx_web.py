@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import io
+import json
 import os
 import socket
 import subprocess
@@ -30,6 +31,13 @@ from pstx_analyzer import (
     analyze_project_contents,
     export_to_excel,
     query_project_data,
+)
+from pstx_aster_service import (
+    aster_error_payload,
+    build_aster_status,
+    build_aster_summary,
+    clear_aster_runtime_config,
+    set_aster_runtime_config,
 )
 
 
@@ -94,8 +102,9 @@ def _ensure_flask_loaded():
 BASE_DIR = Path(__file__).resolve().parent
 WEB_DIR = BASE_DIR / 'web'
 DEFAULT_HOST = '127.0.0.1'
-DEFAULT_PORT = 8765
-MAX_RUNS = 6
+DEFAULT_PORT = 44441
+MAX_RUNS = 12
+MAX_COMPARE_DETAIL_ROWS = 200
 RUN_CACHE: "OrderedDict[str, dict]" = OrderedDict()
 METRIC_TARGETS = {
     '贴装种类': 'bom',
@@ -106,6 +115,7 @@ METRIC_TARGETS = {
     '降额不合格': 'derating',
     '电阻候选': 'resistor',
     '电阻无法判断': 'resistor',
+    '规范候选': 'csa',
 }
 
 
@@ -146,6 +156,16 @@ SECTION_LAYOUT = [
             ('未命名网络', 'unnamed_nets'),
             ('BOM_OPTION 候选拼写', 'bom_option_typos'),
             ('BOM_OPTION 元件', 'bom_option_components'),
+        ],
+    },
+    {
+        'id': 'csa',
+        'title': '规范检查',
+        'lead': '扫描 sch_1/page*.csa 几何对象，复核带 DOT 四向十字交叉与画圈标注。',
+        'tables': [
+            ('CSA 页级汇总', 'csa_summary_rows'),
+            ('CSA DOT四向十字交叉', 'csa_dot_cross_rows'),
+            ('CSA 画圈对象', 'csa_circle_rows'),
         ],
     },
     {
@@ -351,6 +371,7 @@ def _build_top_insights(
     drc_total: int,
     derating_fail: int,
     resistor_kind_counts,
+    csa_candidate_total: int,
     warnings: List[str],
     section_cards: List[dict],
 ) -> List[dict]:
@@ -376,6 +397,13 @@ def _build_top_insights(
             'body': f'当前有 {resistor_candidates} 项电阻候选结果，建议结合偏置和串阻关系优先筛查。',
             'tone': 'neutral',
             'target': 'resistor',
+        })
+    if csa_candidate_total:
+        insights.append({
+            'title': '发现 CSA 几何规范候选项',
+            'body': f'当前有 {csa_candidate_total} 项 CSA 几何候选结果，建议进入规范检查分区核对页面坐标和原始行号。',
+            'tone': 'warning',
+            'target': 'csa',
         })
     if warnings:
         insights.append({
@@ -403,7 +431,7 @@ def _build_section_cards(sections: List[dict]) -> List[dict]:
         top_table = max(section['tables'], key=lambda table: table['count'], default=None)
         top_label = top_table['title'] if top_table and top_table['count'] else '暂无重点表'
         top_value = top_table['count'] if top_table else 0
-        tone = 'ok' if section['total_rows'] == 0 else ('warning' if section['id'] in {'drc', 'derating', 'resistor'} else 'neutral')
+        tone = 'ok' if section['total_rows'] == 0 else ('warning' if section['id'] in {'drc', 'derating', 'resistor', 'csa'} else 'neutral')
         cards.append({
             'id': section['id'],
             'title': section['title'],
@@ -422,6 +450,7 @@ def _build_report_payload(run_id: str, bundle: dict) -> dict:
     drc = bundle.get('drc', {})
     drt = bundle.get('derating', [])
     res = bundle.get('resistor_analysis', {})
+    csa = bundle.get('csa_geometry', {})
     mn = bundle.get('bom_normal_merged', [])
     md = bundle.get('bom_depop_merged', [])
 
@@ -434,6 +463,7 @@ def _build_report_payload(run_id: str, bundle: dict) -> dict:
     resistor_kind_counts = _count_result_kinds(resistor_rows)
     drc_total = sum(len(drc.get(key, [])) for key in _DRC_ISSUE_KEYS)
     derating_fail = sum(1 for row in drt if str(row.get('状态', '')).startswith('❌'))
+    csa_candidate_total = int(csa.get('cross_count', 0) or 0) + int(csa.get('circle_count', 0) or 0)
     include_depop = bool(bundle.get('include_depop', False))
     depop_refdes = list(bundle.get('depop_refdes', []) or [])
     excluded_depop_refdes = list(bundle.get('excluded_depop_refdes', []) or [])
@@ -447,6 +477,7 @@ def _build_report_payload(run_id: str, bundle: dict) -> dict:
         {'label': '降额不合格', 'value': derating_fail, 'tone': 'warning' if derating_fail else 'ok', 'target': METRIC_TARGETS['降额不合格'], 'caption': '优先核查电容'},
         {'label': '电阻候选', 'value': resistor_kind_counts.get('候选判断', 0), 'tone': 'neutral', 'target': METRIC_TARGETS['电阻候选'], 'caption': '电阻规则候选项'},
         {'label': '电阻无法判断', 'value': resistor_kind_counts.get('无法判断', 0), 'tone': 'muted', 'target': METRIC_TARGETS['电阻无法判断'], 'caption': '待人工复核'},
+        {'label': '规范候选', 'value': csa_candidate_total, 'tone': 'warning' if csa_candidate_total else 'ok', 'target': METRIC_TARGETS['规范候选'], 'caption': 'CSA 几何对象'},
     ]
 
     dataset_map = {
@@ -471,6 +502,19 @@ def _build_report_payload(run_id: str, bundle: dict) -> dict:
         'single_pin_nets': _report_table('single_pin_nets', '单端候选网络', drc.get('single_pin_nets', [])),
         'unnamed_nets': _report_table('unnamed_nets', '未命名网络', drc.get('unnamed_nets', [])),
         'bom_option_typos': _report_table('bom_option_typos', 'BOM_OPTION 候选拼写', drc.get('bom_option_typos', [])),
+        'csa_summary_rows': _report_table('csa_summary_rows', 'CSA 页级汇总', csa.get('summary_rows', [])),
+        'csa_dot_cross_rows': _report_table(
+            'csa_dot_cross_rows',
+            'CSA DOT四向十字交叉',
+            csa.get('dot_cross_rows', []),
+            default_hidden_columns=['文件', '全部WIRE行号'],
+        ),
+        'csa_circle_rows': _report_table(
+            'csa_circle_rows',
+            'CSA 画圈对象',
+            csa.get('circle_rows', []),
+            default_hidden_columns=['文件', '原始行', '外接框', '解析说明'],
+        ),
         'divider_risks': _report_table('divider_risks', '串阻分压候选风险', res.get('divider_risks', [])),
         'dup_pullups': _report_table('dup_pullups', '重复上拉候选', res.get('dup_pullups', [])),
         'dup_pulldowns': _report_table('dup_pulldowns', '重复下拉候选', res.get('dup_pulldowns', [])),
@@ -514,11 +558,13 @@ def _build_report_payload(run_id: str, bundle: dict) -> dict:
         f'降额候选判断：{drt_kind_counts.get("候选判断", 0)}',
         f'降额无法判断：{drt_kind_counts.get("无法判断", 0)}',
         f'电阻候选判断：{resistor_kind_counts.get("候选判断", 0)}',
+        f'CSA 几何候选：{csa_candidate_total}',
     ]
     top_insights = _build_top_insights(
         drc_total=drc_total,
         derating_fail=derating_fail,
         resistor_kind_counts=resistor_kind_counts,
+        csa_candidate_total=csa_candidate_total,
         warnings=bundle.get('warnings', []),
         section_cards=section_cards,
     )
@@ -556,6 +602,231 @@ def _get_run(run_id: str) -> dict:
     return payload
 
 
+def _json_fingerprint(value) -> str:
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, default=str)
+
+
+def _compact_value(value, limit: int = 180) -> str:
+    if isinstance(value, (dict, list, tuple)):
+        text = _json_fingerprint(value)
+    else:
+        text = str(value if value is not None else '')
+    return text if len(text) <= limit else text[:limit - 1] + '…'
+
+
+def _project_summary(run_id: str, payload: dict) -> dict:
+    bundle = payload.get('bundle', {})
+    report = payload.get('report', {})
+    drc = bundle.get('drc', {})
+    metrics = report.get('metrics', [])
+    metric_map = {str(item.get('label', '')): item.get('value') for item in metrics}
+    return {
+        'run_id': run_id,
+        'project_name': report.get('project_name') or bundle.get('project_name') or '未命名项目',
+        'project_root': bundle.get('project_root', ''),
+        'generated_at': report.get('generated_at') or bundle.get('generated_at', ''),
+        'ratio_limit': report.get('ratio_limit', bundle.get('ratio_limit', '')),
+        'include_depop': bool(report.get('include_depop', bundle.get('include_depop', False))),
+        'component_count': len(bundle.get('components', {}) or {}),
+        'net_count': len(bundle.get('nets', {}) or {}),
+        'drc_count': sum(len(drc.get(key, [])) for key in _DRC_ISSUE_KEYS),
+        'metrics': metrics,
+        'metric_map': metric_map,
+    }
+
+
+def _compare_scalar_metrics(left: dict, right: dict) -> List[dict]:
+    labels = list(dict.fromkeys(
+        list(left.get('metric_map', {}).keys())
+        + list(right.get('metric_map', {}).keys())
+        + ['component_count', 'net_count', 'drc_count']
+    ))
+    rows = []
+    for label in labels:
+        if label == 'component_count':
+            left_value, right_value, display_label = left.get('component_count', 0), right.get('component_count', 0), '元件数'
+        elif label == 'net_count':
+            left_value, right_value, display_label = left.get('net_count', 0), right.get('net_count', 0), '网络数'
+        elif label == 'drc_count':
+            left_value, right_value, display_label = left.get('drc_count', 0), right.get('drc_count', 0), 'DRC 问题数'
+        else:
+            left_value = left.get('metric_map', {}).get(label, '')
+            right_value = right.get('metric_map', {}).get(label, '')
+            display_label = label
+        if left_value == right_value:
+            continue
+        delta = ''
+        if isinstance(left_value, (int, float)) and isinstance(right_value, (int, float)):
+            diff = right_value - left_value
+            delta = f'{diff:+g}'
+        rows.append({
+            '指标': display_label,
+            '左侧': left_value,
+            '右侧': right_value,
+            '变化': delta or 'changed',
+        })
+    return rows
+
+
+def _component_compare_value(comp: dict) -> dict:
+    return {
+        '类型': comp.get('comp_type', ''),
+        '料号': comp.get('hq_code', ''),
+        '值': comp.get('value', ''),
+        '封装': comp.get('package', ''),
+        'BOM_OPTION': comp.get('bom_option', ''),
+        '页面': comp.get('page', ''),
+        '网络': comp.get('nets', {}),
+    }
+
+
+def _net_compare_value(nodes: List[dict]) -> List[str]:
+    return sorted(
+        (
+            f"{node.get('refdes', '')}:{node.get('pin', '')}:{node.get('pin_name', '')}"
+            for node in nodes or []
+        ),
+        key=str.upper,
+    )
+
+
+def _diff_named_maps(left_map: dict,
+                     right_map: dict,
+                     *,
+                     title: str,
+                     key_label: str,
+                     value_builder=None) -> dict:
+    value_builder = value_builder or (lambda value: value)
+    left_keys = set(left_map)
+    right_keys = set(right_map)
+    added = sorted(right_keys - left_keys, key=str.upper)
+    removed = sorted(left_keys - right_keys, key=str.upper)
+    shared = sorted(left_keys & right_keys, key=str.upper)
+    rows = []
+    for key in added:
+        rows.append({'类型': '新增', key_label: key, '左侧': '', '右侧': _compact_value(value_builder(right_map[key])), '变化字段': '新增'})
+    for key in removed:
+        rows.append({'类型': '删除', key_label: key, '左侧': _compact_value(value_builder(left_map[key])), '右侧': '', '变化字段': '删除'})
+    changed_count = 0
+    for key in shared:
+        left_value = value_builder(left_map[key])
+        right_value = value_builder(right_map[key])
+        if left_value == right_value:
+            continue
+        changed_count += 1
+        changed_fields = []
+        if isinstance(left_value, dict) and isinstance(right_value, dict):
+            for field in sorted(set(left_value) | set(right_value)):
+                if left_value.get(field) != right_value.get(field):
+                    changed_fields.append(field)
+        rows.append({
+            '类型': '变化',
+            key_label: key,
+            '左侧': _compact_value(left_value),
+            '右侧': _compact_value(right_value),
+            '变化字段': ', '.join(changed_fields) or '内容变化',
+        })
+    return {
+        'title': title,
+        'key_label': key_label,
+        'added_count': len(added),
+        'removed_count': len(removed),
+        'changed_count': changed_count,
+        'rows': rows[:MAX_COMPARE_DETAIL_ROWS],
+        'total_rows': len(rows),
+        'truncated': len(rows) > MAX_COMPARE_DETAIL_ROWS,
+    }
+
+
+def _row_compare_key(row: dict) -> str:
+    priority = [
+        '位号', '网络名', '芯片位号', '引脚', '基础名', 'P端网络', 'N端网络',
+        '使用该值的位号', '料号', '值', '封装', '逻辑页', '真实页', '页面', '原因代码', '状态',
+    ]
+    fields = [field for field in priority if field in row]
+    if fields:
+        return ' | '.join(f'{field}={row.get(field, "")}' for field in fields[:4])
+    return _json_fingerprint(row)
+
+
+def _table_rows_by_key(table: dict) -> Dict[str, dict]:
+    rows_by_key: Dict[str, dict] = {}
+    for index, row in enumerate(table.get('rows', []) or []):
+        key = _row_compare_key(row)
+        if key in rows_by_key:
+            key = f'{key} #{index + 1}'
+        rows_by_key[key] = row
+    return rows_by_key
+
+
+def _flatten_report_tables(report: dict) -> Dict[str, dict]:
+    tables: Dict[str, dict] = {}
+    for section in report.get('sections', []) or []:
+        for table in section.get('tables', []) or []:
+            tables[table.get('id') or table.get('title')] = table
+    return tables
+
+
+def _compare_report_tables(left_report: dict, right_report: dict) -> List[dict]:
+    left_tables = _flatten_report_tables(left_report)
+    right_tables = _flatten_report_tables(right_report)
+    results = []
+    for table_id in sorted(set(left_tables) | set(right_tables)):
+        left_table = left_tables.get(table_id, {'title': table_id, 'rows': []})
+        right_table = right_tables.get(table_id, {'title': table_id, 'rows': []})
+        diff = _diff_named_maps(
+            _table_rows_by_key(left_table),
+            _table_rows_by_key(right_table),
+            title=right_table.get('title') or left_table.get('title') or table_id,
+            key_label='对象',
+        )
+        diff['id'] = table_id
+        if diff['added_count'] or diff['removed_count'] or diff['changed_count']:
+            results.append(diff)
+    return results
+
+
+def _build_compare_payload(left_run_id: str, right_run_id: str) -> dict:
+    left_payload = _get_run(left_run_id)
+    right_payload = _get_run(right_run_id)
+    left_bundle = left_payload.get('bundle', {})
+    right_bundle = right_payload.get('bundle', {})
+    left_summary = _project_summary(left_run_id, left_payload)
+    right_summary = _project_summary(right_run_id, right_payload)
+    component_diff = _diff_named_maps(
+        left_bundle.get('components', {}) or {},
+        right_bundle.get('components', {}) or {},
+        title='元件差异',
+        key_label='位号',
+        value_builder=_component_compare_value,
+    )
+    net_diff = _diff_named_maps(
+        left_bundle.get('nets', {}) or {},
+        right_bundle.get('nets', {}) or {},
+        title='网络差异',
+        key_label='网络名',
+        value_builder=_net_compare_value,
+    )
+    table_diffs = _compare_report_tables(left_payload.get('report', {}), right_payload.get('report', {}))
+    overview = _compare_scalar_metrics(left_summary, right_summary)
+    return {
+        'ok': True,
+        'generated_at': time.strftime('%Y-%m-%d %H:%M:%S'),
+        'left': left_summary,
+        'right': right_summary,
+        'overview': overview,
+        'component_diff': component_diff,
+        'net_diff': net_diff,
+        'table_diffs': table_diffs,
+        'diff_totals': {
+            'overview': len(overview),
+            'components': component_diff['added_count'] + component_diff['removed_count'] + component_diff['changed_count'],
+            'nets': net_diff['added_count'] + net_diff['removed_count'] + net_diff['changed_count'],
+            'tables': sum(item['added_count'] + item['removed_count'] + item['changed_count'] for item in table_diffs),
+        },
+    }
+
+
 def create_app() -> "Flask":
     _ensure_flask_loaded()
     app = Flask(
@@ -569,6 +840,14 @@ def create_app() -> "Flask":
         host_text = request.host or f'{DEFAULT_HOST}:{DEFAULT_PORT}'
         listen_port = host_text.rsplit(':', 1)[-1] if ':' in host_text else str(DEFAULT_PORT)
         return render_template('index.html', listen_host=DEFAULT_HOST, listen_port=listen_port)
+
+    @app.get('/debug/effects')
+    def debug_effects():
+        return render_template('debug_effects.html')
+
+    @app.get('/debug/report-open')
+    def debug_report_open():
+        return render_template('debug_report_open.html')
 
     @app.post('/api/analyze')
     def analyze_upload():
@@ -633,6 +912,55 @@ def create_app() -> "Flask":
         payload = _get_run(run_id)
         return jsonify(payload['report'])
 
+    @app.get('/api/report/<run_id>/aster-summary')
+    def aster_summary(run_id: str):
+        payload = _get_run(run_id)
+        try:
+            return jsonify(build_aster_summary(payload['report'], payload['bundle']))
+        except Exception as exc:
+            error_payload, status = aster_error_payload(exc)
+            return jsonify(error_payload), status
+
+    @app.get('/api/aster/status')
+    def aster_status():
+        return jsonify(build_aster_status())
+
+    @app.post('/api/aster/runtime-config')
+    def aster_runtime_config_update():
+        data = request.get_json(silent=True) or request.form.to_dict()
+        try:
+            return jsonify(set_aster_runtime_config(data))
+        except Exception as exc:
+            error_payload, status = aster_error_payload(exc)
+            return jsonify(error_payload), status
+
+    @app.delete('/api/aster/runtime-config')
+    def aster_runtime_config_clear():
+        return jsonify(clear_aster_runtime_config())
+
+    @app.get('/api/projects')
+    def project_list():
+        projects = [
+            _project_summary(run_id, payload)
+            for run_id, payload in reversed(RUN_CACHE.items())
+        ]
+        return jsonify({
+            'ok': True,
+            'count': len(projects),
+            'projects': projects,
+        })
+
+    @app.post('/api/compare')
+    def compare_projects():
+        data = request.get_json(silent=True) or request.form
+        left_run_id = str(data.get('left_run_id') or '').strip()
+        right_run_id = str(data.get('right_run_id') or '').strip()
+        if not left_run_id or not right_run_id:
+            return jsonify({'ok': False, 'error': '请选择两个项目后再对比。'}), 400
+        if left_run_id == right_run_id:
+            return jsonify({'ok': False, 'error': '请选择两个不同项目进行对比。'}), 400
+        return jsonify(_build_compare_payload(left_run_id, right_run_id))
+
     @app.post('/api/report/<run_id>/query')
     def query_report(run_id: str):
         payload = _get_run(run_id)
@@ -669,7 +997,7 @@ def create_app() -> "Flask":
 
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(description='Run PSTX localhost web UI')
-    parser.add_argument('--port', type=int, default=DEFAULT_PORT, help='localhost port, default 8765')
+    parser.add_argument('--port', type=int, default=DEFAULT_PORT, help='localhost port, default 44441')
     parser.add_argument('--no-browser', action='store_true', help='do not auto-open the browser')
     args = parser.parse_args(argv)
 

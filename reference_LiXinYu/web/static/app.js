@@ -13,9 +13,10 @@ const TABLE_WIDTH_STORAGE_PREFIX = 'pstx-report-table-widths:';
 const DEFAULT_COLUMN_WIDTH = 168;
 const MIN_COLUMN_WIDTH = 96;
 const MAX_COLUMN_WIDTH = 640;
-const TABLE_INITIAL_RENDER_LIMIT = 320;
-const TABLE_RENDER_STEP = 320;
+const TABLE_INITIAL_RENDER_LIMIT = 220;
+const TABLE_RENDER_STEP = 220;
 const TABLE_FILTER_DEBOUNCE_MS = 90;
+const MAX_STAGGERED_NODES_PER_SELECTOR = 80;
 const LONG_TEXT_COLUMN_HINTS = new Map([
   ['引脚名', 340],
   ['子模块路径', 340],
@@ -40,6 +41,29 @@ const REFDES_PRIORITY_COLUMNS = [
   '使用该值的位号',
 ];
 
+const GLOBAL_STAGGER_SELECTORS = [
+  '.note-row',
+  '.field',
+  '.bullet-list li',
+  '.metric',
+  '.insight-card',
+  '.section-card',
+  '.table-block',
+  '.section-nav a',
+  '.inspector-block',
+  '.query-card',
+  '.query-result-item',
+  '.detail-row',
+  '.project-list-item',
+  '.compare-stat',
+  '.compare-block',
+  '.debug-stage',
+  '.aster-assist-panel',
+  '.aster-summary-list li',
+  '.aster-focus-grid article',
+  '.aster-auth-item',
+];
+
 const tableMountObserver = new IntersectionObserver((entries) => {
   entries.forEach((entry) => {
     if (!entry.isIntersecting) return;
@@ -47,11 +71,85 @@ const tableMountObserver = new IntersectionObserver((entries) => {
     tableMountObserver.unobserve(body);
     body.dataset.pendingMount = '';
     if (body.pstxTableData) {
-      mountTable(body, body.pstxTableData);
-      body.pstxTableData = null;
+      runWhenBrowserIsIdle(() => {
+        if (body.dataset.mounted === 'true' || !body.pstxTableData) return;
+        const tableData = body.pstxTableData;
+        body.pstxTableData = null;
+        mountTable(body, tableData);
+      });
     }
   });
 }, { rootMargin: '720px 0px', threshold: 0.01 });
+
+function prefersReducedMotion() {
+  const query = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+  return Boolean(query?.matches);
+}
+
+function restartMotion(node, className, duration = 420) {
+  if (!node || prefersReducedMotion()) return;
+  node.classList.remove(className);
+  void node.offsetWidth;
+  node.classList.add(className);
+  window.setTimeout(() => node.classList.remove(className), duration);
+}
+
+function staggerChildren(parent, selector, baseDelay = 0) {
+  if (!parent) return;
+  parent.querySelectorAll(selector).forEach((node, index) => {
+    node.style.setProperty('--stagger-index', String(Math.min(index + baseDelay, 10)));
+  });
+}
+
+function applyGlobalStaggers(root = document) {
+  GLOBAL_STAGGER_SELECTORS.forEach((selector) => {
+    Array.from(root.querySelectorAll(selector)).slice(0, MAX_STAGGERED_NODES_PER_SELECTOR).forEach((node, index) => {
+      node.style.setProperty('--stagger-index', String(Math.min(index, 10)));
+    });
+  });
+}
+
+function runWhenBrowserIsIdle(callback) {
+  if ('requestIdleCallback' in window) {
+    window.requestIdleCallback(callback, { timeout: 180 });
+    return;
+  }
+  requestAnimationFrame(callback);
+}
+
+function bootRuntimeHints() {
+  document.documentElement.classList.toggle('is-windows', /Windows/i.test(window.navigator.userAgent || ''));
+}
+
+function animateTableOpen(body) {
+  const block = body?.closest('.table-block');
+  restartMotion(block, 'table-open-pulse', 360);
+}
+
+function bootPageMotion() {
+  bootRuntimeHints();
+  document.documentElement.classList.add('motion-ready');
+  applyGlobalStaggers(document);
+  requestAnimationFrame(() => {
+    document.body.classList.add('page-motion-ready');
+  });
+}
+
+function showLoadingMask(mask) {
+  if (!mask) return;
+  mask.hidden = false;
+  mask.classList.add('is-active');
+  requestAnimationFrame(() => mask.classList.add('is-visible'));
+}
+
+function hideLoadingMask(mask) {
+  if (!mask) return;
+  mask.classList.remove('is-visible');
+  window.setTimeout(() => {
+    mask.classList.remove('is-active');
+    mask.hidden = true;
+  }, prefersReducedMotion() ? 0 : 220);
+}
 
 function bootReveals() {
   const nodes = document.querySelectorAll('[data-reveal]');
@@ -80,9 +178,8 @@ function setStatus(message, isError = false) {
 function scrollToSection(id) {
   const target = document.getElementById(id);
   if (!target) return;
-  target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  target.classList.add('section-flash');
-  window.setTimeout(() => target.classList.remove('section-flash'), 1400);
+  target.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'start' });
+  restartMotion(target, 'section-flash', 1400);
 }
 
 async function handleHomePage() {
@@ -93,7 +190,7 @@ async function handleHomePage() {
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     setStatus('正在生成分析报告，请稍候…');
-    mask.hidden = false;
+    showLoadingMask(mask);
     try {
       const response = await fetch('/api/analyze', {
         method: 'POST',
@@ -105,7 +202,7 @@ async function handleHomePage() {
       }
       window.location.href = payload.redirect_url;
     } catch (error) {
-      mask.hidden = true;
+      hideLoadingMask(mask);
       setStatus(error.message || String(error), true);
     }
   });
@@ -500,7 +597,7 @@ function scheduleTableMount(container, tableData) {
   if ('IntersectionObserver' in window) {
     tableMountObserver.observe(container);
   } else {
-    requestAnimationFrame(() => mountTable(container, tableData));
+    runWhenBrowserIsIdle(() => mountTable(container, tableData));
   }
   requestAnimationFrame(() => {
     if (container.dataset.mounted === 'true' || !container.pstxTableData) return;
@@ -509,8 +606,12 @@ function scheduleTableMount(container, tableData) {
     if (rect.top < window.innerHeight + margin && rect.bottom > -margin) {
       tableMountObserver.unobserve(container);
       container.dataset.pendingMount = '';
-      mountTable(container, container.pstxTableData);
-      container.pstxTableData = null;
+      runWhenBrowserIsIdle(() => {
+        if (container.dataset.mounted === 'true' || !container.pstxTableData) return;
+        const pendingTableData = container.pstxTableData;
+        container.pstxTableData = null;
+        mountTable(container, pendingTableData);
+      });
     }
   });
 }
@@ -1058,6 +1159,7 @@ function mountTable(container, tableData) {
 
   renderColumnFilters(state);
   applyTableState(state);
+  animateTableOpen(container);
 }
 
 function tableBlock(tableData, initialOpen = false) {
@@ -1087,10 +1189,13 @@ function tableBlock(tableData, initialOpen = false) {
   const setOpen = (open) => {
     block.classList.toggle('is-open', open);
     button.textContent = open ? '收起' : '查看详情';
-    if (open) mountTable(body, tableData);
+    if (open) {
+      mountTable(body, tableData);
+      animateTableOpen(body);
+    }
   };
   button.addEventListener('click', () => {
-    const open = block.classList.toggle('is-open');
+    const open = !block.classList.contains('is-open');
     setOpen(open);
   });
   if (initialOpen) {
@@ -1173,14 +1278,17 @@ function renderSummary(report) {
   const metricStrip = document.getElementById('metric-strip');
   metricStrip.replaceChildren();
   report.metrics.forEach((metric) => metricStrip.appendChild(metricNode(metric)));
+  staggerChildren(metricStrip, '.metric');
 
   const topInsights = document.getElementById('top-insights');
   topInsights.replaceChildren();
   (report.top_insights || []).forEach((insight) => topInsights.appendChild(insightNode(insight)));
+  staggerChildren(topInsights, '.insight-card', 1);
 
   const sectionCards = document.getElementById('section-cards');
   sectionCards.replaceChildren();
   (report.section_cards || []).forEach((section) => sectionCards.appendChild(sectionCardNode(section)));
+  staggerChildren(sectionCards, '.section-card', 2);
 
   const fileMeta = document.getElementById('file-meta');
   fileMeta.replaceChildren();
@@ -1391,11 +1499,14 @@ function renderQueryResults(payload, runQuery) {
     empty.className = 'query-empty';
     empty.textContent = payload?.lines?.[0] || '请输入条件后执行查询。';
     host.appendChild(empty);
+    restartMotion(host, 'query-result-enter', 520);
     return;
   }
 
   if (payload.view === 'list') {
     host.appendChild(queryListNode(payload, runQuery));
+    applyGlobalStaggers(host);
+    restartMotion(host, 'query-result-enter', 620);
     return;
   }
 
@@ -1415,6 +1526,522 @@ function renderQueryResults(payload, runQuery) {
     }
     host.appendChild(block);
   });
+  applyGlobalStaggers(host);
+  restartMotion(host, 'query-result-enter', 620);
+}
+
+function renderAsterSummary(host, payload) {
+  host.hidden = false;
+  host.replaceChildren();
+  const title = document.createElement('h4');
+  title.textContent = `Aster 摘要 · ${payload.mode || 'mock'} · ${payload.provider || 'local'}`;
+  const summary = document.createElement('p');
+  summary.textContent = payload.summary || '暂无摘要。';
+  host.appendChild(title);
+  host.appendChild(summary);
+
+  const list = document.createElement('ul');
+  list.className = 'aster-summary-list';
+  (payload.priorities || []).forEach((item) => {
+    const li = document.createElement('li');
+    const strong = document.createElement('strong');
+    strong.textContent = item.title || '建议';
+    const body = document.createElement('p');
+    body.textContent = item.body || '';
+    li.appendChild(strong);
+    li.appendChild(body);
+    list.appendChild(li);
+  });
+  if (list.children.length) {
+    host.appendChild(list);
+  }
+
+  if ((payload.review_checklist || []).length) {
+    const checklist = document.createElement('div');
+    checklist.className = 'aster-checklist';
+    const heading = document.createElement('h5');
+    heading.textContent = 'AI 审查清单';
+    checklist.appendChild(heading);
+    (payload.review_checklist || []).slice(0, 8).forEach((item) => {
+      const row = document.createElement('article');
+      row.className = `aster-check-item is-${item.status || 'needs_review'} severity-${item.severity || 'medium'}`;
+      const top = document.createElement('div');
+      const name = document.createElement('strong');
+      name.textContent = item.item || '审查项';
+      const badge = document.createElement('span');
+      badge.textContent = asterChecklistStatusLabel(item.status);
+      top.append(name, badge);
+      const evidence = document.createElement('p');
+      evidence.textContent = item.evidence || '已纳入 AI 审查上下文。';
+      row.append(top, evidence);
+      checklist.appendChild(row);
+    });
+    host.appendChild(checklist);
+  }
+
+  if ((payload.section_focus || []).length) {
+    const focusGrid = document.createElement('div');
+    focusGrid.className = 'aster-focus-grid';
+    (payload.section_focus || []).slice(0, 4).forEach((item) => {
+      const card = document.createElement('article');
+      const label = document.createElement('span');
+      label.textContent = item.section || '分区';
+      const count = document.createElement('strong');
+      count.textContent = `${item.rows || 0} 条`;
+      const reason = document.createElement('p');
+      reason.textContent = item.reason || '';
+      card.append(label, count, reason);
+      focusGrid.appendChild(card);
+    });
+    host.appendChild(focusGrid);
+  }
+
+  if ((payload.manual_review || []).length) {
+    const manual = document.createElement('div');
+    manual.className = 'aster-manual-review';
+    const heading = document.createElement('h5');
+    heading.textContent = '必须人工确认';
+    manual.appendChild(heading);
+    (payload.manual_review || []).slice(0, 6).forEach((item) => {
+      const row = document.createElement('article');
+      const topic = document.createElement('strong');
+      topic.textContent = item.topic || '人工复核项';
+      const reason = document.createElement('p');
+      reason.textContent = item.reason || '';
+      row.append(topic, reason);
+      manual.appendChild(row);
+    });
+    host.appendChild(manual);
+  }
+
+  const guard = document.createElement('p');
+  guard.textContent = (payload.safeguards || []).join(' ');
+  host.appendChild(guard);
+  applyGlobalStaggers(host);
+  restartMotion(host, 'query-result-enter', 620);
+}
+
+function asterChecklistStatusLabel(status) {
+  const labels = {
+    pass: '通过',
+    covered_no_findings: '已覆盖',
+    covered_with_findings: '有发现',
+    needs_review: '需复核',
+    manual_only: '人工判断',
+  };
+  return labels[status] || '需复核';
+}
+
+function renderAsterError(host, error, payload = {}) {
+  host.hidden = false;
+  host.replaceChildren();
+  const title = document.createElement('h4');
+  title.textContent = 'Aster 调用失败';
+  const message = document.createElement('p');
+  message.textContent = error.message || String(error);
+  host.append(title, message);
+
+  const diagnostics = payload.diagnostics || {};
+  const detailItems = [
+    ['请求 ID', diagnostics.request_id],
+    ['操作', diagnostics.operation],
+    ['后端', diagnostics.backend],
+    ['HTTP 状态', diagnostics.status],
+    ['日志文件', payload.log_file || diagnostics.log_file],
+  ].filter(([, value]) => value !== undefined && value !== null && value !== '');
+  if (detailItems.length) {
+    host.appendChild(detailRowsNode(detailItems.map(([label, value]) => ({ label, value }))));
+  }
+
+  if ((payload.diagnostic_hints || []).length) {
+    const list = document.createElement('ul');
+    list.className = 'aster-summary-list';
+    payload.diagnostic_hints.forEach((hint) => {
+      const li = document.createElement('li');
+      const body = document.createElement('p');
+      body.textContent = hint;
+      li.appendChild(body);
+      list.appendChild(li);
+    });
+    host.appendChild(list);
+  }
+  restartMotion(host, 'query-result-enter', 620);
+}
+
+function bootAsterFloatingPanel() {
+  const panel = document.getElementById('aster-assist');
+  const launcher = document.getElementById('aster-float-launcher');
+  const minimize = document.getElementById('aster-panel-minimize');
+  if (!panel || !launcher) return;
+  const storageKey = 'pstx_aster_panel_state';
+
+  const setOpen = (open) => {
+    panel.classList.toggle('is-collapsed', !open);
+    launcher.hidden = open;
+    document.body.classList.toggle('aster-panel-open', open);
+    try {
+      localStorage.setItem(storageKey, open ? 'open' : 'closed');
+    } catch (error) {
+      // LocalStorage can be disabled in hardened browser environments.
+    }
+  };
+
+  launcher.addEventListener('click', () => setOpen(true));
+  minimize?.addEventListener('click', () => setOpen(false));
+
+  let saved = 'open';
+  try {
+    saved = localStorage.getItem(storageKey) || 'open';
+  } catch (error) {
+    saved = 'open';
+  }
+  setOpen(saved !== 'closed');
+}
+
+function renderAsterStatus(host, payload) {
+  host.hidden = false;
+  host.replaceChildren();
+
+  const header = document.createElement('div');
+  header.className = 'aster-auth-header';
+  const title = document.createElement('strong');
+  title.textContent = `认证状态 · ${payload.mode || 'mock'} / ${payload.backend || 'chat-flow'}`;
+  const badge = document.createElement('span');
+  badge.className = `aster-auth-badge is-${payload.status || 'unknown'}`;
+  badge.textContent = payload.status || 'unknown';
+  header.append(title, badge);
+  host.appendChild(header);
+
+  const message = document.createElement('p');
+  message.textContent = payload.message || '未读取到 Aster 状态。';
+  host.appendChild(message);
+
+  const grid = document.createElement('div');
+  grid.className = 'aster-auth-grid';
+  (payload.items || []).forEach((item) => {
+    const row = document.createElement('div');
+    row.className = `aster-auth-item ${item.configured ? 'is-configured' : 'is-missing'}`;
+    const label = document.createElement('span');
+    label.textContent = item.label || item.name || '配置项';
+    const state = document.createElement('strong');
+    state.textContent = item.configured ? (item.secret ? '已配置（隐藏）' : (item.value || '已配置')) : '未配置';
+    const meta = document.createElement('small');
+    meta.textContent = `${item.name || ''}${item.required ? ' · 必需' : ' · 可选'}`;
+    row.append(label, state, meta);
+    grid.appendChild(row);
+  });
+  host.appendChild(grid);
+
+  if ((payload.safeguards || []).length) {
+    const guard = document.createElement('p');
+    guard.textContent = payload.safeguards.join(' ');
+    host.appendChild(guard);
+  }
+  applyGlobalStaggers(host);
+}
+
+function bootAsterStatus() {
+  const host = document.getElementById('aster-auth-status');
+  if (!host) return;
+  host.hidden = false;
+  host.textContent = '正在读取 Aster 认证状态…';
+  return fetch('/api/aster/status')
+    .then((response) => response.json())
+    .then((payload) => renderAsterStatus(host, payload))
+    .catch((error) => {
+      host.replaceChildren();
+      const message = document.createElement('p');
+      message.textContent = `Aster 状态读取失败：${error.message || error}`;
+      host.appendChild(message);
+    });
+}
+
+function clearSecretInputs(form) {
+  ['api_key', 'app_secret'].forEach((name) => {
+    const input = form.elements[name];
+    if (input) input.value = '';
+  });
+}
+
+function setCredentialMessage(text, tone = 'neutral') {
+  const message = document.getElementById('aster-credential-message');
+  if (!message) return;
+  message.textContent = text;
+  message.dataset.tone = tone;
+}
+
+function bootAsterCredentialForm() {
+  const form = document.getElementById('aster-credential-form');
+  const clearButton = document.getElementById('aster-credential-clear');
+  if (!form) return;
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const submitButton = form.querySelector('button[type="submit"]');
+    if (submitButton) submitButton.disabled = true;
+    setCredentialMessage('正在应用临时凭据…');
+    const payload = Object.fromEntries(new FormData(form).entries());
+    try {
+      const response = await fetch('/api/aster/runtime-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const result = await response.json();
+      clearSecretInputs(form);
+      if (!response.ok || result.ok === false) {
+        throw new Error(result.error || '临时凭据设置失败。');
+      }
+      renderAsterStatus(document.getElementById('aster-auth-status'), result);
+      setCredentialMessage('临时凭据已应用到当前进程内存。', 'ok');
+    } catch (error) {
+      setCredentialMessage(error.message || String(error), 'error');
+    } finally {
+      if (submitButton) submitButton.disabled = false;
+    }
+  });
+
+  clearButton?.addEventListener('click', async () => {
+    clearButton.disabled = true;
+    setCredentialMessage('正在清除临时凭据…');
+    try {
+      const response = await fetch('/api/aster/runtime-config', { method: 'DELETE' });
+      const result = await response.json();
+      clearSecretInputs(form);
+      renderAsterStatus(document.getElementById('aster-auth-status'), result);
+      setCredentialMessage('临时凭据已清除。', response.ok ? 'ok' : 'error');
+    } catch (error) {
+      setCredentialMessage(error.message || String(error), 'error');
+    } finally {
+      clearButton.disabled = false;
+    }
+  });
+}
+
+function bootAsterSummary(runId) {
+  const button = document.getElementById('aster-summary-button');
+  const host = document.getElementById('aster-summary-result');
+  if (!button || !host) return;
+
+  button.addEventListener('click', async () => {
+    button.disabled = true;
+    const originalText = button.textContent;
+    button.textContent = '生成中…';
+    host.hidden = false;
+    host.innerHTML = '<p>正在生成 Aster 摘要…</p>';
+    let errorPayload = {};
+    try {
+      const response = await fetch(`/api/report/${runId}/aster-summary`);
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) {
+        errorPayload = payload;
+        throw new Error(payload.error || '生成失败。');
+      }
+      renderAsterSummary(host, payload);
+    } catch (error) {
+      renderAsterError(host, error, errorPayload);
+    } finally {
+      button.disabled = false;
+      button.textContent = originalText;
+    }
+  });
+}
+
+function projectOptionLabel(project) {
+  const name = project.project_name || project.run_id;
+  const time = project.generated_at ? ` · ${project.generated_at}` : '';
+  return `${name}${time}`;
+}
+
+function diffCountText(diff) {
+  if (!diff) return '0';
+  return `+${diff.added_count || 0} / -${diff.removed_count || 0} / Δ${diff.changed_count || 0}`;
+}
+
+function createProjectSelect(projects, selectedRunId) {
+  const select = document.createElement('select');
+  select.className = 'project-compare-select';
+  projects.forEach((project) => {
+    const option = document.createElement('option');
+    option.value = project.run_id;
+    option.textContent = projectOptionLabel(project);
+    select.appendChild(option);
+  });
+  if (selectedRunId && projects.some((project) => project.run_id === selectedRunId)) {
+    select.value = selectedRunId;
+  }
+  return select;
+}
+
+function projectListNode(projects) {
+  const list = document.createElement('div');
+  list.className = 'project-list';
+  projects.slice(0, 6).forEach((project) => {
+    const item = document.createElement('a');
+    item.className = 'project-list-item';
+    item.href = `/report/${project.run_id}`;
+    const title = document.createElement('strong');
+    title.textContent = project.project_name || project.run_id;
+    const meta = document.createElement('span');
+    meta.textContent = `${project.generated_at || '未记录时间'} · 元件 ${project.component_count || 0} · 网络 ${project.net_count || 0}`;
+    item.appendChild(title);
+    item.appendChild(meta);
+    list.appendChild(item);
+  });
+  return list;
+}
+
+function compareBlockNode(title, diff) {
+  const block = document.createElement('details');
+  block.className = 'compare-block';
+  block.open = Boolean((diff?.rows || []).length);
+  const summary = document.createElement('summary');
+  summary.textContent = `${title} · ${diffCountText(diff)}`;
+  block.appendChild(summary);
+  if (diff?.truncated) {
+    const note = document.createElement('p');
+    note.className = 'compare-note';
+    note.textContent = `差异较多，当前仅展示前 ${diff.rows.length} 行，总差异 ${diff.total_rows} 行。`;
+    block.appendChild(note);
+  }
+  if (diff?.rows?.length) {
+    block.appendChild(dataTableNode(Object.keys(diff.rows[0]), diff.rows));
+  } else {
+    const empty = document.createElement('p');
+    empty.className = 'compare-empty';
+    empty.textContent = '未发现差异。';
+    block.appendChild(empty);
+  }
+  return block;
+}
+
+function renderCompareResult(host, payload) {
+  const result = document.createElement('div');
+  result.className = 'compare-result compare-result-enter';
+  const title = document.createElement('div');
+  title.className = 'compare-result-title';
+  const leftName = document.createElement('span');
+  leftName.textContent = payload.left.project_name;
+  const versus = document.createElement('strong');
+  versus.textContent = 'vs';
+  const rightName = document.createElement('span');
+  rightName.textContent = payload.right.project_name;
+  title.appendChild(leftName);
+  title.appendChild(versus);
+  title.appendChild(rightName);
+  result.appendChild(title);
+
+  const cards = document.createElement('div');
+  cards.className = 'compare-stat-grid';
+  [
+    ['指标变化', payload.diff_totals?.overview || 0],
+    ['元件差异', payload.diff_totals?.components || 0],
+    ['网络差异', payload.diff_totals?.nets || 0],
+    ['结果表差异', payload.diff_totals?.tables || 0],
+  ].forEach(([label, value]) => {
+    const card = document.createElement('div');
+    card.className = 'compare-stat';
+    const labelNode = document.createElement('span');
+    labelNode.textContent = label;
+    const valueNode = document.createElement('strong');
+    valueNode.textContent = value;
+    card.appendChild(labelNode);
+    card.appendChild(valueNode);
+    cards.appendChild(card);
+  });
+  result.appendChild(cards);
+
+  if (payload.overview?.length) {
+    result.appendChild(compareBlockNode('指标差异', {
+      added_count: 0,
+      removed_count: 0,
+      changed_count: payload.overview.length,
+      rows: payload.overview,
+    }));
+  }
+  result.appendChild(compareBlockNode('元件差异', payload.component_diff));
+  result.appendChild(compareBlockNode('网络差异', payload.net_diff));
+  (payload.table_diffs || []).slice(0, 12).forEach((diff) => {
+    result.appendChild(compareBlockNode(`结果表：${diff.title}`, diff));
+  });
+  if ((payload.table_diffs || []).length > 12) {
+    const note = document.createElement('p');
+    note.className = 'compare-note';
+    note.textContent = `结果表差异较多，当前展示前 12 个表，共 ${payload.table_diffs.length} 个表存在差异。`;
+    result.appendChild(note);
+  }
+  staggerChildren(result, '.compare-stat');
+  staggerChildren(result, '.compare-block', 2);
+  host.appendChild(result);
+  restartMotion(result, 'compare-result-enter', 920);
+}
+
+async function renderProjectManager(currentRunId = '') {
+  const host = document.getElementById('project-manager');
+  if (!host) return;
+  const body = host.querySelector('.project-manager-body') || host;
+  body.textContent = '正在读取会话项目…';
+  try {
+    const response = await fetch('/api/projects');
+    const payload = await response.json();
+    const projects = payload.projects || [];
+    body.replaceChildren();
+    if (!projects.length) {
+      const empty = document.createElement('p');
+      empty.className = 'compare-empty';
+      empty.textContent = '当前会话还没有已分析项目。生成报告后，这里会自动出现项目列表。';
+      body.appendChild(empty);
+      return;
+    }
+    const projectList = projectListNode(projects);
+    body.appendChild(projectList);
+    staggerChildren(projectList, '.project-list-item');
+    const form = document.createElement('form');
+    form.className = 'project-compare-form';
+    const leftDefault = currentRunId || projects[0]?.run_id || '';
+    const rightDefault = projects.find((project) => project.run_id !== leftDefault)?.run_id || projects[1]?.run_id || leftDefault;
+    const leftSelect = createProjectSelect(projects, leftDefault);
+    const rightSelect = createProjectSelect(projects, rightDefault);
+    const submit = document.createElement('button');
+    submit.type = 'submit';
+    submit.className = 'primary-btn inline-btn';
+    submit.textContent = '对比差异';
+    form.appendChild(leftSelect);
+    form.appendChild(rightSelect);
+    form.appendChild(submit);
+    body.appendChild(form);
+
+    const resultHost = document.createElement('div');
+    resultHost.className = 'project-compare-result-host';
+    body.appendChild(resultHost);
+    restartMotion(host, 'project-manager-refresh', 900);
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      resultHost.innerHTML = '<p class="compare-empty">正在对比两个项目…</p>';
+      restartMotion(resultHost, 'compare-loading-pulse', 480);
+      const compareResponse = await fetch('/api/compare', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          left_run_id: leftSelect.value,
+          right_run_id: rightSelect.value,
+        }),
+      });
+      const comparePayload = await compareResponse.json();
+      resultHost.replaceChildren();
+      if (!compareResponse.ok || !comparePayload.ok) {
+        const error = document.createElement('p');
+        error.className = 'compare-empty compare-error';
+        error.textContent = comparePayload.error || '对比失败。';
+        resultHost.appendChild(error);
+        return;
+      }
+      renderCompareResult(resultHost, comparePayload);
+    });
+  } catch (error) {
+    body.textContent = error.message || String(error);
+  }
 }
 
 function bootSidebarToggle() {
@@ -1444,6 +2071,7 @@ async function handleQuery(runId) {
   const runQuery = async (mode, keyword) => {
     const results = document.getElementById('query-results');
     results.innerHTML = '<div class="query-empty">正在查询…</div>';
+    restartMotion(results, 'query-loading-pulse', 480);
     const response = await fetch(`/api/report/${runId}/query`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1472,15 +2100,24 @@ async function handleReportPage() {
   const host = document.getElementById('report-sections');
   report.sections.forEach((section) => host.appendChild(sectionNode(section)));
   renderSectionNav(report.sections);
+  applyGlobalStaggers(document);
+  document.body.classList.add('report-data-ready');
   bootSidebarToggle();
   bootReveals();
+  renderProjectManager(context.runId);
   handleQuery(context.runId);
+  bootAsterFloatingPanel();
+  bootAsterStatus();
+  bootAsterCredentialForm();
+  bootAsterSummary(context.runId);
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  bootPageMotion();
   bootReveals();
   if (document.body.dataset.page === 'home') {
     handleHomePage();
+    renderProjectManager();
   }
   if (document.body.dataset.page === 'report') {
     handleReportPage();

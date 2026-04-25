@@ -28,6 +28,13 @@
           <strong>{{ listen_port }}</strong>
         </div>
         <div class="note-row">
+          <span class="note-label">调试入口</span>
+          <span class="note-links">
+            <a class="text-link" href="{{ url_for('debug_effects') }}">综合动效</a>
+            <a class="text-link" href="{{ url_for('debug_report_open') }}">单项目打开</a>
+          </span>
+        </div>
+        <div class="note-row">
           <span class="note-label">分析模块</span>
           <strong>BOM / 网络 / DRC / 电阻 / 降额 / 查询 / 导出</strong>
         </div>
@@ -107,6 +114,14 @@
           <li>位号与网络查询入口，可快速定位对象与关联信息。</li>
           <li>Excel 导出结果，可用于离线归档与进一步复核。</li>
         </ul>
+        <div id="project-manager" class="project-manager" data-reveal>
+          <div class="project-manager-header">
+            <p class="eyebrow">PROJECTS</p>
+            <h3>项目管理 / 对比</h3>
+            <p>当前 localhost 会话会保留最近分析过的项目，可选择任意两个项目做差异对比。</p>
+          </div>
+          <div class="project-manager-body">正在读取会话项目…</div>
+        </div>
       </aside>
     </main>
   </div>

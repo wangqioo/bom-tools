@@ -27,6 +27,7 @@ from pathlib import Path, PureWindowsPath
 from typing import Dict, List, Optional, Tuple
 
 import pstx_page_logic as page_logic
+import pstx_csa_geometry
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
@@ -297,8 +298,10 @@ _POWER_TOKEN_RE = re.compile(
     r'(?:VCC|VDD|VBAT|VCORE|VCCIO|PVDD|PVCC|AVDD|DVDD|VBUS)[A-Z0-9]*',
     re.IGNORECASE,
 )
+# Ground nets often carry domain prefixes/suffixes, for example AGND1,
+# GNDA, VSSA, or AVSS. Treat them as terminal ground nodes in resistor walks.
 _GROUND_TOKEN_RE = re.compile(
-    r'(?:GND|AGND|SGND|PGND|DGND|VSS[A-Z0-9]*)',
+    r'(?:[A-Z0-9]*GND[A-Z0-9]*|[A-Z0-9]*VSS[A-Z0-9]*|0V|0)',
     re.IGNORECASE,
 )
 
@@ -1871,6 +1874,19 @@ def analyze_project_contents(prt_content: str,
     drc = check_drc(analysis_components, analysis_nets, option_components_source=components)
     derating = analyze_derating(analysis_components, analysis_nets, ratio_limit, custom_volt_map)
     resistor_analysis = analyze_resistors(analysis_components, analysis_nets, exclude_depop=not include_depop)
+    csa_geometry = pstx_csa_geometry.analyze_csa_geometry(project_root) if project_root else {
+        'enabled': False,
+        'root': '',
+        'page_count': 0,
+        'cross_count': 0,
+        'circle_count': 0,
+        'error_count': 0,
+        'summary_rows': [],
+        'dot_cross_rows': [],
+        'circle_rows': [],
+        'warnings': [],
+    }
+    page_warnings.extend(csa_geometry.get('warnings', []))
     if depop_refdes:
         if include_depop:
             page_warnings.append(
@@ -1901,6 +1917,7 @@ def analyze_project_contents(prt_content: str,
         'drc': drc,
         'derating': derating,
         'resistor_analysis': resistor_analysis,
+        'csa_geometry': csa_geometry,
         'ratio_limit': ratio_limit,
         'custom_volt_map': custom_volt_map or None,
         'include_depop': include_depop,
@@ -2157,6 +2174,7 @@ def export_to_excel(data: dict, out_path: str) -> str:
     drc = data.get('drc', {})
     drt = data.get('derating', [])
     res = data.get('resistor_analysis', {})
+    csa = data.get('csa_geometry', {})
     mn  = data.get('bom_normal_merged', [])
     md  = data.get('bom_depop_merged', [])
     network_rows = _iter_list_rows(na, ['power_net_rows', 'gnd_net_rows', 'diff_pair_rows', 'single_node_rows'])
@@ -2192,6 +2210,9 @@ def export_to_excel(data: dict, out_path: str) -> str:
         ('降额无法判断数', drt_kind_counts.get('无法判断', 0)),
         ('电阻候选判断数', resistor_kind_counts.get('候选判断', 0)),
         ('电阻无法判断数', resistor_kind_counts.get('无法判断', 0)),
+        ('CSA 扫描页数', csa.get('page_count', 0)),
+        ('CSA DOT四向十字数', csa.get('cross_count', 0)),
+        ('CSA 画圈对象数', csa.get('circle_count', 0)),
     ]:
         ws.append([label, val])
     for row in ws.iter_rows():
@@ -2261,6 +2282,18 @@ def export_to_excel(data: dict, out_path: str) -> str:
 
     ws = wb.create_sheet('芯片引脚电阻')
     _xl_write_rows(ws, res.get('chip_pin_rows', []), _BL)
+
+    # CSA 几何规范检查
+    ws = wb.create_sheet('规范检查'); ws.freeze_panes = None
+    _xl_section(ws, 'CSA 页级汇总', _BL)
+    _xl_write_rows(ws, csa.get('summary_rows', []), _BL, freeze=False)
+    ws.append([])
+    _xl_section(ws, 'CSA DOT四向十字交叉', _OR)
+    _xl_write_rows(ws, csa.get('dot_cross_rows', []), _OR, freeze=False)
+    ws.append([])
+    _xl_section(ws, 'CSA 画圈对象', _GY)
+    _xl_write_rows(ws, csa.get('circle_rows', []), _GY, freeze=False)
+    _xl_autowidth(ws)
 
     # 降额
     ws = wb.create_sheet('降额分析')
