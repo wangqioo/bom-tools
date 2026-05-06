@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI 配置 - PSTX 原理图审查平台</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+</head>
+<body data-page="ai-settings">
+  <div class="app-shell">
+    <header class="poster-hero settings-hero">
+      <div class="poster-copy" data-reveal>
+        <p class="eyebrow">AI SETTINGS</p>
+        <h1>AI 配置中心</h1>
+        <p class="hero-lead">
+          这里集中维护 Aster 临时运行配置。服务地址固定为
+          <code>https://aigc.huaqin.com</code>，密钥只写入当前 Python 进程内存，不回显、不写入前端持久化存储。
+        </p>
+      </div>
+      <div class="hero-notes" data-reveal>
+        <div class="note-row">
+          <span class="note-label">入口说明</span>
+          <strong>报告页和对比页浮窗只保留问答</strong>
+        </div>
+        <div class="note-row">
+          <span class="note-label">返回</span>
+          <span class="note-links">
+            <a class="text-link" href="{{ url_for('home') }}">首页</a>
+            <a class="text-link" href="{{ url_for('guide_page') }}">使用说明</a>
+            <a class="text-link" href="{{ url_for('compare_page') }}">项目对比</a>
+            <a class="text-link" href="{{ url_for('feishu_sync_page') }}">飞书同步</a>
+          </span>
+        </div>
+      </div>
+    </header>
+
+    <main class="home-grid settings-grid">
+      <section class="form-stage" data-reveal>
+        <div class="section-heading">
+          <p class="eyebrow">RUNTIME CONFIG</p>
+          <h2>Aster 临时凭据</h2>
+          <p>用于当前本地 Web 进程的 Aster 调用。重启服务后如未配置环境变量，需要重新填写。</p>
+        </div>
+
+        <form id="aster-credential-form" class="aster-credential-form settings-credential-form" autocomplete="off">
+          <div class="aster-credential-head">
+            <div>
+              <strong>模型调用配置</strong>
+              <p>ChatFlow 仅需 API Key；Room/Auth 模式还需要 App ID、App Secret 和 Origin。</p>
+            </div>
+            <button id="aster-credential-clear" type="button" class="ghost-btn">清除临时凭据</button>
+          </div>
+          <label>
+            <span>模式</span>
+            <select name="mode">
+              <option value="live">live</option>
+              <option value="mock">mock</option>
+              <option value="off">off</option>
+            </select>
+          </label>
+          <label>
+            <span>后端</span>
+            <select name="backend">
+              <option value="chat-flow">chat-flow</option>
+              <option value="room">room</option>
+            </select>
+          </label>
+          <label>
+            <span>员工号</span>
+            <input type="text" name="emp_no" placeholder="100019100" autocomplete="off">
+          </label>
+          <label>
+            <span>ChatFlow API Key</span>
+            <input type="password" name="api_key" placeholder="仅当前进程临时保存" autocomplete="new-password">
+          </label>
+          <label>
+            <span>Room App ID</span>
+            <input type="text" name="app_id" placeholder="ag_xxx" autocomplete="off">
+          </label>
+          <label>
+            <span>Room Validate Origin</span>
+            <input type="text" name="origin" placeholder="默认使用 aigc.huaqin.com" autocomplete="off">
+          </label>
+          <label>
+            <span>Room App Secret</span>
+            <input type="password" name="app_secret" placeholder="仅 room 后端需要" autocomplete="new-password">
+          </label>
+          <button type="submit" class="primary-btn inline-btn">应用临时凭据</button>
+          <p id="aster-credential-message" class="aster-credential-message" aria-live="polite"></p>
+        </form>
+      </section>
+
+      <aside class="insight-panel settings-status-panel" data-reveal>
+        <div class="section-heading">
+          <p class="eyebrow">STATUS</p>
+          <h2>当前状态</h2>
+          <p>这里只显示配置状态和脱敏摘要，不展示 secret/token/apiKey 明文。</p>
+        </div>
+        <div id="aster-auth-status" class="aster-auth-status">正在读取 Aster 认证状态…</div>
+      </aside>
+    </main>
+  </div>
+  <script src="{{ url_for('static', filename='ui/common.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='pages/ai_settings.js') }}" defer></script>
+</body>
+</html>

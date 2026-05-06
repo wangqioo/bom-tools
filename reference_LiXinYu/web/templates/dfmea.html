@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DFMEA 工作台 - PSTX 原理图审查平台</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+</head>
+<body data-page="dfmea" data-run-id="{{ run_id }}" data-debug-ui="{{ 'true' if debug_ui|default(false) else 'false' }}" data-debug-fixture="{{ 'true' if debug_fixture|default(false) else 'false' }}">
+  <div class="app-shell dfmea-shell">
+    <header class="poster-hero dfmea-hero">
+      <div class="poster-copy" data-reveal>
+        <p class="eyebrow">DFMEA WORKBENCH</p>
+        <h1>DFMEA 工作台</h1>
+        <p class="hero-lead">
+          按页码顺序排查元器件，勾选多个位号保存为一个 DFMEA 分组。这里保存的是本工具本地 SQLite
+          记录，不会修改 Cadence/PSTX 项目文件。
+        </p>
+      </div>
+      <div class="hero-notes" data-reveal>
+        <div class="note-row">
+          <span class="note-label">当前报告</span>
+          <strong>{{ run_id }}</strong>
+        </div>
+        <div class="note-row">
+          <span class="note-label">入口</span>
+          <span class="note-links">
+            {% if debug_fixture|default(false) %}
+            <span class="text-link">Debug 预览</span>
+            {% else %}
+            <a class="text-link" href="{{ url_for('report_page', run_id=run_id) }}">返回报告</a>
+            {% endif %}
+            <a class="text-link" href="{{ url_for('guide_page') }}">使用说明</a>
+            <a class="text-link" href="{{ url_for('home') }}">返回首页</a>
+          </span>
+        </div>
+      </div>
+    </header>
+
+    <main class="dfmea-workspace">
+      <section class="sync-panel dfmea-pending-panel" data-reveal>
+        <div class="section-heading">
+          <p class="eyebrow">PENDING POOL</p>
+          <h2>待排查元器件池</h2>
+          <p>默认按页码排序，二级按位号类型排序。勾选多个位号后，可保存为同一个 DFMEA 分组。</p>
+        </div>
+        <form id="dfmea-filter-form" class="query-form dfmea-filter">
+          <label class="field">
+            <span>排序</span>
+            <select name="sort">
+              <option value="page">页码排序</option>
+              <option value="type">位号类型排序</option>
+              <option value="refdes">位号排序</option>
+              <option value="hq">HQ料号排序</option>
+            </select>
+          </label>
+          <label class="field grow">
+            <span>搜索</span>
+            <input type="search" name="q" placeholder="位号 / 页码 / HQ料号 / 值 / 封装">
+          </label>
+          <label class="agent-checkbox-label dfmea-depop-toggle">
+            <input type="checkbox" name="include_depop">
+            <span>包含 DEPOP 排查</span>
+          </label>
+          <label class="agent-checkbox-label dfmea-depop-toggle">
+            <input type="checkbox" name="exclude_rc">
+            <span>剔除电阻/电容</span>
+          </label>
+          <button type="submit" class="primary-btn inline-btn">刷新</button>
+        </form>
+        <div class="dfmea-toolbar">
+          <span id="dfmea-pending-count">待排查：读取中</span>
+          <span id="dfmea-selected-count">已选择：0</span>
+          <button id="dfmea-clear-selection" type="button" class="ghost-btn inline-btn">清空选择</button>
+        </div>
+        <div id="dfmea-pending-list" class="dfmea-pending-list">
+          <p class="query-empty">正在读取元器件…</p>
+        </div>
+      </section>
+
+      <section class="sync-panel dfmea-group-panel" data-reveal>
+        <div class="section-heading">
+          <p class="eyebrow">GROUP FORM</p>
+          <h2>保存 DFMEA 分组</h2>
+          <p>同一组位号共享一次 DFMEA 描述；保存后，这些位号会从待排查池中移除。</p>
+        </div>
+        <div id="dfmea-form-status" class="feishu-cache-status">请选择待排查元器件。</div>
+        <form id="dfmea-group-form" class="dfmea-group-form">
+          <input type="hidden" name="group_id">
+          <label class="field grow">
+            <span>本组位号</span>
+            <output name="refdes_text" class="dfmea-refdes-display">从左侧待排查表格勾选生成</output>
+          </label>
+          <label class="field grow">
+            <span>功能/需求</span>
+            <textarea name="function_requirement" rows="3" placeholder="例如：为核心电源提供去耦 / 完成 I2C 电平转换"></textarea>
+          </label>
+          <label class="field grow">
+            <span>潜在失效模式</span>
+            <textarea name="failure_mode" rows="3" placeholder="例如：开路、短路、参数漂移、通信异常"></textarea>
+          </label>
+          <label class="field grow">
+            <span>潜在失效后果</span>
+            <textarea name="failure_effect" rows="3" placeholder="例如：芯片复位、接口失效、功能降级"></textarea>
+          </label>
+          <label class="field grow">
+            <span>潜在失效原因/机理</span>
+            <textarea name="failure_cause" rows="3" placeholder="例如：过压、温升、选型裕量不足、焊接异常"></textarea>
+          </label>
+          <label class="field grow">
+            <span>现有预防/探测方案</span>
+            <textarea name="prevention_detection" rows="3" placeholder="例如：设计规则、ICT/FCT、目检、降额检查、BOM review"></textarea>
+          </label>
+          <div class="dfmea-actions">
+            <button type="submit" class="primary-btn inline-btn">保存分组</button>
+            <button id="dfmea-cancel-edit" type="button" class="ghost-btn inline-btn" hidden>取消编辑</button>
+          <a id="dfmea-export-link" class="ghost-btn inline-btn" href="{{ '#' if debug_fixture|default(false) else url_for('dfmea_export', run_id=run_id) }}">导出 Excel</a>
+          </div>
+          <p class="dfmea-empty-hint">五个 DFMEA 字段允许先为空保存，但建议导出前补齐。</p>
+        </form>
+      </section>
+
+      <section class="sync-panel dfmea-saved-panel" data-reveal>
+        <div class="section-heading">
+          <p class="eyebrow">SAVED GROUPS</p>
+          <h2>已保存分组</h2>
+          <p>支持编辑或删除分组。删除后，组内位号会回到待排查池。</p>
+        </div>
+        <div id="dfmea-groups" class="dfmea-groups">
+          <p class="query-empty">暂无已保存分组。</p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    window.PSTX_DFMEA_CONTEXT = {{ {'runId': run_id, 'debugUi': debug_ui|default(false), 'debugFixture': debug_fixture|default(false)}|tojson }};
+  </script>
+  <script src="{{ url_for('static', filename='ui/common.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='pages/dfmea.js') }}" defer></script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 import unittest
 
-from pstx_aster_mock import build_aster_mock_summary
+from pstx_integrations.aster.mock import build_aster_mock_summary
 
 
 class AsterMockSummaryTests(unittest.TestCase):

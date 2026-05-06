@@ -1,7 +1,7 @@
 import unittest
 
-from pstx_aster_client import AsterHttpError
-from pstx_aster_service import (
+from pstx_integrations.aster.client import AsterHttpError
+from pstx_integrations.aster.service import (
     aster_error_payload,
     build_aster_status,
     build_aster_summary,
@@ -33,13 +33,13 @@ class AsterServiceTests(unittest.TestCase):
         self.assertEqual(400, status)
         self.assertFalse(payload['ok'])
         self.assertEqual('config', payload['error_type'])
-        self.assertIn('ASTER_BASE_URL', payload['error'])
+        self.assertNotIn('ASTER_BASE_URL', payload['error'])
+        self.assertIn('ASTER_EMP_NO', payload['error'])
 
     def test_aster_status_redacts_secret_values(self):
         status = build_aster_status(environ={
             'PSTX_ASTER_MODE': 'live',
             'PSTX_ASTER_BACKEND': 'chat-flow',
-            'ASTER_BASE_URL': 'https://aster.example.local/v1?token=should-hide',
             'ASTER_EMP_NO': '100019100',
             'ASTER_API_KEY': 'super-secret-key',
         })
@@ -53,21 +53,23 @@ class AsterServiceTests(unittest.TestCase):
         self.assertTrue(item_map['ASTER_API_KEY']['configured'])
         self.assertTrue(item_map['ASTER_API_KEY']['secret'])
         self.assertNotIn('value', item_map['ASTER_API_KEY'])
-        self.assertEqual('https://aster.example.local', item_map['ASTER_BASE_URL']['value'])
+        self.assertNotIn('ASTER_BASE_URL', item_map)
+        self.assertEqual('https://aigc.huaqin.com', item_map['ASTER_FIXED_BASE_URL']['value'])
+        self.assertEqual('fixed', item_map['ASTER_FIXED_BASE_URL']['source'])
 
     def test_aster_status_lists_missing_live_credentials(self):
         status = build_aster_status(environ={'PSTX_ASTER_MODE': 'live'})
 
         self.assertEqual('missing', status['status'])
         self.assertFalse(status['live_ready'])
-        self.assertIn('ASTER_BASE_URL', status['missing'])
+        self.assertNotIn('ASTER_BASE_URL', status['missing'])
+        self.assertIn('ASTER_EMP_NO', status['missing'])
         self.assertIn('ASTER_API_KEY', status['missing'])
 
     def test_runtime_config_overrides_env_without_echoing_secret(self):
         status = set_aster_runtime_config({
             'mode': 'live',
             'backend': 'chat-flow',
-            'base_url': 'https://runtime-aster.example.local/api',
             'emp_no': '100019100',
             'api_key': 'runtime-secret-key',
             'origin': 'runtime-origin.example.local',
@@ -82,6 +84,8 @@ class AsterServiceTests(unittest.TestCase):
         item_map = {item['name']: item for item in status['items']}
         self.assertEqual('runtime', item_map['ASTER_API_KEY']['source'])
         self.assertNotIn('value', item_map['ASTER_API_KEY'])
+        self.assertNotIn('ASTER_BASE_URL', item_map)
+        self.assertEqual('https://aigc.huaqin.com', item_map['ASTER_FIXED_BASE_URL']['value'])
         self.assertEqual('runtime-origin.example.local', item_map['ASTER_ORIGIN']['value'])
 
         cleared = clear_aster_runtime_config()

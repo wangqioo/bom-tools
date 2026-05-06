@@ -6,7 +6,7 @@
   <title>{{ report.project_name }} - PSTX 原理图审查平台</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
 </head>
-<body data-page="report" data-run-id="{{ run_id }}">
+<body data-page="report" data-run-id="{{ run_id }}" data-debug-ui="{{ 'true' if debug_ui|default(false) else 'false' }}" data-debug-fixture="{{ 'true' if debug_fixture|default(false) else 'false' }}">
   <div class="app-shell report-shell">
     <div class="report-layout">
       <aside class="sticky-nav" data-reveal>
@@ -40,7 +40,19 @@
         </div>
         <div class="hero-actions">
           <a class="ghost-btn" href="{{ url_for('home') }}">新建任务</a>
-          <a class="primary-btn inline-btn" id="export-link" href="{{ url_for('export_report', run_id=run_id) }}">导出报告</a>
+          <a class="ghost-btn" href="{{ url_for('guide_page') }}">使用说明</a>
+          <a class="ghost-btn" href="{{ url_for('topology_page') }}?run_id={{ run_id }}">拓扑视图</a>
+          <a class="ghost-btn" href="{{ url_for('compare_page') }}?left_run_id={{ run_id }}">项目对比</a>
+          <a class="ghost-btn" href="{{ url_for('dfmea_page') }}?run_id={{ run_id }}">DFMEA 工作台</a>
+          <details class="bom-export-menu">
+            <summary class="primary-btn inline-btn">导出 BOM</summary>
+            <div class="bom-export-options" role="menu">
+              <a role="menuitem" href="{{ '#' if debug_fixture|default(false) else url_for('export_report_bom', run_id=run_id, mode='all') }}">含 DEPOP 合并</a>
+              <a role="menuitem" href="{{ '#' if debug_fixture|default(false) else url_for('export_report_bom', run_id=run_id, mode='mounted') }}">不含 DEPOP</a>
+              <a role="menuitem" href="{{ '#' if debug_fixture|default(false) else url_for('export_report_bom', run_id=run_id, mode='split') }}">贴装 / DEPOP 分条</a>
+            </div>
+          </details>
+          <a class="primary-btn inline-btn" id="export-link" href="{{ '#' if debug_fixture|default(false) else url_for('export_report', run_id=run_id) }}">导出报告</a>
         </div>
       </header>
 
@@ -51,81 +63,24 @@
             <h2>分析概览</h2>
             <p id="generated-at" class="section-subline">加载中…</p>
           </div>
-          <div id="metric-strip" class="metric-strip"></div>
+          <div id="report-decision-strip" class="report-decision-strip" aria-label="报告决策摘要"></div>
           <div id="top-insights" class="top-insights"></div>
-          <div id="section-cards" class="section-cards"></div>
-          <button id="aster-float-launcher" type="button" class="aster-float-launcher" aria-controls="aster-assist">
-            <span>AI</span>
-            <strong>Aster 审查</strong>
-          </button>
-          <section id="aster-assist" class="aster-assist-panel is-collapsed" aria-label="Aster AI 浮窗审查助手">
-            <div class="aster-window-head">
-              <div>
-                <p class="eyebrow">ASTER ASSIST</p>
-                <h3>AI 浮窗审查助手</h3>
-                <p>汇总 BOM、网络、DRC、电阻、降额和 CSA 规范，生成可复核的审查建议。</p>
-              </div>
-              <div class="aster-window-actions">
-                <button id="aster-summary-button" type="button" class="primary-btn inline-btn">生成审查</button>
-                <button id="aster-panel-minimize" type="button" class="ghost-btn" aria-label="收起 Aster 浮窗">收起</button>
-              </div>
-            </div>
-            <div class="aster-window-body">
-              <form id="aster-credential-form" class="aster-credential-form" autocomplete="off">
-                <div class="aster-credential-head">
-                  <div>
-                    <strong>临时 Aster 凭据</strong>
-                    <p>仅写入当前 Python 进程内存，重启服务后失效；密钥不会回显。</p>
-                  </div>
-                  <button id="aster-credential-clear" type="button" class="ghost-btn">清除临时凭据</button>
-                </div>
-                <label>
-                  <span>模式</span>
-                  <select name="mode">
-                    <option value="live">live</option>
-                    <option value="mock">mock</option>
-                    <option value="off">off</option>
-                  </select>
-                </label>
-                <label>
-                  <span>后端</span>
-                  <select name="backend">
-                    <option value="chat-flow">chat-flow</option>
-                    <option value="room">room</option>
-                  </select>
-                </label>
-                <label>
-                  <span>Aster 服务地址</span>
-                  <input type="url" name="base_url" placeholder="https://aigc.huaqin.com">
-                </label>
-                <label>
-                  <span>员工号</span>
-                  <input type="text" name="emp_no" placeholder="100019100" autocomplete="off">
-                </label>
-                <label>
-                  <span>ChatFlow API Key</span>
-                  <input type="password" name="api_key" placeholder="仅当前进程临时保存" autocomplete="new-password">
-                </label>
-                <label>
-                  <span>Room App ID</span>
-                  <input type="text" name="app_id" placeholder="ag_xxx" autocomplete="off">
-                </label>
-                <label>
-                  <span>Room Validate Origin</span>
-                  <input type="text" name="origin" placeholder="默认使用服务地址域名，可填 test-aigc-api.huaqin.com" autocomplete="off">
-                </label>
-                <label>
-                  <span>Room App Secret</span>
-                  <input type="password" name="app_secret" placeholder="仅 room 后端需要" autocomplete="new-password">
-                </label>
-                <button type="submit" class="primary-btn inline-btn">应用临时凭据</button>
-                <p id="aster-credential-message" class="aster-credential-message" aria-live="polite"></p>
-              </form>
-              <div id="aster-auth-status" class="aster-auth-status" hidden>正在读取 Aster 认证状态…</div>
-              <div id="aster-summary-result" class="aster-summary-result" hidden></div>
-            </div>
-          </section>
-          <details class="summary-details">
+          <div class="report-layer-guide" aria-label="报告可靠性标注">
+            <span><strong>明确异常</strong>字段缺失或确定状态</span>
+            <span><strong>规则候选</strong>需要结合设计人工确认</span>
+            <span><strong>信息统计</strong>范围与数量导航</span>
+            <span><strong>证据明细</strong>追溯解析和原始依据</span>
+          </div>
+          <div id="review-plan" class="review-plan" aria-label="审查任务分层"></div>
+          <details class="report-secondary-panel report-metrics-panel">
+            <summary>完整指标</summary>
+            <div id="metric-strip" class="metric-strip"></div>
+          </details>
+          <details class="report-secondary-panel report-section-index-panel">
+            <summary>完整分区索引</summary>
+            <div id="section-cards" class="section-cards"></div>
+          </details>
+          <details class="summary-details report-secondary-panel">
             <summary>输入文件与快速摘要</summary>
             <div class="summary-columns">
               <div>
@@ -139,14 +94,15 @@
             </div>
           </details>
           <div id="warning-list" class="warning-list" hidden></div>
-          <div id="project-manager" class="project-manager project-manager-inline">
+          <details id="project-manager" class="project-manager project-manager-inline report-secondary-panel">
+            <summary>项目管理 / 对比</summary>
             <div class="project-manager-header">
               <p class="eyebrow">PROJECTS</p>
               <h3>项目管理 / 对比</h3>
-              <p>选择当前会话中的两个项目，对比指标、元件、网络和检查结果差异。</p>
+              <p>选择当前会话中的两个项目，进入独立工作台对比指标、元件、网络和检查结果差异。</p>
             </div>
             <div class="project-manager-body">正在读取会话项目…</div>
-          </div>
+          </details>
         </section>
 
         <div id="report-sections"></div>
@@ -178,30 +134,122 @@
       </main>
 
       <aside class="report-inspector" data-reveal>
-        <div class="inspector-block">
-          <p class="eyebrow">CURRENT VIEW</p>
-          <h3>当前视图</h3>
-          <p id="inspector-current">概览</p>
-        </div>
-        <div class="inspector-block">
-          <h3>操作提示</h3>
-          <ul class="inspector-list">
-            <li>表格标题区显示记录量和判断类型分布。</li>
-            <li>展开表格后可筛选、排序、隐藏列和调整列宽。</li>
-            <li>长文本默认保持单行可扫读，可切换密度查看更完整内容。</li>
-          </ul>
-        </div>
-        <div class="inspector-block">
-          <h3>页码原则</h3>
-          <p>结果展示优先使用真实页；子模块映射页单独保留，便于复核层级来源。</p>
+        <button id="inspector-toggle" class="ghost-btn inspector-toggle" type="button" aria-expanded="true" aria-label="收起右侧信息栏">收起右栏</button>
+        <div class="inspector-content">
+          <div class="inspector-block">
+            <p class="eyebrow">CURRENT VIEW</p>
+            <h3>当前视图</h3>
+            <p id="inspector-current">概览</p>
+          </div>
+          <div class="inspector-block">
+            <h3>操作提示</h3>
+            <ul class="inspector-list">
+              <li>表格标题区显示记录量和判断类型分布。</li>
+              <li>展开表格后可筛选、排序、隐藏列和调整列宽。</li>
+              <li>长文本默认保持单行可扫读，可切换密度查看更完整内容。</li>
+            </ul>
+          </div>
+          <div class="inspector-block">
+            <h3>页码原则</h3>
+            <p>结果中的“页码”就是用户在 Cadence 总体工程里看到的页；原始主工程 page 统一叫“主模块页”，可在页码检查中复核。</p>
+          </div>
         </div>
       </aside>
     </div>
   </div>
+  <button id="aster-float-launcher" type="button" class="aster-float-launcher" aria-controls="aster-assist" aria-expanded="false" aria-label="打开 Aster AI 客服审查助手">
+    <span class="aster-bubble-avatar" aria-hidden="true">AI</span>
+    <span class="aster-bubble-status" aria-hidden="true"></span>
+    <strong>Aster</strong>
+  </button>
+  <section id="aster-assist" class="aster-assist-panel is-collapsed" role="dialog" aria-modal="false" aria-label="Aster AI 可拖动浮窗助手" aria-hidden="true">
+    <div class="aster-window-head" data-drag-handle="aster">
+      <div>
+        <p class="eyebrow">ASTER ASSIST</p>
+        <h3>AI 浮窗助手</h3>
+        <p>输入问题即可连续追问；系统会自动选择合适的审查能力。</p>
+      </div>
+      <div class="aster-window-actions">
+        <button id="aster-summary-button" type="button" class="primary-btn inline-btn">生成审查</button>
+        <button id="aster-panel-reset-position" type="button" class="ghost-btn" aria-label="还原 Aster 浮窗位置">还原位置</button>
+        <button id="aster-panel-minimize" type="button" class="ghost-btn" aria-label="最小化 Aster 浮窗">最小化</button>
+      </div>
+    </div>
+    <div class="aster-window-body">
+        <form id="harness-agent-form" class="aster-chat-form">
+          <label class="aster-chat-question">
+            <span>向 AI 提问</span>
+            <textarea id="harness-agent-question" name="question" rows="3" placeholder="例如：帮我重点复核 BOM_OPTION 打圈覆盖和页码映射证据"></textarea>
+          </label>
+          <select id="harness-agent-profile" name="profile" hidden>
+            <option value="auto">智能自动</option>
+            <option value="quick_scan">快速扫描</option>
+          </select>
+          <details class="aster-advanced-settings">
+            <summary>高级设置</summary>
+            <div class="aster-chat-controls">
+              <label>
+                <span>最大轮数</span>
+                <input id="harness-agent-max-steps" name="max_steps" type="number" min="1" max="24" value="6">
+              </label>
+              <label>
+                <span>工具调用</span>
+                <input id="harness-agent-max-tool-calls" name="max_tool_calls" type="number" min="0" max="48" value="10">
+              </label>
+              <label>
+                <span>Subagents</span>
+                <input id="harness-agent-max-subagents" name="max_subagents" type="number" min="0" max="6" value="2">
+              </label>
+            </div>
+          </details>
+          <div class="aster-chat-options">
+            <label class="agent-checkbox-label">
+              <input id="harness-agent-enable-subagents" name="enable_subagents" type="checkbox">
+              <span>并行 Subagents</span>
+            </label>
+            <label class="agent-checkbox-label">
+              <input id="harness-agent-debug" name="debug" type="checkbox">
+              <span>Debug JSON</span>
+            </label>
+            <button type="submit" class="primary-btn inline-btn">发送问题</button>
+          </div>
+        </form>
+        <div class="aster-settings-link">
+          <div>
+            <strong>AI 配置已移至独立页面</strong>
+            <p>浮窗只保留连续对话；模型模式、员工号和 API Key 请在专属配置页维护。</p>
+          </div>
+          <a class="ghost-btn" href="{{ url_for('ai_settings_page') }}">打开 AI 配置</a>
+        </div>
+        <div id="aster-auth-status" class="aster-auth-status" hidden>正在读取 Aster 认证状态…</div>
+        <div id="harness-agent-result" class="aster-chat-result" aria-live="polite">
+          <p class="agent-empty">在上方输入问题，AI 会通过本地只读工具审查当前报告。</p>
+        </div>
+        <div id="aster-summary-result" class="aster-summary-result" hidden></div>
+    </div>
+  </section>
+  <aside id="agent-trace-drawer" class="agent-trace-drawer" aria-hidden="true">
+    <div class="agent-trace-head">
+      <div>
+        <p class="eyebrow">AGENT TRACE</p>
+        <h3>Agent 执行复盘</h3>
+        <p>查看工具调用、证据引用、观察结果和人工复核建议。</p>
+      </div>
+      <button id="agent-trace-close" type="button" class="ghost-btn">收起</button>
+    </div>
+    <div id="agent-trace-body" class="agent-trace-body">
+      <p class="agent-empty">运行一次 Agent 后，这里会显示完整复盘。</p>
+    </div>
+  </aside>
 
   <script>
-    window.PSTX_REPORT_CONTEXT = {{ {'runId': run_id, 'projectName': report.project_name}|tojson }};
+    window.PSTX_REPORT_CONTEXT = {{ {'runId': run_id, 'projectName': report.project_name, 'debugFixture': debug_fixture|default(false)}|tojson }};
+    {% if debug_fixture|default(false) %}
+    window.PSTX_DEBUG_REPORT = {{ report|tojson }};
+    {% endif %}
   </script>
+  <script src="{{ url_for('static', filename='ui/common.js') }}" defer></script>
   <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='pages/report.js') }}" defer></script>
 </body>
 </html>

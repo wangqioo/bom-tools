@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>项目对比工作台 - PSTX 原理图审查平台</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+</head>
+<body data-page="compare">
+  <div class="app-shell compare-shell">
+    <header class="compare-hero" data-reveal>
+      <div>
+        <p class="eyebrow">PROJECT COMPARE</p>
+        <h1>项目对比工作台</h1>
+        <p>
+          选择当前 localhost 会话中的两个分析结果，默认先按 Net 视角查看网络迁移，再进入器件、料号属性与检查表差异。
+        </p>
+      </div>
+      <div class="hero-actions">
+        <a class="ghost-btn" href="{{ url_for('home') }}">返回首页</a>
+        <a class="ghost-btn" href="{{ url_for('guide_page') }}">使用说明</a>
+        <a class="ghost-btn" href="{{ url_for('feishu_db_page') }}">缓存数据库</a>
+      </div>
+    </header>
+
+    <main class="compare-workspace" data-reveal>
+      <section class="compare-control-panel">
+        <div class="section-heading">
+          <p class="eyebrow">A / B SELECTOR</p>
+          <h2>选择两个项目</h2>
+          <p>左侧通常选择基线版本，右侧选择待检查版本；也可以通过报告页入口预填当前项目。</p>
+        </div>
+        <form id="compare-page-form" class="compare-page-form">
+          <label class="field">
+            <span>左侧项目</span>
+            <select id="compare-left-run" name="left_run_id"></select>
+          </label>
+          <label class="field">
+            <span>右侧项目</span>
+            <select id="compare-right-run" name="right_run_id"></select>
+          </label>
+          <label class="field compare-limit-field">
+            <span>明细上限</span>
+            <input id="compare-detail-limit" name="detail_limit" type="number" min="1" max="5000" value="300">
+            <small>默认轻量拉取；完整表格点击后再分批渲染。</small>
+          </label>
+          <button type="submit" class="primary-btn inline-btn">生成对比</button>
+        </form>
+        <div id="compare-projects-status" class="status-line" aria-live="polite">正在读取项目列表…</div>
+      </section>
+
+      <section id="compare-result-host" class="compare-page-result">
+        <div class="compare-empty">请选择两个不同项目后生成对比。</div>
+      </section>
+    </main>
+  </div>
+
+  <button id="aster-float-launcher" type="button" class="aster-float-launcher" aria-controls="aster-assist" aria-expanded="false" aria-label="打开 Aster AI 对比助手">
+    <span class="aster-bubble-avatar" aria-hidden="true">AI</span>
+    <span class="aster-bubble-status" aria-hidden="true"></span>
+    <strong>Aster</strong>
+  </button>
+  <section id="aster-assist" class="aster-assist-panel is-collapsed" role="dialog" aria-modal="false" aria-label="Aster AI 可拖动浮窗助手" aria-hidden="true">
+    <div class="aster-window-head" data-drag-handle="aster">
+      <div>
+        <p class="eyebrow">ASTER ASSIST</p>
+        <h3>AI 对比助手</h3>
+        <p>输入问题即可连续追问；系统会自动选择合适的对比审查能力。</p>
+      </div>
+      <div class="aster-window-actions">
+        <button id="aster-summary-button" type="button" class="primary-btn inline-btn">深度审查</button>
+        <button id="aster-panel-reset-position" type="button" class="ghost-btn" aria-label="还原 Aster 浮窗位置">还原位置</button>
+        <button id="aster-panel-minimize" type="button" class="ghost-btn" aria-label="最小化 Aster 浮窗">最小化</button>
+      </div>
+    </div>
+    <div class="aster-window-body">
+      <form id="harness-agent-form" class="aster-chat-form">
+        <label class="aster-chat-question">
+          <span>向 AI 提问</span>
+          <textarea id="harness-agent-question" name="question" rows="3" placeholder="例如：优先帮我看芯片和连接器的 Pin/Net 变化风险"></textarea>
+        </label>
+        <select id="harness-agent-profile" name="profile" hidden>
+          <option value="auto">智能自动</option>
+          <option value="compare_quick_scan">对比快速扫描</option>
+        </select>
+        <details class="aster-advanced-settings">
+          <summary>高级设置</summary>
+          <div class="aster-chat-controls">
+            <label>
+              <span>最大轮数</span>
+              <input id="harness-agent-max-steps" name="max_steps" type="number" min="1" max="24" value="8">
+            </label>
+            <label>
+              <span>工具调用</span>
+              <input id="harness-agent-max-tool-calls" name="max_tool_calls" type="number" min="0" max="48" value="14">
+            </label>
+          </div>
+          <label class="agent-checkbox-label">
+            <input id="harness-agent-debug" name="debug" type="checkbox">
+            <span>Debug JSON</span>
+          </label>
+        </details>
+        <div class="aster-chat-options">
+          <button type="submit" class="primary-btn inline-btn">发送问题</button>
+        </div>
+      </form>
+      <div class="aster-settings-link">
+        <div>
+          <strong>AI 配置已移至独立页面</strong>
+          <p>浮窗只保留连续对话；模型模式、员工号和 API Key 请在专属配置页维护。</p>
+        </div>
+        <a class="ghost-btn" href="{{ url_for('ai_settings_page') }}">打开 AI 配置</a>
+      </div>
+      <div id="aster-auth-status" class="aster-auth-status" hidden>正在读取 Aster 认证状态…</div>
+      <div id="harness-agent-result" class="aster-chat-result" aria-live="polite">
+        <p class="agent-empty">生成项目对比后，可以在上方输入问题让 Agent 深度审查当前差异。</p>
+      </div>
+      <div id="aster-summary-result" class="aster-summary-result" hidden></div>
+    </div>
+  </section>
+  <aside id="agent-trace-drawer" class="agent-trace-drawer" aria-hidden="true">
+    <div class="agent-trace-head">
+      <div>
+        <p class="eyebrow">COMPARE TRACE</p>
+        <h3>对比 Agent 复盘</h3>
+        <p>查看对比分区读取、项目文件片段、证据引用和人工复核建议。</p>
+      </div>
+      <button id="agent-trace-close" type="button" class="ghost-btn">收起</button>
+    </div>
+    <div id="agent-trace-body" class="agent-trace-body">
+      <p class="agent-empty">运行一次对比 Agent 后，这里会显示完整复盘。</p>
+    </div>
+  </aside>
+
+  <script src="{{ url_for('static', filename='ui/common.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='pages/compare.js') }}" defer></script>
+</body>
+</html>

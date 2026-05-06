@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>芯片拓扑视图 - PSTX 原理图审查平台</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+</head>
+<body data-page="topology" data-run-id="{{ run_id }}" data-debug-fixture="{{ 'true' if debug_fixture|default(false) else 'false' }}">
+  <div class="app-shell topology-shell">
+    <header class="topology-hero" data-reveal>
+      <div>
+        <p class="eyebrow">CHIP TOPOLOGY</p>
+        <h1>芯片 / 连接器拓扑视图</h1>
+        <p>用芯片级语义拓扑快速查看关键器件、连接器、接口关系和供电依赖。R/C/L 只作为一跳辅助证据，不作为主节点显示。</p>
+      </div>
+      <div class="hero-actions">
+        <a class="ghost-btn" href="{{ url_for('home') }}">返回首页</a>
+        {% if not debug_fixture|default(false) %}
+        <a class="ghost-btn" href="{{ url_for('report_page', run_id=run_id) }}">返回报告</a>
+        <a class="ghost-btn" href="{{ url_for('compare_page') }}?left_run_id={{ run_id }}">项目对比</a>
+        {% endif %}
+        <a class="ghost-btn" href="{{ url_for('guide_page') }}">使用说明</a>
+      </div>
+    </header>
+
+    <main class="topology-workspace" data-reveal>
+      <section class="topology-control-panel" aria-label="拓扑控制">
+        <div>
+          <p class="eyebrow">GRAPH CONTROLS</p>
+          <h2>{{ project_name or '当前项目' }}</h2>
+          <p>建议先看 Hub 节点和高风险连接，再点选节点/边查看页码、接口组和 review hints。</p>
+        </div>
+        <form id="topology-controls" class="topology-controls">
+          <label class="field">
+            <span>聚焦位号</span>
+            <input id="topology-focus-refdes" name="focus_refdes" type="text" placeholder="例如 U46，可留空">
+          </label>
+          <label class="field">
+            <span>角色过滤</span>
+            <select id="topology-role-filter" name="role_filter">
+              <option value="">全部角色</option>
+              <option value="processor">主芯片 / FPGA</option>
+              <option value="level_shifter">电平转换</option>
+              <option value="power">电源管理</option>
+              <option value="connector">连接器</option>
+              <option value="memory">存储器</option>
+            </select>
+          </label>
+          <label class="field compact-field">
+            <span>节点上限</span>
+            <input id="topology-limit" name="limit" type="number" min="1" max="250" value="120">
+          </label>
+          <label class="field compact-field">
+            <span>视图</span>
+            <select id="topology-view" name="view">
+              <option value="summary" selected>摘要</option>
+              <option value="full">全量</option>
+            </select>
+          </label>
+          <label class="field compact-field">
+            <span>供电</span>
+            <select id="topology-supply-mode" name="supply_mode">
+              <option value="grouped" selected>聚合</option>
+              <option value="details">明细</option>
+              <option value="hidden">隐藏</option>
+            </select>
+          </label>
+          <label class="field compact-field">
+            <span>标签</span>
+            <select id="topology-edge-label-mode" name="edge_label_mode">
+              <option value="auto" selected>自动</option>
+              <option value="off">关闭</option>
+              <option value="all">全部</option>
+            </select>
+          </label>
+          <label class="agent-checkbox-label topology-checkbox">
+            <input id="topology-include-connectors" name="include_connectors" type="checkbox">
+            <span>显示连接器</span>
+          </label>
+          <div class="topology-control-actions">
+            <button type="submit" class="primary-btn inline-btn">生成拓扑</button>
+            <button id="topology-redraw" type="button" class="ghost-btn inline-btn">重绘布局</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="topology-stage" aria-label="芯片拓扑图">
+        <div class="topology-stage-head">
+          <div>
+            <p class="eyebrow">VISUAL MAP</p>
+            <h2>芯片级关系图</h2>
+          </div>
+          <div id="topology-status" class="status-line" aria-live="polite">正在准备拓扑视图…</div>
+        </div>
+        <div class="topology-metrics" id="topology-metrics"></div>
+        <div class="topology-legend" aria-label="拓扑图例">
+          <span><i class="legend-node processor"></i>主芯片</span>
+          <span><i class="legend-node level"></i>电平转换</span>
+          <span><i class="legend-node power"></i>电源管理</span>
+          <span><i class="legend-node connector"></i>连接器</span>
+          <span><i class="legend-line signal"></i>信号关系</span>
+          <span><i class="legend-line supply"></i>供电关系</span>
+        </div>
+        <div id="topology-graph" class="topology-graph" role="img" aria-label="芯片和连接器拓扑关系图"></div>
+      </section>
+
+      <aside class="topology-inspector" aria-label="拓扑详情">
+        <div class="topology-inspector-card">
+          <p class="eyebrow">INSPECTOR</p>
+          <h2>详情</h2>
+          <div id="topology-detail" class="topology-detail">
+            <p class="empty-state">点击图中的节点或连接，查看页码、网络样本和审查提示。</p>
+          </div>
+        </div>
+        <div class="topology-inspector-card">
+          <h3>优先复核</h3>
+          <div id="topology-review-queue" class="topology-review-queue">
+            <p class="empty-state">拓扑生成后显示高优先级 review hints。</p>
+          </div>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <script>
+    window.PSTX_TOPOLOGY_CONTEXT = {{ {'runId': run_id, 'projectName': project_name, 'debugFixture': debug_fixture|default(false)}|tojson }};
+  </script>
+  <script src="{{ url_for('static', filename='ui/common.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='pages/topology.js') }}" defer></script>
+</body>
+</html>

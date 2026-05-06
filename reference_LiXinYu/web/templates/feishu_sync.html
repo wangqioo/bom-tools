@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>飞书 BOM 同步 - PSTX 原理图审查平台</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+</head>
+<body data-page="feishu-sync">
+  <div class="app-shell feishu-sync-shell">
+    <header class="poster-hero feishu-sync-hero">
+      <div class="poster-copy" data-reveal>
+        <p class="eyebrow">FEISHU BOM SYNC</p>
+        <h1>飞书优选库同步页</h1>
+        <p class="hero-lead">
+          在项目分析之前，把指定飞书表格同步到本地 SQLite 缓存。系统会先获取 Sheet，
+          再识别标准字段与扩展字段，最后写入当前工具自己的 <code>feishu_bom_data</code>。
+        </p>
+      </div>
+      <div class="hero-notes" data-reveal>
+        <div class="note-row">
+          <span class="note-label">同步范围</span>
+          <strong>飞书表格 → 本地缓存</strong>
+        </div>
+        <div class="note-row">
+          <span class="note-label">安全边界</span>
+          <strong>不修改 PSTX / Cadence 项目</strong>
+        </div>
+        <div class="note-row">
+          <span class="note-label">入口</span>
+          <span class="note-links">
+            <a class="text-link" href="{{ url_for('home') }}">返回首页</a>
+            <a class="text-link" href="{{ url_for('guide_page') }}">使用说明</a>
+            <a class="text-link" href="{{ url_for('feishu_db_page') }}">缓存数据库</a>
+            <a class="text-link" href="{{ url_for('agent_eval_page') }}">Agent Eval</a>
+          </span>
+        </div>
+      </div>
+    </header>
+
+    <main class="sync-workspace">
+      <section class="sync-panel sync-panel-primary" data-reveal>
+        <div class="section-heading">
+          <p class="eyebrow">STEP 1</p>
+          <h2>连接飞书表格</h2>
+          <p>填写网关、Origin、工号和表格 URL。点击获取 Sheet 后再确认每个 Sheet 的标准字段和扩展字段。</p>
+        </div>
+        <form id="feishu-sync-form" class="upload-form">
+          <div class="field-grid compact">
+            <label class="field">
+              <span>网关地址</span>
+              <input type="url" name="base_url" value="https://mcenter.huaqin.com" required>
+            </label>
+            <label class="field">
+              <span>Origin / AppId</span>
+              <input type="text" name="origin" placeholder="例如：cli_xxx" required>
+            </label>
+          </div>
+          <div class="field-grid compact">
+            <label class="field">
+              <span>工号 userId</span>
+              <input type="text" name="user_id" placeholder="例如：100555143" required>
+            </label>
+            <label class="field">
+              <span>表格 URL / Token</span>
+              <input type="text" name="spreadsheet_token_or_url" placeholder="粘贴完整飞书表格链接或 token" required>
+            </label>
+          </div>
+          <div class="field-grid compact">
+            <label class="field">
+              <span>库名称</span>
+              <input type="text" name="library_name" placeholder="例如：电阻优选库" required>
+            </label>
+            <label class="field">
+              <span>库 ID</span>
+              <input type="text" name="library_id" placeholder="可选，例如 preferred_resistor">
+              <small>留空时会按库名称生成；同一个库 ID 再同步会替换该库旧缓存。</small>
+            </label>
+          </div>
+          <div class="action-row">
+            <button type="submit" class="primary-btn">获取 Sheet 列表</button>
+            <button id="feishu-refresh-status" type="button" class="ghost-btn">刷新缓存状态</button>
+            <p id="feishu-sync-status" class="status-line" aria-live="polite">请先填写连接信息。</p>
+          </div>
+        </form>
+      </section>
+
+      <aside class="sync-panel sync-agent-panel" data-reveal>
+        <div class="section-heading">
+          <p class="eyebrow">AGENT CONFIG</p>
+          <h2>Agent 辅助表头识别</h2>
+          <p>如果表头不规整，可让 Aster 基于预览行识别表头 title，并参考历史字段顺序建议扩展字段；未配置 live 时自动回退本地启发式。</p>
+        </div>
+        <label class="field toggle-field">
+          <span>字段建议</span>
+          <div class="toggle-option">
+            <input id="feishu-use-agent-mapping" type="checkbox">
+            <div class="toggle-copy">
+              <strong>只让 Aster 识别表头 title</strong>
+              <small>只发送 Sheet 预览行和已保存字段顺序，让 Agent 判断表头行、表头 title 与扩展字段候选；标准字段由本地规则生成，最终仍由你确认。</small>
+            </div>
+          </div>
+        </label>
+        <form id="aster-credential-form" class="aster-credential-form sync-aster-form" autocomplete="off">
+          <div class="aster-credential-head">
+            <div>
+              <strong>临时 Aster 凭据</strong>
+              <p>仅写入当前 Python 进程内存，重启服务后失效；密钥不会回显。</p>
+            </div>
+            <button id="aster-credential-clear" type="button" class="ghost-btn">清除</button>
+          </div>
+          <label>
+            <span>模式</span>
+            <select name="mode">
+              <option value="live">live</option>
+              <option value="mock">mock</option>
+              <option value="off">off</option>
+            </select>
+          </label>
+          <label>
+            <span>后端</span>
+            <select name="backend">
+              <option value="chat-flow">chat-flow</option>
+              <option value="room">room</option>
+            </select>
+          </label>
+          <label>
+            <span>员工号</span>
+            <input type="text" name="emp_no" placeholder="100019100" autocomplete="off">
+          </label>
+          <label>
+            <span>ChatFlow API Key</span>
+            <input type="password" name="api_key" placeholder="仅当前进程临时保存" autocomplete="new-password">
+          </label>
+          <label>
+            <span>Room App ID</span>
+            <input type="text" name="app_id" placeholder="ag_xxx" autocomplete="off">
+          </label>
+          <label>
+            <span>Room Validate Origin</span>
+            <input type="text" name="origin" placeholder="默认使用服务地址域名" autocomplete="off">
+          </label>
+          <label>
+            <span>Room App Secret</span>
+            <input type="password" name="app_secret" placeholder="仅 room 后端需要" autocomplete="new-password">
+          </label>
+          <button type="submit" class="primary-btn inline-btn">应用临时凭据</button>
+          <p id="aster-credential-message" class="aster-credential-message" aria-live="polite"></p>
+        </form>
+        <div id="aster-auth-status" class="aster-auth-status sync-auth-status">正在读取 Aster 认证状态…</div>
+      </aside>
+
+      <section class="sync-panel sync-sheet-panel" data-reveal>
+        <div class="section-heading">
+          <p class="eyebrow">STEP 2</p>
+          <h2>Sheet 选择与字段确认</h2>
+          <p>勾选需要同步的 Sheet，并确认 HQ料号、规格型号、PI、选型顺序和扩展字段。最终同步字段以这里显示的配置为准。</p>
+        </div>
+        <div id="feishu-sheet-list" class="feishu-sheet-list">
+          <p class="query-empty">尚未获取 Sheet。请先在上方填写表格信息。</p>
+        </div>
+        <div class="sync-action-bar">
+          <button id="feishu-sync-selected" type="button" class="primary-btn">同步选中 Sheet</button>
+          <div id="feishu-sync-result" class="status-line feishu-sync-result" aria-live="polite">同步结果会显示在这里。</div>
+        </div>
+      </section>
+
+      <aside class="sync-panel sync-preview-panel" data-reveal>
+        <div class="section-heading">
+          <p class="eyebrow">PREVIEW</p>
+          <h2>预览与缓存状态</h2>
+          <p>预览行用于确认表头、标准字段和扩展字段。同步完成后可在报告页做 BOM 匹配预览。</p>
+        </div>
+        <div id="feishu-preview-host" class="feishu-preview-host">
+          <p class="query-empty">点击 Sheet 的“预览/建议”后显示前几行。</p>
+        </div>
+        <div id="feishu-cache-status" class="feishu-cache-status">正在读取缓存状态…</div>
+      </aside>
+    </main>
+  </div>
+
+  <script src="{{ url_for('static', filename='ui/common.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='pages/feishu_sync.js') }}" defer></script>
+</body>
+</html>

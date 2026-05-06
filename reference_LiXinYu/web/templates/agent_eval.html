@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Agent Eval Center - PSTX</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+</head>
+<body data-page="agent-eval">
+  <div class="app-shell agent-eval-shell">
+    <header class="agent-eval-hero" data-reveal>
+      <div>
+        <p class="eyebrow">AGENT EVAL CENTER</p>
+        <h1>Agent 评估中心</h1>
+        <p>用固定行为用例检查工具选择、证据引用、profile 限制和安全边界，为后续 Agent 迭代提供回归护栏。</p>
+      </div>
+      <div class="hero-actions">
+        <a class="ghost-btn" href="{{ url_for('home') }}">返回首页</a>
+      </div>
+    </header>
+
+    <main class="agent-eval-workspace" data-reveal>
+      <section class="agent-eval-panel">
+        <div class="section-heading">
+          <p class="eyebrow">CASES</p>
+          <h2>评估用例</h2>
+          <p id="agent-eval-status">正在读取 eval case…</p>
+        </div>
+        <div id="agent-eval-case-list" class="agent-eval-case-list"></div>
+      </section>
+      <aside class="agent-eval-result-panel">
+        <div class="agent-eval-actions">
+          <button id="agent-eval-run-all" type="button" class="primary-btn inline-btn">运行全部评估</button>
+          <button id="agent-eval-run-selected" type="button" class="ghost-btn inline-btn">运行选中用例</button>
+        </div>
+        <div id="agent-eval-result" class="agent-eval-result">
+          <p class="agent-empty">选择用例后运行，结果会显示通过率、工具轨迹和失败原因。</p>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <script src="{{ url_for('static', filename='ui/common.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='pages/agent_eval.js') }}" defer></script>
+</body>
+</html>

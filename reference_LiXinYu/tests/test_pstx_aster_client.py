@@ -3,9 +3,14 @@ import tempfile
 import threading
 import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from pstx_aster_client import (
+from pstx_integrations.aster import client as pstx_aster_client
+from pstx_integrations.aster import client as integration_aster_client
+from pstx_integrations.aster import mock as integration_aster_mock
+from pstx_integrations.aster import service as integration_aster_service
+from pstx_integrations.aster.client import (
     AsterConfig,
     AsterConfigError,
     AsterHttpError,
@@ -70,6 +75,7 @@ class AsterMockHandler(BaseHTTPRequestHandler):
     auth_count = 0
     validate_count = 0
     validate_invalid_once = False
+    flow_count = 0
 
     def log_message(self, fmt, *args):
         return
@@ -103,6 +109,22 @@ class AsterMockHandler(BaseHTTPRequestHandler):
         if parsed.path != '/aster/flow-api/run/chat-flow':
             self.send_response(404)
             self.end_headers()
+            return
+        self.__class__.flow_count += 1
+        if self.__class__.answer_mode == 'chunked_once' and self.__class__.flow_count == 1:
+            response = {
+                'code': 500,
+                'data': None,
+                'msg': '请求失败,code:invalid_param,message:Run failed: [openai_api_compatible] Error: PluginInvokeError: {"error_type":"ChunkedEncodingError","message":"Response ended prematurely"},status:400',
+                'failed': True,
+                'success': False,
+            }
+            data = json.dumps(response, ensure_ascii=False).encode('utf-8')
+            self.send_response(401)
+            self.send_header('Content-Type', 'application/json;charset=utf-8')
+            self.send_header('Content-Length', str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
             return
         if self.__class__.answer_mode == 'http401':
             api_key = parse_qs(parsed.query).get('apiKey', [''])[0]
@@ -267,12 +289,22 @@ class AsterMockHandler(BaseHTTPRequestHandler):
 
 
 class AsterClientTests(unittest.TestCase):
+    def test_integration_aster_entrypoints_export_public_api(self):
+        self.assertIs(integration_aster_client.AsterConfig, pstx_aster_client.AsterConfig)
+        self.assertIs(integration_aster_client.build_aster_live_summary, pstx_aster_client.build_aster_live_summary)
+        self.assertIs(integration_aster_mock.build_aster_mock_summary, pstx_aster_client.build_aster_mock_summary)
+        self.assertFalse(Path("pstx_aster_client.py").exists())
+        self.assertFalse(Path("pstx_aster_service.py").exists())
+        self.assertFalse(Path("pstx_aster_mock.py").exists())
+        self.assertTrue(callable(integration_aster_service.ask_aster_model))
+
     def start_server(self):
         AsterMockHandler.calls = []
         AsterMockHandler.answer_mode = 'json'
         AsterMockHandler.auth_count = 0
         AsterMockHandler.validate_count = 0
         AsterMockHandler.validate_invalid_once = False
+        AsterMockHandler.flow_count = 0
         server = ThreadingHTTPServer(('127.0.0.1', 0), AsterMockHandler)
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
@@ -280,10 +312,15 @@ class AsterClientTests(unittest.TestCase):
         self.addCleanup(server.server_close)
         return f'http://127.0.0.1:{server.server_address[1]}'
 
+    def use_mock_aster_base_url(self, base_url: str):
+        old_base_url = pstx_aster_client.ASTER_FIXED_BASE_URL
+        pstx_aster_client.ASTER_FIXED_BASE_URL = base_url
+        self.addCleanup(lambda: setattr(pstx_aster_client, 'ASTER_FIXED_BASE_URL', old_base_url))
+
     def test_build_aster_live_summary_calls_chat_flow_and_normalizes_json(self):
         base_url = self.start_server()
+        self.use_mock_aster_base_url(base_url)
         payload = build_aster_live_summary(sample_report(), {}, environ={
-            'ASTER_BASE_URL': base_url,
             'ASTER_API_KEY': 'flow-key',
             'ASTER_EMP_NO': '100019100',
             'PSTX_ASTER_BACKEND': 'chat-flow',
@@ -306,9 +343,9 @@ class AsterClientTests(unittest.TestCase):
 
     def test_build_aster_live_summary_uses_text_fallback_when_answer_is_not_json(self):
         base_url = self.start_server()
+        self.use_mock_aster_base_url(base_url)
         AsterMockHandler.answer_mode = 'text'
         payload = build_aster_live_summary(sample_report(), {}, environ={
-            'ASTER_BASE_URL': base_url,
             'ASTER_API_KEY': 'flow-key',
             'ASTER_EMP_NO': '100019100',
         })
@@ -320,7 +357,6 @@ class AsterClientTests(unittest.TestCase):
     def test_live_config_requires_chat_flow_credentials(self):
         config = AsterConfig.from_env({
             'PSTX_ASTER_MODE': 'live',
-            'ASTER_BASE_URL': 'http://aster.local',
             'ASTER_EMP_NO': '100019100',
         })
         with self.assertRaises(AsterConfigError):
@@ -332,6 +368,16 @@ class AsterClientTests(unittest.TestCase):
         })
 
         self.assertEqual('test-aigc-api.huaqin.com', config.origin)
+
+    def test_default_model_timeout_is_ten_minutes(self):
+        config = AsterConfig.from_env({})
+
+        self.assertEqual(600.0, config.timeout_seconds)
+
+    def test_model_timeout_can_still_be_overridden_by_env(self):
+        config = AsterConfig.from_env({'PSTX_ASTER_TIMEOUT_SECONDS': '12.5'})
+
+        self.assertEqual(12.5, config.timeout_seconds)
 
     def test_report_brief_redacts_paths_and_limits_rows(self):
         config = AsterConfig.from_env({
@@ -354,14 +400,25 @@ class AsterClientTests(unittest.TestCase):
         self.assertIn('manual_review', prompt)
         self.assertIn('BOM/DEPOP、网络/页码映射、DRC、芯片 Pin/电阻、降额、CSA', prompt)
 
+    def test_aster_log_sanitizer_redacts_password_fields(self):
+        payload = pstx_aster_client.sanitize_for_aster_log({
+            'password': 'super-secret-password',
+            'body': 'password=plain-text-secret appSecret=another-secret',
+        })
+
+        self.assertTrue(payload['password']['redacted'])
+        self.assertNotIn('super-secret-password', json.dumps(payload, ensure_ascii=False))
+        self.assertNotIn('plain-text-secret', payload['body'])
+        self.assertIn('password=<redacted>', payload['body'])
+
     def test_http_401_writes_sanitized_diagnostics_log(self):
         base_url = self.start_server()
+        self.use_mock_aster_base_url(base_url)
         AsterMockHandler.answer_mode = 'http401'
         with tempfile.TemporaryDirectory() as temp_dir:
             log_file = f'{temp_dir}/aster_debug.log'
             with self.assertRaises(AsterHttpError) as raised:
                 build_aster_live_summary(sample_report(), {}, environ={
-                    'ASTER_BASE_URL': base_url,
                     'ASTER_API_KEY': 'flow-secret-key',
                     'ASTER_EMP_NO': '100019100',
                     'PSTX_ASTER_BACKEND': 'chat-flow',
@@ -381,10 +438,36 @@ class AsterClientTests(unittest.TestCase):
             self.assertNotIn('flow-secret-key', text)
             self.assertIn('apiKey=<redacted>', text)
 
+    def test_chat_flow_retries_transient_chunked_error_and_logs_attempts(self):
+        base_url = self.start_server()
+        self.use_mock_aster_base_url(base_url)
+        AsterMockHandler.answer_mode = 'chunked_once'
+        with tempfile.TemporaryDirectory() as temp_dir:
+            log_file = f'{temp_dir}/aster_debug.log'
+            payload = build_aster_live_summary(sample_report(), {}, environ={
+                'ASTER_API_KEY': 'flow-secret-key',
+                'ASTER_EMP_NO': '100019100',
+                'PSTX_ASTER_BACKEND': 'chat-flow',
+                'PSTX_ASTER_LOG_FILE': log_file,
+                'PSTX_ASTER_RETRY_COUNT': '1',
+                'PSTX_ASTER_RETRY_BACKOFF_SECONDS': '0',
+            })
+
+            self.assertTrue(payload['ok'])
+            self.assertEqual(2, AsterMockHandler.flow_count)
+            with open(log_file, encoding='utf-8') as handle:
+                text = handle.read()
+            self.assertIn('request.retry', text)
+            self.assertIn('"attempt": 1', text)
+            self.assertIn('"attempt": 2', text)
+            self.assertIn('"retryable": true', text)
+            self.assertIn('"elapsed_ms"', text)
+            self.assertNotIn('flow-secret-key', text)
+
     def test_room_backend_generates_and_validates_token_before_question(self):
         base_url = self.start_server()
+        self.use_mock_aster_base_url(base_url)
         payload = build_aster_live_summary(sample_report(), {}, environ={
-            'ASTER_BASE_URL': base_url,
             'PSTX_ASTER_BACKEND': 'room',
             'ASTER_APP_ID': 'ag_demo',
             'ASTER_APP_SECRET': 'room-secret',
@@ -409,10 +492,10 @@ class AsterClientTests(unittest.TestCase):
 
     def test_room_backend_force_renews_when_validate_reports_invalid(self):
         base_url = self.start_server()
+        self.use_mock_aster_base_url(base_url)
         AsterMockHandler.validate_invalid_once = True
 
         payload = build_aster_live_summary(sample_report(), {}, environ={
-            'ASTER_BASE_URL': base_url,
             'PSTX_ASTER_BACKEND': 'room',
             'ASTER_APP_ID': 'ag_demo',
             'ASTER_APP_SECRET': 'room-secret',

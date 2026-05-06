@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>飞书缓存数据库 - PSTX 原理图审查平台</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+</head>
+<body data-page="feishu-db">
+  <div class="app-shell feishu-db-shell">
+    <header class="poster-hero feishu-db-hero">
+      <div class="poster-copy" data-reveal>
+        <p class="eyebrow">LOCAL FEISHU CACHE</p>
+        <h1>飞书缓存数据库</h1>
+        <p class="hero-lead">
+          查看已经同步到本地 SQLite 的优选库、Sheet 统计和实际保存行。这里管理的是本工具缓存，
+          不会修改飞书源表，也不会修改 PSTX/Cadence 项目文件。
+        </p>
+      </div>
+      <div class="hero-notes" data-reveal>
+        <div class="note-row">
+          <span class="note-label">数据库</span>
+          <strong id="feishu-db-path">读取中</strong>
+        </div>
+        <div class="note-row">
+          <span class="note-label">入口</span>
+          <span class="note-links">
+            <a class="text-link" href="{{ url_for('feishu_sync_page') }}">飞书同步</a>
+            <a class="text-link" href="{{ url_for('guide_page') }}">使用说明</a>
+            <a class="text-link" href="{{ url_for('home') }}">返回首页</a>
+          </span>
+        </div>
+      </div>
+    </header>
+
+    <main class="feishu-db-workspace">
+      <section class="sync-panel feishu-db-library-panel" data-reveal>
+        <div class="section-heading">
+          <p class="eyebrow">LIBRARIES</p>
+          <h2>已保存的库</h2>
+          <p>库 ID 相同的同步会替换旧缓存。删除库只清理本地缓存和本地配置记录。</p>
+        </div>
+        <div id="feishu-db-summary" class="feishu-cache-status">正在读取数据库状态…</div>
+        <div id="feishu-db-libraries" class="feishu-db-libraries">
+          <p class="query-empty">正在读取库列表…</p>
+        </div>
+      </section>
+
+      <section class="sync-panel feishu-db-rows-panel" data-reveal>
+        <div class="section-heading">
+          <p class="eyebrow">ROWS</p>
+          <h2>缓存行预览</h2>
+          <p>选择库后查看同步后的真实缓存行。搜索会匹配规格型号、HQ料号、PI、选型顺序、扩展字段、制造商和描述；发现录入错误时可新增、编辑或剔除单行本地缓存。</p>
+        </div>
+        <form id="feishu-db-row-filter" class="query-form feishu-db-filter">
+          <label class="field">
+            <span>当前库</span>
+            <input type="text" name="lib_id" placeholder="点击左侧库自动填入">
+          </label>
+          <label class="field grow">
+            <span>搜索</span>
+            <input type="text" name="query" placeholder="例如：ABC-123 / HQ001 / ACME">
+          </label>
+          <button type="submit" class="primary-btn inline-btn">查询行</button>
+          <button type="button" id="feishu-db-add-row" class="ghost-btn inline-btn">新增行</button>
+          <button type="button" id="feishu-db-load-all" class="ghost-btn inline-btn">加载全部</button>
+        </form>
+        <form id="feishu-db-row-editor" class="query-form feishu-db-filter" hidden>
+          <input type="hidden" name="id">
+          <label class="field">
+            <span>库 ID</span>
+            <input type="text" name="lib_id" placeholder="lib1">
+          </label>
+          <label class="field">
+            <span>库名</span>
+            <input type="text" name="lib_name" placeholder="优选库">
+          </label>
+          <label class="field">
+            <span>Sheet</span>
+            <input type="text" name="sheet_name" placeholder="Sheet1">
+          </label>
+          <label class="field">
+            <span>规格型号</span>
+            <input type="text" name="key_value" placeholder="Part Number / 规格型号">
+          </label>
+          <label class="field">
+            <span>HQ料号</span>
+            <input type="text" name="hq_no" placeholder="HQxxxxxxxx">
+          </label>
+          <label class="field">
+            <span>PI</span>
+            <input type="text" name="pi">
+          </label>
+          <label class="field">
+            <span>选型顺序</span>
+            <input type="text" name="selection_order">
+          </label>
+          <label class="field">
+            <span>制造商</span>
+            <input type="text" name="brand">
+          </label>
+          <label class="field">
+            <span>规格</span>
+            <input type="text" name="spec">
+          </label>
+          <label class="field grow">
+            <span>描述</span>
+            <input type="text" name="description">
+          </label>
+          <label class="field grow">
+            <span>扩展字段 JSON</span>
+            <input type="text" name="extra_fields" placeholder='{"封装":"0402","耐压":"50V"}'>
+          </label>
+          <button type="submit" class="primary-btn inline-btn">保存行</button>
+          <button type="button" id="feishu-db-cancel-edit" class="ghost-btn inline-btn">取消</button>
+        </form>
+        <div id="feishu-db-rows" class="feishu-db-rows">
+          <p class="query-empty">请选择一个库查看缓存行。</p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="{{ url_for('static', filename='ui/common.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='pages/feishu_db.js') }}" defer></script>
+</body>
+</html>

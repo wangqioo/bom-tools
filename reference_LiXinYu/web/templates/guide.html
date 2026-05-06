@@ -1,0 +1,732 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>使用说明与判定逻辑 - PSTX 原理图审查平台</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+</head>
+<body data-page="guide">
+  <div class="app-shell guide-shell">
+    <header class="poster-hero guide-hero" data-reveal>
+      <div class="poster-copy">
+        <p class="eyebrow">USER GUIDE / RULE LOGIC</p>
+        <h1>使用说明与判定逻辑</h1>
+        <p class="hero-lead">
+          这页把“怎么操作”和“系统怎么判断”放在同一个地方：你可以先按流程跑项目，
+          也可以直接查某个审查项的规则边界。所有面向用户定位 Cadence 总体工程的页统一叫“页码”。
+        </p>
+      </div>
+      <div class="hero-notes">
+        <div class="note-row">
+          <span class="note-label">推荐入口</span>
+          <span class="note-links">
+            <a class="text-link" href="{{ url_for('home') }}">新建任务</a>
+            <a class="text-link" href="{{ url_for('feishu_sync_page') }}">飞书同步</a>
+            <a class="text-link" href="{{ url_for('feishu_db_page') }}">缓存数据库</a>
+            <a class="text-link" href="{{ url_for('compare_page') }}">项目对比</a>
+            <a class="text-link" href="{{ url_for('ai_settings_page') }}">AI 配置</a>
+          </span>
+        </div>
+        <div class="note-row">
+          <span class="note-label">页码口径</span>
+          <strong>页码 = 用户看到的总体页</strong>
+        </div>
+        <div class="note-row">
+          <span class="note-label">Agent 边界</span>
+          <strong>只读取证，不改项目文件</strong>
+        </div>
+      </div>
+    </header>
+
+    <main class="guide-workspace">
+      <aside class="guide-toc" data-reveal>
+        <p class="eyebrow">CONTENTS</p>
+        <a href="#quick-start">快速使用流程</a>
+        <a href="#data-sources">数据来源与页码</a>
+        <a href="#feature-logic">功能逻辑总览</a>
+        <a href="#component-logic">全模块判定细则</a>
+        <a href="#agent-boundary">Agent 与 Harness</a>
+        <a href="#manual-review">人工复核边界</a>
+      </aside>
+
+      <section class="guide-main">
+        <article id="quick-start" class="guide-panel" data-reveal>
+          <div class="section-heading">
+            <p class="eyebrow">QUICK START</p>
+            <h2>快速使用流程</h2>
+            <p>建议按“缓存数据先同步、项目再分析、结果再对比或问 Agent”的顺序使用。</p>
+          </div>
+          <ol class="guide-step-list">
+            <li>
+              <span>1</span>
+              <div>
+                <strong>同步飞书优选库</strong>
+                <span class="help-tip" tabindex="0" aria-label="飞书同步说明" data-tip="进入飞书同步页，选择 spreadsheet 与 sheet，确认 HQ料号、规格型号、PI、选型顺序等标准字段后写入本地 SQLite 缓存。">?</span>
+                <p>如果报告需要做料号、规格、PI、选型顺序校对，先进入“飞书同步”页把固定表同步到本地缓存。</p>
+              </div>
+            </li>
+            <li>
+              <span>2</span>
+              <div>
+                <strong>创建项目分析任务</strong>
+                <span class="help-tip" tabindex="0" aria-label="项目根路径说明" data-tip="项目根路径通常与 packaged、sch_1 同层。系统会读取 pstxprt.dat、pstxnet.dat、page*.csv、module_order.dat 等文件。">?</span>
+                <p>在首页输入 Cadence DEHDL 项目根路径，生成结构化报告和可查询的本地 run 数据。</p>
+              </div>
+            </li>
+            <li>
+              <span>3</span>
+              <div>
+                <strong>查看报告与规则表格</strong>
+                <span class="help-tip" tabindex="0" aria-label="报告阅读说明" data-tip="报告表格默认展示页码；内部主模块页和映射来源仅在页码检查类结果中用于复核。">?</span>
+                <p>先看概览，再展开 BOM、网络、DRC、电阻、降额、CSA、飞书校对等分区。</p>
+              </div>
+            </li>
+            <li>
+              <span>4</span>
+              <div>
+                <strong>用 Agent 追问或进入项目对比</strong>
+                <span class="help-tip" tabindex="0" aria-label="Agent 说明" data-tip="浮窗 Agent 会自动组合本地只读工具取证。证据不足时会要求用户补充信息，而不是直接编造结论。">?</span>
+                <p>报告页和对比页右下角都保留连续对话浮窗；对比两个 run 时进入独立项目对比工作台。</p>
+              </div>
+            </li>
+          </ol>
+        </article>
+
+        <article id="data-sources" class="guide-panel" data-reveal>
+          <div class="section-heading">
+            <p class="eyebrow">DATA SOURCES</p>
+            <h2>数据来源与页码口径</h2>
+            <p>系统不会凭空判断，所有规则都尽量挂到可复核的数据源。</p>
+          </div>
+          <div class="guide-card-grid two">
+            <section class="guide-rule-card">
+              <h3>Cadence / PSTX 输入</h3>
+              <ul>
+                <li><code>packaged/pstxprt.dat</code>：元件属性、位号、料号、值、P_PATH、split symbol section 信息。</li>
+                <li><code>packaged/pstxnet.dat</code>：网络、节点、Pin/Net 拓扑关系。</li>
+                <li><code>packaged/pstxref.dat</code>：可选交叉引用信息，用于补充定位。</li>
+                <li><code>sch_1/page*.csv</code>：PAGE_NUMBER、页属性和部分文本证据。</li>
+                <li><code>sch_1/page*.csa</code>：画圈、线段、DOT、文本、几何对象与页级语义对比。</li>
+              </ul>
+            </section>
+            <section class="guide-rule-card">
+              <h3>
+                页码
+                <span class="help-tip" tabindex="0" aria-label="页码说明" data-tip="这里的页码就是用户在 Cadence 总体工程里看到的页。内部优先取 page_submodule_mapped，非子模块或缺映射时兜底到主模块解析结果。">?</span>
+              </h3>
+              <ul>
+                <li><code>module_order.dat</code> / <code>module_order</code> 用于把子模块内部页映射到用户在总体工程中看到的页。</li>
+                <li>非子模块元件一般直接使用自身页码，不额外暴露“子模块映射页”概念。</li>
+                <li>Agent 回答“第 1-30 页”时，也按页码理解，并读取对应 <code>sch_1/pageX.csv|csa</code>。</li>
+              </ul>
+            </section>
+          </div>
+        </article>
+
+        <article id="feature-logic" class="guide-panel" data-reveal>
+          <div class="section-heading">
+            <p class="eyebrow">FEATURE LOGIC</p>
+            <h2>功能逻辑总览</h2>
+            <p>下面是每个主要功能的实现口径，鼠标停在问号上可以看更具体边界。</p>
+          </div>
+          <div class="guide-card-grid">
+            <section class="guide-rule-card">
+              <h3>BOM / DEPOP <span class="help-tip" tabindex="0" aria-label="BOM说明" data-tip="BOM 主要来自元件属性；DEPOP/DNP 会单独识别。总 BOM 视图可同时展示贴装和 DEPOP/DNP 汇总。">?</span></h3>
+              <p>按位号、料号、值、BOM_OPTION 汇总元件，支持贴装 BOM 和总 BOM 视图。</p>
+            </section>
+            <section class="guide-rule-card">
+              <h3>DRC / 网络命名 <span class="help-tip" tabindex="0" aria-label="DRC说明" data-tip="网络命名、未命名网络、单端候选等检查主要基于 pstxnet 拓扑和元件页码反查。未命名网络会展示页码位置。">?</span></h3>
+              <p>检查未命名网络、网络节点、页码定位和潜在命名类风险。</p>
+            </section>
+            <section class="guide-rule-card">
+              <h3>电阻拓扑 <span class="help-tip" tabindex="0" aria-label="电阻拓扑说明" data-tip="串阻、上下拉、单端候选等判断会结合网络名称、连接端点和电阻值；单端候选拓扑会考虑 DEPOP 电阻，避免错误切断路径。">?</span></h3>
+              <p>识别串联电阻、上下拉候选、芯片 Pin 偏置状态和单端候选网络。</p>
+            </section>
+            <section class="guide-rule-card">
+              <h3>电容降额 <span class="help-tip" tabindex="0" aria-label="电容降额说明" data-tip="默认按耐压与网络电压做比例检查。若两端均为同极性差分对，会按 AC 耦合电容低风险通过，但仍保留复核证据。">?</span></h3>
+              <p>按电容耐压、网络电压、差分耦合特例和人工复核边界输出风险。</p>
+            </section>
+            <section class="guide-rule-card">
+              <h3>CSA 几何 <span class="help-tip" tabindex="0" aria-label="CSA说明" data-tip="CSA 底层仍解析 DOT、WIRE、CIRCLE、ARC 等对象；独立的 CSA 画圈对象展示已移除，但 BOM_OPTION 打圈覆盖仍使用圆形几何判断。">?</span></h3>
+              <p>保留几何规则和页级语义比对能力，不再展示低价值的独立画圈对象清单。</p>
+            </section>
+            <section class="guide-rule-card">
+              <h3>飞书校对 <span class="help-tip" tabindex="0" aria-label="飞书说明" data-tip="飞书缓存按 HQ料号自然内联到 BOM、芯片 Pin 和项目对比中，不单独创建冗余栏目。标准字段为 HQ料号、规格型号、PI、选型顺序。">?</span></h3>
+              <p>用本地缓存的 HQ 料号匹配规格、PI、选型顺序和用户确认的扩展字段。</p>
+            </section>
+          </div>
+        </article>
+
+        <article id="component-logic" class="guide-panel" data-reveal>
+          <div class="section-heading">
+            <p class="eyebrow">RULE HANDBOOK</p>
+            <h2>全模块判定细则</h2>
+            <p>每张卡片都按“输入、判定步骤、输出与边界”解释，方便你从报告结果反查系统为什么这么判。</p>
+          </div>
+          <div class="guide-mini-index" aria-label="模块索引">
+            <span>数据预处理</span>
+            <span>页码</span>
+            <span>BOM/DEPOP</span>
+            <span>网络/DRC</span>
+            <span>上下拉</span>
+            <span>串阻</span>
+            <span>芯片 Pin</span>
+            <span>电容降额</span>
+            <span>打圈</span>
+            <span>飞书</span>
+            <span>项目对比</span>
+            <span>DFMEA</span>
+            <span>Agent</span>
+          </div>
+          <div class="guide-rule-stack">
+            <section class="guide-rule-card wide guide-detail-card">
+              <h3>
+                数据读取与预处理
+                <span class="help-tip" tabindex="0" aria-label="数据读取说明" data-tip="系统先把 PSTX 元件、网络、页码、CSA/CSV、飞书缓存和规格书索引整理成只读证据；后续所有规则都基于这些证据判断。">?</span>
+              </h3>
+              <div class="guide-logic-columns">
+                <div>
+                  <h4>输入</h4>
+                  <ul>
+                    <li><code>pstxprt.dat</code>：元件属性、HQ_CODE、VALUE、P_PATH、SECTION_NUMBER。</li>
+                    <li><code>pstxnet.dat</code>：网络节点、位号、引脚和 Pin/Net 拓扑。</li>
+                    <li><code>page*.csv</code>、<code>page*.csa</code>、<code>module_order.dat</code>：页面与图形证据。</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4>判定步骤</h4>
+                  <ul>
+                    <li>先归一化位号、网络名、电阻值、电容耐压、BOM_OPTION 和页码。</li>
+                    <li>同一位号的 split symbol 合并为一个元件，但保留多个 section 证据。</li>
+                    <li>DEPOP/DNP 在贴装类结果中按规则排除；拓扑类复核保留原始连接防止误判。</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4>输出与边界</h4>
+                  <ul>
+                    <li>报告只展示可复核摘要，完整证据保留在本地 run、trace 或 detail 工具中。</li>
+                    <li>读取失败、字段缺失、路径缺失会转成“无法判断/需人工复核”，不硬猜。</li>
+                  </ul>
+                </div>
+              </div>
+            </section>
+            <section class="guide-rule-card wide guide-detail-card">
+              <h3>
+                页码与原理图总页数
+                <span class="help-tip" tabindex="0" aria-label="页码说明" data-tip="用户问第几页时，默认指页码。总页数不能用有元件页面统计推断，必须优先按 module_order(.dat) 的最后映射范围计算。">?</span>
+              </h3>
+              <div class="guide-logic-columns">
+                <div>
+                  <h4>输入</h4>
+                  <ul>
+                    <li>主模块页、P_PATH 中的子模块本地页。</li>
+                    <li><code>module_order.dat</code> 的子模块起始页、页数和映射范围。</li>
+                    <li><code>page_rows</code> 只表示有记录或有元件的页码，不表示工程总页数。</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4>判定步骤</h4>
+                  <ul>
+                    <li>页码 = 子模块起始页 + 子模块内部页 - 1。</li>
+                    <li>非子模块或缺映射时，兜底为主模块解析出的页码。</li>
+                    <li>原理图总页数优先解析 <code>module_order(.dat)</code> 最后一条映射，并加上子模块页数 - 1。</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4>输出与边界</h4>
+                  <ul>
+                    <li>报告、查询、对比和 Agent prompt 统一说“页码”。</li>
+                    <li>尾部空白页不会被 page_rows 捕获，因此不能用 page_rows 唯一页数回答总页数。</li>
+                  </ul>
+                </div>
+              </div>
+            </section>
+            <section class="guide-rule-card wide guide-detail-card">
+              <h3>位号归一与关键器件分类</h3>
+              <div class="guide-logic-columns">
+                <div>
+                  <h4>输入</h4>
+                  <ul>
+                    <li>位号、CDS_LIB、CDS_PART_NAME、VALUE、HQ_CODE、封装和值。</li>
+                    <li>Pin/Net 节点、飞书缓存匹配和规格书候选。</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4>判定步骤</h4>
+                  <ul>
+                    <li>U/PU/XU/IC/连接器类进入关键器件；R/C/L 进入无源件。</li>
+                    <li><code>PC16A10</code>、<code>PR10A1</code>、<code>PL2A5</code> 会按 power 前缀 + 子模块后缀归回 C/R/L。</li>
+                    <li>DFMEA 准备阶段会进一步按料号、规格、Pin/Net 和飞书信息生成元件身份卡。</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4>输出与边界</h4>
+                  <ul>
+                    <li>不确定类别标记为 unknown/needs_context，不强行猜芯片类型。</li>
+                    <li>项目对比中关键器件和无源件分开比较，避免 R/C/L 误入关键器件差异。</li>
+                  </ul>
+                </div>
+              </div>
+            </section>
+            <section class="guide-rule-card wide guide-detail-card">
+              <h3>Split symbol 大芯片</h3>
+              <div class="guide-logic-columns">
+                <div>
+                  <h4>输入</h4>
+                  <ul>
+                    <li><code>PART_NAME U46 ...</code> 顶层块。</li>
+                    <li>多个 <code>SECTION_NUMBER</code> 下的 C_PATH、P_PATH、PHYS_PAGE、XY、LOCATION、HQ_CODE。</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4>判定步骤</h4>
+                  <ul>
+                    <li>按相同 LOCATION/位号合并 section，而不是把每个 symbol 当独立芯片。</li>
+                    <li>聚合多个页码、主模块页、XY 和 section 号。</li>
+                    <li>HQ 料号优先取 section 的 HQ_CODE，缺失时从 CDS_PART_NAME / PART_NAME 中提取 HQ 字段兜底。</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4>输出与边界</h4>
+                  <ul>
+                    <li>查询 U46 时可能返回多个页面，这属于正常 split symbol 表达。</li>
+                    <li>Pin/Net 和项目对比按同一芯片位号聚合，不因 section 分裂而漏料号。</li>
+                  </ul>
+                </div>
+              </div>
+            </section>
+            <section class="guide-rule-card wide guide-detail-card">
+              <h3>
+                BOM / DEPOP / BOM_OPTION 拼写
+                <span class="help-tip" tabindex="0" aria-label="BOM_OPTION说明" data-tip="BOM_OPTION 只接受固定枚举或空值；相近拼写会标记疑似 typo。总 BOM 会把贴装和 DEPOP/DNP 同口径汇总。">?</span>
+              </h3>
+              <div class="guide-logic-columns">
+                <div>
+                  <h4>输入</h4>
+                  <ul>
+                    <li>位号、HQ_CODE、VALUE、BOM_OPTION、封装、页码。</li>
+                    <li>首页 DEPOP 参与排查开关和总 BOM 视图开关。</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4>判定步骤</h4>
+                  <ul>
+                    <li>常规贴装 BOM 排除 DEPOP/DNP；总 BOM 额外展示贴装 + DEPOP/DNP 汇总。</li>
+                    <li>合法 BOM_OPTION 包含空值、DEPOP、OPTION、MAIN_PLD、MAIN、ALT、DNP。</li>
+                    <li>未知值或接近合法值的拼写会输出“疑似 typo/需人工确认”。</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4>输出与边界</h4>
+                  <ul>
+                    <li>不会自动修正 BOM_OPTION，只提示风险和候选解释。</li>
+                    <li>测试点等特殊元件会按当前规则从部分属性检查中排除。</li>
+                  </ul>
+                </div>
+              </div>
+            </section>
+            <section class="guide-rule-card wide guide-detail-card">
+              <h3>
+                网络分类、差分对与未命名网络页码
+                <span class="help-tip" tabindex="0" aria-label="网络分类说明" data-tip="网络类规则先做 power/gnd/signal/differential 归一，再输出节点、端点和页码。">?</span>
+              </h3>
+              <div class="guide-logic-columns">
+                <div>
+                  <h4>输入</h4>
+                  <ul>
+                    <li>网络名、节点列表、连接元件位号和 pin 名。</li>
+                    <li>元件页码，用于反查网络出现位置。</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4>判定步骤</h4>
+                  <ul>
+                    <li>电源/地通过网络 token 和别名归一，AGND/GNDA/VSS/0V 作为地类终止点。</li>
+                    <li>差分对通过 P/N、+/- 等命名关系识别，用于降额和风险解释。</li>
+                    <li>未命名网络匹配 <code>UNNAMED_</code>，并从连接节点反查页码集合。</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4>输出与边界</h4>
+                  <ul>
+                    <li>未命名网络会展示端点和页码，方便回到原理图定位。</li>
+                    <li>命名不规范但不满足规则时，保守进入人工复核，不硬判为错误。</li>
+                  </ul>
+                </div>
+              </div>
+            </section>
+            <section class="guide-rule-card wide guide-detail-card">
+              <h3>DRC 属性完整性与单端候选</h3>
+              <div class="guide-logic-columns">
+                <div>
+                  <h4>输入</h4>
+                  <ul>
+                    <li>元件 HQ_CODE、VALUE、封装、BOM_OPTION、位置页码。</li>
+                    <li>网络节点数量、端点列表和元件类型。</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4>判定步骤</h4>
+                  <ul>
+                    <li>缺 HQ、缺值、缺封装按属性完整性问题输出；TESTPOINT 类按规则跳过部分属性检查。</li>
+                    <li>电压、电流、功耗等属性出现 TBD 时标记中风险复核。</li>
+                    <li>单端候选看完整网络拓扑，排除测试点和未命名网络噪声，必要时考虑 DEPOP 电阻连接。</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4>输出与边界</h4>
+                  <ul>
+                    <li>属性缺失是确定性检查，但设计是否允许空值仍需项目规范确认。</li>
+                    <li>单端候选是“可能悬空/需复核”，不是自动判定设计错误。</li>
+                  </ul>
+                </div>
+              </div>
+            </section>
+            <section class="guide-rule-card wide guide-detail-card">
+              <h3>
+                上下拉判定
+                <span class="help-tip" tabindex="0" aria-label="上下拉判定说明" data-tip="典型上下拉需要电阻一端接目标信号，另一端接电源或地类网络。系统结合网络名、阻值、端点和候选芯片 Pin 关系给出候选，而不是只看元件名字。">?</span>
+              </h3>
+              <div class="guide-logic-columns">
+                <div>
+                  <h4>输入</h4>
+                  <ul>
+                    <li>电阻元件两端网络、阻值、BOM_OPTION、页码。</li>
+                    <li>目标信号连接的芯片 Pin、网络命名和上下文。</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4>判定步骤</h4>
+                  <ul>
+                    <li>电阻一端连接普通信号，另一端连接电源网时，记录为上拉候选。</li>
+                    <li>电阻一端连接普通信号，另一端连接地类网时，记录为下拉候选。</li>
+                    <li>同一信号存在多个上拉/下拉时，输出重复偏置候选和阻值证据。</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4>输出与边界</h4>
+                  <ul>
+                    <li>直接上下拉会进入电阻检查和芯片 Pin 状态解释。</li>
+                    <li>是否合理取决于芯片管脚功能，工具只负责把拓扑证据找出来。</li>
+                  </ul>
+                </div>
+              </div>
+            </section>
+            <section class="guide-rule-card wide guide-detail-card">
+              <h3>
+                串阻判定逻辑、隔串阻上下拉与分压风险
+                <span class="help-tip" tabindex="0" aria-label="串阻判定说明" data-tip="串阻只在两个非电源/非地信号网之间建边；多级路径最多搜索 8 跳，并保留多条独立路径，避免菱形拓扑漏判。">?</span>
+              </h3>
+              <div class="guide-logic-columns">
+                <div>
+                  <h4>输入</h4>
+                  <ul>
+                    <li>电阻阻值，支持 R/K/M/G、OHM/OHMS、Ω、欧和 4K7 等常见写法。</li>
+                    <li>每个电阻的两个唯一连接网络，以及网络是否 power/gnd/signal。</li>
+                    <li>直接上下拉结果、芯片 Pin 端点和 DEPOP 原始拓扑。</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4>判定步骤</h4>
+                  <ul>
+                    <li>电阻两端都是普通信号网时，建立串阻边；接 power/gnd 的电阻不作为串阻边。</li>
+                    <li>从芯片 Pin 所在信号开始，沿串阻图搜索最多 8 跳，路径内防环但允许多条独立路径到同一远端。</li>
+                    <li>若远端存在直接上拉/下拉，则形成隔串阻上下拉候选；计算串阻总阻值、远端偏置阻值和比例。</li>
+                    <li>分压风险规则：偏置阻值很小且串阻占比明显、或串阻/偏置比例超过阈值时，标记高风险或 warning。</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4>输出与边界</h4>
+                  <ul>
+                    <li>输出串阻链、经过网络、总串阻、远端上下拉、页码和风险等级。</li>
+                    <li>DEPOP/DNP 电阻在常规串阻报告可排除，但单端候选和拓扑连通性会考虑原始连接，避免误报断路。</li>
+                    <li>工具不会判断芯片内部是否允许该偏置，只提示“这条路径值得复核”。</li>
+                  </ul>
+                </div>
+              </div>
+            </section>
+            <section class="guide-rule-card wide guide-detail-card">
+              <h3>芯片 Pin 电阻状态表</h3>
+              <div class="guide-logic-columns">
+                <div>
+                  <h4>输入</h4>
+                  <ul>
+                    <li>芯片 Pin 网络、直接上下拉、隔串阻上下拉、串阻网络和芯片连接数量。</li>
+                    <li>网络与元件页码、飞书 HQ 校对信息、BOM_OPTION/DEPOP 状态。</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4>判定步骤</h4>
+                  <ul>
+                    <li>对每个芯片 Pin 汇总直接上下拉、隔串阻上下拉和串阻另一端网络。</li>
+                    <li>按页码、子模块和飞书信息辅助定位，不再凭 OD/OC、ALERT、INT 等命名猜测是否缺上拉。</li>
+                    <li>需要判断开漏/开集上拉时，应结合 datasheet pin type 或设计约束单独确认。</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4>输出与边界</h4>
+                  <ul>
+                    <li>芯片 Pin 表优先服务定位和证据聚合，不替代人工读原理图。</li>
+                    <li>工具不再输出命名猜测类缺上拉结论，避免命名线索造成误判。</li>
+                  </ul>
+                </div>
+              </div>
+            </section>
+            <section class="guide-rule-card wide guide-detail-card">
+              <h3>
+                电容降额判定
+                <span class="help-tip" tabindex="0" aria-label="电容降额判定说明" data-tip="电容降额先识别额定耐压和网络电压。50V 低压直通、差分同极性 AC 耦合等特例会按低风险处理并保留证据。">?</span>
+              </h3>
+              <div class="guide-logic-columns">
+                <div>
+                  <h4>输入</h4>
+                  <ul>
+                    <li>电容 VALUE/额定耐压、两端网络、网络电压推断、页码。</li>
+                    <li>差分对识别结果和 GND/0V 等地网识别结果。</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4>判定步骤</h4>
+                  <ul>
+                    <li>缺额定耐压或无法推断电压时输出无法判断。</li>
+                    <li>若全局低压场景且电容额定 50V 及以上，按低风险通过。</li>
+                    <li>若两端都是差分对且同极性，标记为 AC 耦合电容，按低风险通过。</li>
+                    <li>其他场景按最大工作电压 / 额定耐压计算使用比例，与默认阈值比较。</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4>输出与边界</h4>
+                  <ul>
+                    <li>输出通过、失败、低风险通过或无法判断，并说明电压来源置信度。</li>
+                    <li>低风险通过不等于无需设计确认，只代表当前规则侧未发现高风险证据。</li>
+                  </ul>
+                </div>
+              </div>
+            </section>
+            <section class="guide-rule-card wide guide-detail-card">
+              <h3>BOM_OPTION 打圈覆盖</h3>
+              <div class="guide-logic-columns">
+                <div>
+                  <h4>输入</h4>
+                  <ul>
+                    <li>BOM_OPTION/DEPOP/DNP 元件、XY 坐标、页码。</li>
+                    <li>主模块或子模块对应 <code>sch_1/pageX.csa</code> 中的 CIRCLE/ARC/几何对象。</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4>判定步骤</h4>
+                  <ul>
+                    <li>主模块元件直接在当前工程对应页查圆圈覆盖。</li>
+                    <li>子模块元件先从 <code>module_order.dat</code> 找子模块名，再按 P_PATH 中的本地页进入同级 worklib 子模块工程检查。</li>
+                    <li>用元件中心和画圈中心/半径的几何关系判断已打圈、疑似打圈、未打圈或无法判断。</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4>输出与边界</h4>
+                  <ul>
+                    <li>报告最终仍只展示该元件在页码对应位置是否打圈。</li>
+                    <li>缺 XY、缺 CSA、缺子模块路径时输出无法判断，不把缺证据当未打圈。</li>
+                  </ul>
+                </div>
+              </div>
+            </section>
+            <section class="guide-rule-card wide guide-detail-card">
+              <h3>CSA 几何规范与页级 Cadence 语义比对</h3>
+              <div class="guide-logic-columns">
+                <div>
+                  <h4>输入</h4>
+                  <ul>
+                    <li><code>pageX.csa</code> 中的 WIRE、DOT、CIRCLE、ARC、FORCEPROP SIG_NAME、文本和未知对象。</li>
+                    <li><code>pageX.csv</code> 中的 PAGE_NUMBER 和关键属性行。</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4>判定步骤</h4>
+                  <ul>
+                    <li>DOT/WIRE 建立连接组件，记录 bbox、线段、junction/dot、信号标注和 fingerprint。</li>
+                    <li>未知 CSA 行不会丢弃，会进入 UnknownGraphicObject 并参与 raw fingerprint 比对。</li>
+                    <li>项目对比中“第 1-30 页”按页码读取 A/B 两侧 pageX.csv|csa 做语义差异。</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4>输出与边界</h4>
+                  <ul>
+                    <li>输出对象新增/删除/移动、拓扑变化、信号名变化、属性变化和原始兜底差异。</li>
+                    <li>独立 CSA 画圈对象表已删除；底层圆圈解析仍服务 BOM_OPTION 打圈。</li>
+                  </ul>
+                </div>
+              </div>
+            </section>
+            <section class="guide-rule-card wide guide-detail-card">
+              <h3>
+                飞书在线同步与飞书 HQ 校对
+                <span class="help-tip" tabindex="0" aria-label="飞书校对说明" data-tip="飞书标准字段固定为 HQ料号、规格型号/Part Number、PI、选型顺序；扩展字段由用户确认后同步到本地缓存。">?</span>
+              </h3>
+              <div class="guide-logic-columns">
+                <div>
+                  <h4>输入</h4>
+                  <ul>
+                    <li>企业网关 <code>spreadsheetsMetainfo</code> 返回的 sheetId、title、rowCount、columnCount。</li>
+                    <li><code>getSheetsValue</code> 返回的 valueRange.values，rich cell 会归一化为文本。</li>
+                    <li>用户确认的 HQ料号、规格型号 / Part Number、PI、选型顺序和扩展字段。</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4>判定步骤</h4>
+                  <ul>
+                    <li>跳过 <code>blockInfo</code> 非表格块，按返回 range 对齐行列，A 列为空也不移动后续列。</li>
+                    <li>每个 Sheet 独立识别表头，不携带其他 Sheet 的上下文或旧 mapping。</li>
+                    <li>同步后按 HQ 料号写入本地 SQLite 缓存，报告按 Cadence HQ_CODE 与缓存 hq_no 只读匹配。</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4>输出与边界</h4>
+                  <ul>
+                    <li>飞书规格、PI、选型顺序自然内联到 BOM、芯片 Pin 和项目对比原有表格。</li>
+                    <li>Agent 只能辅助推荐表头 title 和扩展字段候选，不能替用户确认字段映射或直接写库。</li>
+                  </ul>
+                </div>
+              </div>
+            </section>
+            <section class="guide-rule-card wide guide-detail-card">
+              <h3>项目对比规则</h3>
+              <div class="guide-logic-columns">
+                <div>
+                  <h4>输入</h4>
+                  <ul>
+                    <li>A/B 两个已分析 run 的 report、bundle、飞书 HQ 校对结果和可选原始项目文件。</li>
+                    <li>关键器件、无源件、网络、Pin/Net、报告检查表和页级 Cadence 语义工具。</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4>判定步骤</h4>
+                  <ul>
+                    <li>先看关键器件新增/删除，再按位号比对每个芯片/连接器的 Pin-Net、引脚名、页码和飞书信息。</li>
+                    <li>R/C/L 单独保留 Pin-Net 变化，不与关键器件混在一起。</li>
+                    <li>网络连接按节点变化、网络新增删除和元件属性变化分区展示。</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4>输出与边界</h4>
+                  <ul>
+                    <li>独立 `/compare` 页面按需懒加载宽表，避免一次性渲染全部数据卡顿。</li>
+                    <li>Compare Agent 会重建服务端对比 payload，不信任前端传入的大型摘要。</li>
+                  </ul>
+                </div>
+              </div>
+            </section>
+            <section class="guide-rule-card wide guide-detail-card">
+              <h3>DFMEA 准备度、规格书与 ref_checklist</h3>
+              <div class="guide-logic-columns">
+                <div>
+                  <h4>输入</h4>
+                  <ul>
+                    <li>元件身份卡：位号、类别、HQ 料号、规格、PI、选型顺序、Pin/Net、飞书匹配。</li>
+                    <li><code>PSTX_DATASHEET_DIR</code> 本地 PDF 规格书索引。</li>
+                    <li><code>ref_checklist/</code> 中的真实 review 问题、Excel 记录和 changelist。</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4>判定步骤</h4>
+                  <ul>
+                    <li>先判断哪些芯片/连接器具备 DFMEA 输入条件，哪些缺规格、PI、芯片类别或关键网络。</li>
+                    <li>规格书只做文本型 PDF 页级检索和片段引用；扫描版或加密 PDF 标记需人工处理。</li>
+                    <li>ref_checklist 只作为历史问题模式参考，必须同时引用当前项目 evidence 才能形成建议。</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4>输出与边界</h4>
+                  <ul>
+                    <li>当前只输出 DFMEA 准备度、证据缺口和用户补充问题，不生成正式 DFMEA 表。</li>
+                    <li>历史 checklist 命中不等于当前项目已发生问题，必须二次取当前项目证据。</li>
+                  </ul>
+                </div>
+              </div>
+            </section>
+            <section class="guide-rule-card wide guide-detail-card">
+              <h3>Agent 证据压缩不替代原始证据</h3>
+              <div class="guide-logic-columns">
+                <div>
+                  <h4>输入</h4>
+                  <ul>
+                    <li>用户问题、profile/auto capability plan、playbook、tool_result_contract 和本地 trace。</li>
+                    <li>工具返回的三层证据：摘要层、证据卡层、原始层，以及 detail_tool / aggregation_tool。</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4>判定步骤</h4>
+                  <ul>
+                    <li>摘要层给模型快速规划，避免 80k 窗口被大表或 PDF/CSA 原文塞满。</li>
+                    <li>证据卡层保留 evidence id、来源表、行号、页码、位号、网络、字段名、命中原因和 detail_tool。</li>
+                    <li>原始层完整保存在本地 trace/store；完整表格行、PDF 片段、CSA/CSV 原始片段需要时通过 detail 工具继续读取，并可在 UI 展开。</li>
+                    <li>当结果是 preview/partial/truncated 时，Agent 必须优先用聚合工具或详情工具继续取证。</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4>输出与边界</h4>
+                  <ul>
+                    <li>证据压缩是“给模型节流”，不是丢弃证据；用户可通过 Trace 抽屉查看证据卡和原始工具结果。</li>
+                    <li>模型不能写文件、不能直接操作飞书、不能把历史经验当当前项目结论。</li>
+                  </ul>
+                </div>
+              </div>
+            </section>
+          </div>
+        </article>
+
+        <article id="agent-boundary" class="guide-panel" data-reveal>
+          <div class="section-heading">
+            <p class="eyebrow">AGENT / HARNESS</p>
+            <h2>Agent 与 Harness 如何工作</h2>
+            <p>Agent 不是直接读写项目的脚本执行器，而是受控的本地只读取证框架。</p>
+          </div>
+          <div class="guide-flow">
+            <div><strong>1. 理解问题</strong><p>本地 planner/playbook 先判断问题涉及报告、飞书、对比、页级语义或 DFMEA 准备。</p></div>
+            <div><strong>2. 选择工具</strong><p>优先选择批量工具和聚合工具，避免一条一条循环或把截断 preview 当完整数据。</p></div>
+            <div><strong>3. 三层证据</strong><p>模型默认接收摘要层和证据卡层；原始层留在 trace/store，用户可展开，模型需通过 detail_tool 二次读取。</p></div>
+            <div><strong>4. 多轮澄清</strong><p>缺规格、PI、芯片类别或用户上下文时，浮窗会要求补充信息后继续同一任务。</p></div>
+          </div>
+          <div class="guide-callout">
+            <strong>安全边界：</strong>
+            Aster 只作为模型接口；工具执行、路径白名单、schema 校验、轮数限制和 trace 都由本地 harness 控制。
+            第一版不写 PSTX、不改 Cadence 项目、不自动同步飞书、不自动生成正式 DFMEA 风险结论。
+          </div>
+        </article>
+
+        <article id="manual-review" class="guide-panel" data-reveal>
+          <div class="section-heading">
+            <p class="eyebrow">MANUAL REVIEW</p>
+            <h2>需要人工复核的边界</h2>
+            <p>工具会尽量给证据，但下面这些情况不应该让模型硬下结论。</p>
+          </div>
+          <div class="guide-card-grid two">
+            <section class="guide-rule-card">
+              <h3>证据不足</h3>
+              <ul>
+                <li>飞书缓存缺少 HQ 料号或字段映射未确认。</li>
+                <li>规格书 PDF 未配置、扫描版不可抽取、或匹配到多个候选。</li>
+                <li>CSA 出现未知对象，当前只能按 raw/fingerprint 追溯。</li>
+                <li>module_order 缺失或子模块路径无法定位。</li>
+              </ul>
+            </section>
+            <section class="guide-rule-card">
+              <h3>建议复核</h3>
+              <ul>
+                <li>所有“候选”类结果都应结合原理图上下文确认。</li>
+                <li>降额低风险通过不等于无需设计确认，只代表规则侧未发现高风险证据。</li>
+                <li>Agent 回答必须引用当前项目 evidence；历史经验和飞书缓存不能替代当前项目证据。</li>
+                <li>项目对比的大表会懒加载，完整统计应优先走聚合工具或后端 compare API。</li>
+              </ul>
+            </section>
+          </div>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <script src="{{ url_for('static', filename='ui/common.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='pages/static_info.js') }}" defer></script>
+</body>
+</html>

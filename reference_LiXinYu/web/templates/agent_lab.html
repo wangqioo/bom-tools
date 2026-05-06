@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Agent 能力实验室 - PSTX</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+</head>
+<body data-page="agent-lab">
+  <div class="app-shell agent-lab-shell">
+    <header class="agent-lab-hero" data-reveal>
+      <div>
+        <p class="eyebrow">AGENT CAPABILITY LAB</p>
+        <h1>Agent 能力实验室</h1>
+        <p>
+          这里用于单独测试 Agent 当前的工具边界、证据引用和参考资料读取能力。把通用参考 PDF 放进
+          <code>ref/</code>，把真实 review 问题、Excel 记录或 changelist 放进 <code>ref_checklist/</code>，先重建索引，再直接提问。
+        </p>
+      </div>
+      <div class="hero-actions">
+        <a class="ghost-btn" href="{{ url_for('home') }}">返回首页</a>
+        <a class="ghost-btn" href="{{ url_for('ai_settings_page') }}">AI 配置</a>
+        <a class="ghost-btn" href="{{ url_for('agent_eval_page') }}">Agent Eval</a>
+      </div>
+    </header>
+
+    <main class="agent-lab-workspace" data-reveal>
+      <section class="agent-lab-panel">
+        <div class="section-heading">
+          <p class="eyebrow">REF MATERIALS</p>
+          <h2>本地参考资料索引</h2>
+          <p id="agent-lab-status">正在读取 ref/ 与 ref_checklist/ 状态…</p>
+        </div>
+        <div class="agent-lab-actions">
+          <button id="agent-lab-reindex" type="button" class="primary-btn inline-btn">重建 ref PDF 索引</button>
+          <button id="agent-lab-checklist-reindex" type="button" class="primary-btn inline-btn">重建 review checklist 索引</button>
+          <button id="agent-lab-refresh" type="button" class="ghost-btn inline-btn">刷新状态</button>
+        </div>
+        <h3 class="agent-lab-subtitle">ref_checklist/ 审查经验清单</h3>
+        <div id="agent-lab-checklist-docs" class="agent-lab-doc-list">
+          <p class="agent-empty">索引完成后会显示前 40 个 checklist 文档。</p>
+        </div>
+        <h3 class="agent-lab-subtitle">ref/ 通用 PDF</h3>
+        <div id="agent-lab-ref-docs" class="agent-lab-doc-list">
+          <p class="agent-empty">索引完成后会显示前 40 个 PDF 文档。</p>
+        </div>
+      </section>
+
+      <aside class="agent-lab-chat-panel">
+        <div class="section-heading">
+          <p class="eyebrow">TRY THE AGENT</p>
+          <h2>能力边界测试</h2>
+          <p>默认使用 <strong>Review checklist</strong> profile，让 Agent 先检索真实 review 问题模式，再结合当前项目证据。</p>
+        </div>
+        <form id="agent-lab-form" class="agent-lab-form">
+          <label class="field">
+            <span>测试 profile</span>
+            <select name="profile" id="agent-lab-profile">
+              <option value="review_checklist_qa">Review checklist</option>
+              <option value="agent_ref_qa">ref PDF 问答</option>
+              <option value="auto">智能自动</option>
+              <option value="dfmea_prep">DFMEA 准备</option>
+              <option value="full_review">完整审查</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>向 Agent 提问</span>
+            <textarea name="question" id="agent-lab-question" rows="5" placeholder="例如：请参考 ref_checklist 中类似真实 review 问题，帮我检查当前项目有哪些需要优先复核的原理图风险。"></textarea>
+          </label>
+          <div class="field-grid compact">
+            <label class="field">
+              <span>最大轮数</span>
+              <input type="number" name="max_steps" id="agent-lab-max-steps" min="1" max="24" value="8">
+            </label>
+            <label class="field">
+              <span>工具调用</span>
+              <input type="number" name="max_tool_calls" id="agent-lab-max-tool-calls" min="0" max="48" value="14">
+            </label>
+          </div>
+          <label class="field toggle-field compact-toggle">
+            <span>Debug JSON</span>
+            <div class="toggle-option">
+              <input type="checkbox" name="debug" id="agent-lab-debug">
+              <div class="toggle-copy">
+                <strong>默认关闭</strong>
+                <small>打开后结果会包含更多 trace 摘要，仍不暴露运行时密钥。</small>
+              </div>
+            </div>
+          </label>
+          <button type="submit" class="primary-btn">开始测试</button>
+        </form>
+        <div id="agent-lab-result" class="agent-lab-result">
+          <p class="agent-empty">提问后会显示对话结果、工具调用、evidence 引用和 trace 摘要。</p>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <aside id="agent-trace-drawer" class="agent-trace-drawer" aria-hidden="true">
+    <div class="agent-trace-head">
+      <div>
+        <p class="eyebrow">TRACE</p>
+        <h3 id="agent-trace-title">Agent Lab 执行复盘</h3>
+        <p>查看参考资料检索、工具调用、证据引用和能力边界结论。</p>
+      </div>
+      <button id="agent-trace-close" type="button" class="ghost-btn" data-agent-trace-close>收起</button>
+    </div>
+    <div id="agent-trace-body" class="agent-trace-body">
+      <p class="agent-empty">运行一次 Agent Lab 后，这里会显示完整复盘。</p>
+    </div>
+  </aside>
+
+  <script src="{{ url_for('static', filename='ui/common.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='pages/agent_lab.js') }}" defer></script>
+</body>
+</html>
