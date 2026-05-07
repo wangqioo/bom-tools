@@ -309,13 +309,14 @@ function showOverview(){
   $('toolBadge').textContent = '硬件设计辅助平台';
   let html = '<div class="overview-grid">';
   for(const [key, t] of Object.entries(TOOLS)){
-    html += `<div class="overview-card" onclick="switchTool('${key}')">
-      <div class="oc-icon">${document.querySelector(\`.sidebar nav a[data-tool='\${key}'] .icon\`).textContent}</div>
-      <div class="oc-body">
-        <div class="oc-title">${t.title} <span class="oc-badge">${t.badge}</span></div>
-        <div class="oc-desc">${t.desc}</div>
-      </div>
-    </div>`;
+    const iconEl = document.querySelector('.sidebar nav a[data-tool="' + key + '"] .icon');
+    const icon = iconEl ? iconEl.textContent : '🛠';
+    html += '<div class="overview-card" onclick="switchTool(\'' + key + '\')">' +
+      '<div class="oc-icon">' + icon + '</div>' +
+      '<div class="oc-body">' +
+        '<div class="oc-title">' + t.title + ' <span class="oc-badge">' + t.badge + '</span></div>' +
+        '<div class="oc-desc">' + t.desc + '</div>' +
+      '</div></div>';
   }
   html += '</div>';
   $('contentArea').innerHTML = html;
