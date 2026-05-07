@@ -5,10 +5,61 @@
 <title>飞书多表格匹配 — BOM Tools</title>
 <link rel="stylesheet" href="/static/style.css">
 <style>
-.table-config { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin: 8px 0; padding: 8px; background: #f7f9fc; border-radius: 8px; }
-.table-config.enabled { background: #e8f5e9; border-left: 3px solid #2a8a2a; }
-.table-config select, .table-config input { min-width: 130px; }
-.section-title { font-size: 15px; font-weight: 700; color: #1a3a5c; margin: 16px 0 8px; padding-bottom: 6px; border-bottom: 2px solid #e8eaed; }
+:root { --primary: #2d6cdf; --green: #2a8a2a; --orange: #e07000; --red: #c00000; --gray: #888; --bg: #f5f7fa; --card: #fff; --border: #ddd; }
+body { background: var(--bg); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 0; color: #222; }
+header { background: linear-gradient(135deg, #1a3a5c, #2d6cdf); color: #fff; padding: 18px 24px; }
+header h1 { margin: 0; font-size: 20px; }
+header p { margin: 4px 0 0; font-size: 13px; opacity: .8; }
+.container { max-width: 1100px; margin: 0 auto; padding: 16px; }
+.breadcrumb { margin-bottom: 12px; font-size: 13px; }
+.breadcrumb a { color: var(--primary); text-decoration: none; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; margin-bottom: 12px; }
+.card-title { font-size: 15px; font-weight: 700; color: #1a3a5c; margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }
+.form-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 6px 0; }
+.form-row label { font-size: 13px; color: #555; min-width: 70px; }
+input, select, button { font-size: 13px; padding: 5px 8px; border: 1px solid var(--border); border-radius: 4px; outline: none; }
+input:focus, select:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(45,108,223,.15); }
+.btn { display: inline-flex; align-items: center; gap: 4px; padding: 6px 14px; border: 1px solid var(--border); border-radius: 4px; background: #fff; color: #333; cursor: pointer; font-size: 13px; transition: all .15s; }
+.btn:hover { background: #eef; }
+.btn-primary { background: var(--primary); color: #fff; border-color: var(--primary); }
+.btn-primary:hover { background: #1e5bbf; }
+.btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+.btn-success { background: var(--green); color: #fff; border-color: var(--green); }
+.btn-danger { background: var(--red); color: #fff; border-color: var(--red); }
+.btn-sm { padding: 3px 10px; font-size: 12px; }
+.status-msg { font-size: 13px; color: var(--gray); margin-left: 8px; }
+.cat-bar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.cat-btn { padding: 3px 12px; border: 1px solid var(--border); border-radius: 12px; background: #fff; cursor: pointer; font-size: 12px; transition: all .15s; }
+.cat-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+.cat-btn:hover:not(.active) { background: #eef; }
+.table-card { border: 1px solid var(--border); border-radius: 6px; margin-bottom: 6px; overflow: hidden; }
+.table-card .tc-header { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #fafbfc; cursor: pointer; user-select: none; }
+.table-card .tc-header:hover { background: #f0f3f7; }
+.table-card .tc-header .tc-name { font-weight: 600; font-size: 13px; flex: 1; }
+.table-card .tc-header .tc-cat { font-size: 11px; color: var(--gray); background: #eee; padding: 1px 8px; border-radius: 8px; }
+.table-card .tc-header .tc-status { font-size: 12px; }
+.tc-body { padding: 10px 12px; display: none; border-top: 1px solid var(--border); }
+.tc-body.open { display: block; }
+.sheet-grid { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.sheet-grid label { font-size: 12px; display: flex; align-items: center; gap: 3px; cursor: pointer; padding: 2px 6px; border: 1px solid #eee; border-radius: 3px; }
+.sheet-grid label:hover { background: #f5f5ff; }
+.match-row { display: flex; gap: 6px; align-items: center; margin: 4px 0; flex-wrap: wrap; }
+.match-row .mr-label { font-size: 12px; color: var(--gray); min-width: 70px; }
+.match-row select { min-width: 130px; }
+.fetch-grid { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; max-height: 150px; overflow-y: auto; border: 1px solid #eee; border-radius: 4px; padding: 6px; }
+.fetch-grid label { font-size: 12px; display: flex; align-items: center; gap: 3px; cursor: pointer; padding: 1px 4px; white-space: nowrap; }
+.log-box { background: #1e1e1e; color: #d4d4d4; font-family: Consolas, monospace; font-size: 12px; padding: 10px; border-radius: 6px; max-height: 300px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; margin-top: 8px; display: none; }
+.log-box.show { display: block; }
+.result-box { display: none; margin-top: 8px; padding: 12px; border: 2px solid var(--green); border-radius: 8px; background: #f0faf0; }
+.result-box.show { display: block; }
+.result-box .stats { font-size: 14px; margin-bottom: 8px; }
+.download-btn { display: inline-block; padding: 8px 20px; background: var(--green); color: #fff; text-decoration: none; border-radius: 4px; font-weight: 600; }
+.download-btn:hover { opacity: .9; }
+.save-hint { font-size: 11px; color: var(--green); margin-left: 6px; opacity: 0; transition: opacity .3s; }
+.save-hint.show { opacity: 1; }
+hr { border: none; border-top: 1px solid #eee; margin: 10px 0; }
+.inline-bar { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+#logBox.loading-box { background: #1e1e1e; color: #6fb3ff; }
 </style>
 </head>
 <body>
@@ -19,157 +70,552 @@
 <div class="container">
   <div class="breadcrumb"><a href="/">← 返回首页</a></div>
 
-  <div class="form-card">
-    <h2>1. 网关设置</h2>
+  <!-- ═══ Step 1: 网关设置 ═══ -->
+  <div class="card">
+    <div class="card-title">1️⃣ 网关设置</div>
     <div class="form-row">
       <label>网关地址：</label>
-      <input type="text" id="base_url" value="https://mcenter.huaqin.com" style="width:280px">
+      <input type="text" id="gw_base_url" style="width:260px" placeholder="https://mcenter.huaqin.com">
       <label>Origin：</label>
-      <input type="text" id="origin" value="cli_a96ac38049f8d0e5" style="width:220px">
+      <input type="text" id="gw_origin" style="width:200px" placeholder="cli_a96ac38049f8d0e5">
       <label>工号：</label>
-      <input type="text" id="user_id" value="100448405" style="width:120px">
+      <input type="text" id="gw_user_id" style="width:110px" placeholder="100448405">
+      <button class="btn btn-sm" onclick="saveGateway()">💾 保存</button>
+      <span class="save-hint" id="gw_hint">✓ 已保存</span>
     </div>
   </div>
 
-  <div class="form-card">
-    <h2>2. 上传 BOM 文件</h2>
+  <!-- ═══ Step 2: 上传 BOM ═══ -->
+  <div class="card">
+    <div class="card-title">2️⃣ 上传 BOM 文件</div>
     <div class="form-row">
       <label>Excel 文件：</label>
-      <input type="file" id="bomFile" accept=".xlsx,.xlsm,.xls" style="min-width:300px">
+      <input type="file" id="bomFile" accept=".xlsx,.xlsm,.xls" style="min-width:280px">
       <label>表头行：</label>
-      <input type="number" id="header_row" value="1" min="1" style="width:80px">
+      <input type="number" id="header_row" value="1" min="1" style="width:70px">
+    </div>
+    <div id="bom_info" style="font-size:12px;color:var(--gray);margin-top:4px;display:none;">
+      文件已就绪，将使用第一个 Sheet，表头行第 <span id="hdrRowDisplay">1</span> 行
     </div>
   </div>
 
-  <div class="form-card">
-    <h2>3. 选择匹配表格</h2>
-    <p style="font-size:13px;color:#888;margin-bottom:8px">勾选要参与匹配的表格，为每张表格配置匹配键（本地列 ↔ 飞书列）和提取列</p>
-    <div class="categories" id="categories"></div>
-    <div id="tableConfigs"></div>
+  <!-- ═══ Step 3: 表格库 ═══ -->
+  <div class="card">
+    <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
+      <span>3️⃣ 表格库</span>
+      <span class="inline-bar">
+        <button class="btn btn-sm btn-primary" onclick="connectAllTables()">⟳ 一键更新全部数据</button>
+        <span id="batch_status" class="status-msg"></span>
+      </span>
+    </div>
+    <div class="cat-bar" id="catBar"></div>
+    <div id="tableList"></div>
   </div>
 
-  <div class="form-card">
-    <button id="matchBtn" class="btn btn-primary">⚡ 开始匹配</button>
-    <span class="status-msg" id="status"></span>
+  <!-- ═══ Step 4: 执行匹配 ═══ -->
+  <div class="card">
+    <div class="card-title">4️⃣ 执行匹配</div>
+    <div id="runStatus"></div>
+    <div style="margin: 8px 0;">
+      <button class="btn btn-primary" id="matchBtn" onclick="runMatch()">⚡ 开始匹配</button>
+      <span id="matchStatus" class="status-msg"></span>
+    </div>
+    <div class="log-box" id="logBox"></div>
+    <div class="result-box" id="resultBox">
+      <div class="stats" id="stats"></div>
+      <a class="download-btn" id="downloadLink" href="#">📥 下载匹配结果</a>
+    </div>
   </div>
-
-  <div class="result-box" id="result">
-    <h3>✅ 匹配完成</h3>
-    <div id="stats"></div>
-    <a class="download-btn" id="downloadLink" href="#">📥 下载匹配结果</a>
-  </div>
-
-  <div class="error-msg" id="error"></div>
 </div>
 
 <script>
-const TABLES = {{ tables | tojson }};
-let activeTab = '全部';
+// ═══ 常量 ═════════════════════════════════
+const CATEGORIES = ["优选库", "对应关系库"];
+const LS_KEY = "feishu_match_config";
 
-function renderTableConfigs() {
-  const catDiv = document.getElementById('categories');
-  catDiv.innerHTML = '<button class="cat-btn active" onclick="filterCat(\'全部\')">全部</button>';
-  const cats = [...new Set(TABLES.map(t => t.category))];
-  cats.forEach(c => catDiv.innerHTML += '<button class="cat-btn" onclick="filterCat(\'' + c + '\')">' + c + '</button>');
+// ═══ 状态 ═════════════════════════════════
+let localHeaders = [];
+let tables = [];
+let activeCat = '全部';
 
-  renderConfigs();
+// ═══ 初始化 ═══════════════════════════════
+function init() {
+  loadConfig();
+  renderCatBar();
+  renderTables();
+
+  document.getElementById('header_row').addEventListener('change', function() {
+    document.getElementById('hdrRowDisplay').textContent = this.value;
+  });
+
+  document.getElementById('bomFile').addEventListener('change', function() {
+    const info = document.getElementById('bom_info');
+    if (this.files[0]) {
+      info.style.display = 'block';
+      document.getElementById('hdrRowDisplay').textContent =
+        document.getElementById('header_row').value;
+    } else {
+      info.style.display = 'none';
+    }
+  });
+}
+document.addEventListener('DOMContentLoaded', init);
+
+function escHtml(s) { return (''+s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ═══ 配置持久化 ═══════════════════════════
+function getConfig() {
+  try { return JSON.parse(localStorage.getItem(LS_KEY)) || {}; } catch { return {}; }
+}
+function saveConfigToLS(cfg) {
+  localStorage.setItem(LS_KEY, JSON.stringify(cfg));
+}
+function loadConfig() {
+  const cfg = getConfig();
+  document.getElementById('gw_base_url').value = cfg.base_url || 'https://mcenter.huaqin.com';
+  document.getElementById('gw_origin').value = cfg.origin || 'cli_a96ac38049f8d0e5';
+  document.getElementById('gw_user_id').value = cfg.user_id || '100448405';
+  document.getElementById('header_row').value = cfg.header_row || 1;
+  document.getElementById('hdrRowDisplay').textContent = cfg.header_row || 1;
+  if (cfg.tables && cfg.tables.length) {
+    tables = cfg.tables;
+  } else {
+    tables = {{ tables | tojson }}.map(t => ({
+      name: t.name, token: t.token, category: t.category,
+      enabled: false, active_sheet_ids: [],
+      local_key_names: ["", "", ""], feishu_key_names: ["", "", ""],
+      fetch_col_names: [],
+      _sheets: [], _headers: [], _row_count: 0, _loaded: false,
+    }));
+  }
+}
+
+function saveGateway() {
+  const cfg = getConfig();
+  cfg.base_url = document.getElementById('gw_base_url').value;
+  cfg.origin = document.getElementById('gw_origin').value;
+  cfg.user_id = document.getElementById('gw_user_id').value;
+  cfg.header_row = parseInt(document.getElementById('header_row').value) || 1;
+  saveConfigToLS(cfg);
+  const h = document.getElementById('gw_hint');
+  h.classList.add('show');
+  setTimeout(() => h.classList.remove('show'), 2000);
+}
+
+function saveTablesConfig() {
+  const cfg = getConfig();
+  cfg.base_url = document.getElementById('gw_base_url').value;
+  cfg.origin = document.getElementById('gw_origin').value;
+  cfg.user_id = document.getElementById('gw_user_id').value;
+  cfg.header_row = parseInt(document.getElementById('header_row').value) || 1;
+  cfg.tables = tables.map(t => ({
+    name: t.name, token: t.token, category: t.category,
+    enabled: t.enabled, active_sheet_ids: t.active_sheet_ids || [],
+    local_key_names: t.local_key_names || ["", "", ""],
+    feishu_key_names: t.feishu_key_names || ["", "", ""],
+    fetch_col_names: t.fetch_col_names || [],
+  }));
+  saveConfigToLS(cfg);
+}
+
+// ═══ 分类栏 ══════════════════════════════
+function renderCatBar() {
+  const bar = document.getElementById('catBar');
+  const cats = ['全部', ...CATEGORIES, ...new Set(tables.map(t => t.category).filter(c => !CATEGORIES.includes(c)))];
+  bar.innerHTML = cats.map(c => `<button class="cat-btn${c === activeCat ? ' active' : ''}" onclick="filterCat('${escHtml(c)}')">${escHtml(c)}</button>`).join('');
 }
 
 function filterCat(cat) {
-  activeTab = cat;
+  activeCat = cat;
   document.querySelectorAll('.cat-btn').forEach(b => b.classList.toggle('active', b.textContent === cat));
-  renderConfigs();
+  renderTables();
 }
 
-function renderConfigs() {
-  const div = document.getElementById('tableConfigs');
-  div.innerHTML = '';
-  TABLES.forEach((t, i) => {
-    if (activeTab !== '全部' && t.category !== activeTab) return;
-    div.innerHTML += `
-      <div class="section-title">${t.name} <span style="font-size:12px;color:#888;font-weight:400">(${t.category})</span></div>
-      <div class="table-config">
-        <label><input type="checkbox" class="tb-enabled" data-idx="${i}" onchange="toggleTable(${i})"> 启用</label>
-        <span>匹配键1：本地 <input type="text" class="tb-lk" data-idx="${i}" data-pair="0" style="width:120px" placeholder="本地列名"> ↔ 飞书 <input type="text" class="tb-fk" data-idx="${i}" data-pair="0" style="width:120px" placeholder="飞书列名"></span>
+// ═══ 渲染表格 ════════════════════════════
+function renderTables() {
+  const div = document.getElementById('tableList');
+  const filtered = activeCat === '全部' ? tables : tables.filter(t => t.category === activeCat);
+  if (!filtered.length) {
+    div.innerHTML = '<p style="color:var(--gray);font-size:13px">该分类下无表格</p>';
+    return;
+  }
+  div.innerHTML = filtered.map((t, idx) => {
+    const realIdx = tables.indexOf(t);
+    const loaded = t._loaded ? `✓ ${t._row_count} 行` : (t._connected ? '已连接' : '—');
+    const statusColor = t._loaded ? 'var(--green)' : (t._connected ? 'var(--primary)' : 'var(--gray)');
+    const catColor = t.category === '优选库' ? '#1a5fa8' : '#7a3a9a';
+    return `<div class="table-card" data-idx="${realIdx}">
+      <div class="tc-header" onclick="toggleCard(${realIdx})">
+        <input type="checkbox" ${t.enabled ? 'checked' : ''} onclick="event.stopPropagation();toggleEnabled(${realIdx})" title="参与匹配">
+        <span class="tc-name">${escHtml(t.name)}</span>
+        <span class="tc-cat" style="color:${catColor}">${t.category}</span>
+        <span class="tc-status" style="color:${statusColor}">${loaded}</span>
+        <span style="font-size:11px;color:var(--gray)">▾</span>
       </div>
-      <div class="table-config">
-        <span>匹配键2：本地 <input type="text" class="tb-lk" data-idx="${i}" data-pair="1" style="width:120px" placeholder="可选"> ↔ 飞书 <input type="text" class="tb-fk" data-idx="${i}" data-pair="1" style="width:120px" placeholder="可选"></span>
-      </div>
-      <div class="table-config">
-        <span>匹配键3：本地 <input type="text" class="tb-lk" data-idx="${i}" data-pair="2" style="width:120px" placeholder="可选"> ↔ 飞书 <input type="text" class="tb-fk" data-idx="${i}" data-pair="2" style="width:120px" placeholder="可选"></span>
-      </div>
-      <div class="table-config">
-        <span>提取列（逗号分隔）：<input type="text" class="tb-fetch" data-idx="${i}" style="width:400px" placeholder="列名1,列名2,..."></span>
-      </div>
-    `;
-  });
+      <div class="tc-body" id="tcBody_${realIdx}">${buildTableBody(realIdx)}</div>
+    </div>`;
+  }).join('');
 }
 
-function toggleTable(idx) {
-  const div = document.querySelector(`.table-config:nth-child(2)`);
+function toggleCard(idx) {
+  const body = document.getElementById(`tcBody_${idx}`);
+  body.classList.toggle('open');
+  if (body.classList.contains('open') && !tables[idx]._connected && tables[idx].token) {
+    connectTable(idx);
+  }
 }
 
-function collectTables() {
-  const result = [];
-  TABLES.forEach((t, i) => {
-    const cb = document.querySelector(`.tb-enabled[data-idx="${i}"]`);
-    if (!cb || !cb.checked) return;
-    const lks = [], fks = [];
-    for (let p = 0; p < 3; p++) {
-      const lk = document.querySelector(`.tb-lk[data-idx="${i}"][data-pair="${p}"]`);
-      const fk = document.querySelector(`.tb-fk[data-idx="${i}"][data-pair="${p}"]`);
-      lks.push(lk ? lk.value : ''); fks.push(fk ? fk.value : '');
-    }
-    const fetchEl = document.querySelector(`.tb-fetch[data-idx="${i}"]`);
-    const fetch_cols = fetchEl ? fetchEl.value.split(',').map(s => s.trim()).filter(Boolean) : [];
-    result.push({ name: t.name, token: t.token, local_keys: lks, feishu_keys: fks, fetch_cols: fetch_cols });
-  });
-  return result;
+function toggleEnabled(idx) {
+  tables[idx].enabled = !tables[idx].enabled;
+  saveTablesConfig();
 }
 
-document.getElementById('matchBtn').onclick = async function() {
-  const fileInput = document.getElementById('bomFile');
-  if (!fileInput.files[0]) { alert('请先上传 BOM 文件'); return; }
-  const tables = collectTables();
-  if (!tables.length) { alert('请至少选择一个启用表格并配置匹配键'); return; }
+// ═══ 表格详情体 ══════════════════════════
+function buildTableBody(idx) {
+  const t = tables[idx];
 
-  const btn = this; btn.disabled = true;
-  document.getElementById('status').textContent = '匹配中，请稍候...';
-  document.getElementById('result').classList.remove('show');
-  document.getElementById('error').classList.remove('show');
+  const sheetsHtml = t._sheets && t._sheets.length
+    ? `<div class="sheet-grid">${t._sheets.map(s => {
+        const checked = (t.active_sheet_ids || []).includes(s.sheetId) ? 'checked' : '';
+        return `<label><input type="checkbox" class="sheet-cb" data-idx="${idx}" data-sid="${s.sheetId}" ${checked} onchange="onSheetChange(${idx})"> ${escHtml(s.title)}</label>`;
+      }).join('')}</div>`
+    : '<div style="font-size:12px;color:var(--gray);margin:4px 0">先连接获取 Sheet 列表</div>';
 
+  const localOpts = localHeaders.length
+    ? localHeaders.map(h => `<option value="${escHtml(h)}">${escHtml(h)}</option>`).join('')
+    : '<option value="">（先上传 BOM）</option>';
+
+  const feishuOpts = t._headers && t._headers.length
+    ? t._headers.map(h => `<option value="${escHtml(h)}">${escHtml(h)}</option>`).join('')
+    : '<option value="">（先加载数据）</option>';
+
+  const matchKeysHtml = [0,1,2].map(i => {
+    const required = i === 0 ? '（必填）' : '（可选）';
+    const clr = i === 0 ? 'var(--red)' : 'var(--gray)';
+    const lk = (t.local_key_names || [])[i] || '';
+    const fk = (t.feishu_key_names || [])[i] || '';
+    return `<div class="match-row">
+      <span class="mr-label" style="color:${clr}">第${i+1}对${required}</span>
+      <span style="font-size:12px">本地</span>
+      <select onchange="onLocalKey(${idx},${i},this.value)">
+        <option value="">—</option>${localOpts.replace(`value="${escHtml(lk)}"`,`value="${escHtml(lk)}" selected`)}
+      </select>
+      <span style="font-size:12px">↔ 飞书</span>
+      <select onchange="onFeishuKey(${idx},${i},this.value)">
+        <option value="">—</option>${feishuOpts.replace(`value="${escHtml(fk)}"`,`value="${escHtml(fk)}" selected`)}
+      </select>
+    </div>`;
+  }).join('');
+
+  const fetchCols = t._headers && t._headers.length
+    ? `<div style="margin:4px 0">
+        <button class="btn btn-sm" onclick="selectAllFetch(${idx},true)">全选</button>
+        <button class="btn btn-sm" onclick="selectAllFetch(${idx},false)">全不选</button>
+      </div>
+      <div class="fetch-grid">${t._headers.map(h => {
+        const checked = (t.fetch_col_names || []).includes(h) ? 'checked' : '';
+        return `<label><input type="checkbox" class="fetch-cb" data-idx="${idx}" data-col="${escHtml(h)}" ${checked} onchange="onFetchChange(${idx})"> ${escHtml(h)}</label>`;
+      }).join('')}</div>`
+    : '<div style="font-size:12px;color:var(--gray);margin:4px 0">（先加载数据后显示）</div>';
+
+  return `
+    <div class="inline-bar" style="margin-bottom:6px">
+      <button class="btn btn-sm btn-primary" onclick="connectTable(${idx})">🔗 连接</button>
+      <button class="btn btn-sm" onclick="loadTableData(${idx})">📥 读取选中 Sheet 数据</button>
+      <span id="status_${idx}" class="status-msg"></span>
+    </div>
+    <div style="font-size:12px;font-weight:600;margin:6px 0 2px;color:#555;">选择 Sheet（可多选）：</div>
+    ${sheetsHtml}
+    <hr>
+    <div style="font-size:12px;font-weight:600;margin:4px 0 2px;color:#555;">匹配键配置（AND 逻辑）：</div>
+    ${matchKeysHtml}
+    <hr>
+    <div style="font-size:12px;font-weight:600;margin:4px 0 2px;color:#555;">提取列：</div>
+    ${fetchCols}
+    <div style="margin-top:6px">
+      <button class="btn btn-sm btn-success" onclick="saveTableConfig(${idx})">💾 保存此表格配置</button>
+      <span id="saveHint_${idx}" class="save-hint">✓ 已保存</span>
+    </div>
+  `;
+}
+
+function refreshTable(idx) {
+  const body = document.getElementById(`tcBody_${idx}`);
+  if (body && body.classList.contains('open')) {
+    body.innerHTML = buildTableBody(idx);
+  }
+  renderTables();
+}
+
+// ═══ Sheet 选择 ═══════════════════════════
+function onSheetChange(idx) {
+  const cbs = document.querySelectorAll(`.sheet-cb[data-idx="${idx}"]`);
+  tables[idx].active_sheet_ids = Array.from(cbs).filter(cb => cb.checked).map(cb => cb.dataset.sid);
+  autoSaveDebounced();
+}
+
+function onLocalKey(idx, pair, val) {
+  if (!tables[idx].local_key_names) tables[idx].local_key_names = ["", "", ""];
+  tables[idx].local_key_names[pair] = val;
+  autoSaveDebounced();
+}
+function onFeishuKey(idx, pair, val) {
+  if (!tables[idx].feishu_key_names) tables[idx].feishu_key_names = ["", "", ""];
+  tables[idx].feishu_key_names[pair] = val;
+  autoSaveDebounced();
+}
+
+function onFetchChange(idx) {
+  const cbs = document.querySelectorAll(`.fetch-cb[data-idx="${idx}"]`);
+  tables[idx].fetch_col_names = Array.from(cbs).filter(cb => cb.checked).map(cb => cb.dataset.col);
+  autoSaveDebounced();
+}
+function selectAllFetch(idx, val) {
+  document.querySelectorAll(`.fetch-cb[data-idx="${idx}"]`).forEach(cb => cb.checked = val);
+  onFetchChange(idx);
+}
+
+function saveTableConfig(idx) {
+  saveTablesConfig();
+  const h = document.getElementById(`saveHint_${idx}`);
+  if (h) { h.classList.add('show'); setTimeout(() => h.classList.remove('show'), 2000); }
+}
+
+let _autoSaveTimer = null;
+function autoSaveDebounced() {
+  clearTimeout(_autoSaveTimer);
+  _autoSaveTimer = setTimeout(saveTablesConfig, 500);
+}
+
+// ═══ BOM 文件改变 → 读取 local headers ═══
+document.getElementById('bomFile').addEventListener('change', async function() {
+  if (!this.files[0]) return;
+  const info = document.getElementById('bom_info');
+  info.style.display = 'block';
+  info.textContent = '处理中...';
+
+  // 读取 BOM 后立刻「模拟上传」以获取表头
+  // 实际数据在 match 时传入。这里我们简单提示即可
+  info.textContent = `已选择：${this.files[0].name}，匹配时将自动处理`;
+});
+
+// ═══ 连接表格 ═════════════════════════════
+async function connectTable(idx) {
+  const t = tables[idx];
+  const base_url = document.getElementById('gw_base_url').value;
+  const origin = document.getElementById('gw_origin').value;
+  const user_id = document.getElementById('gw_user_id').value;
+  const status = document.getElementById(`status_${idx}`);
+  if (!t.token) { status.textContent = '请填写 Token'; return; }
+
+  status.textContent = '连接中...';
   const fd = new FormData();
-  fd.append('file', fileInput.files[0]);
-  fd.append('action', 'match');
-  fd.append('base_url', document.getElementById('base_url').value);
-  fd.append('origin', document.getElementById('origin').value);
-  fd.append('user_id', document.getElementById('user_id').value);
-  fd.append('header_row', document.getElementById('header_row').value);
-  fd.append('tables', JSON.stringify(tables));
+  fd.append('action', 'load_sheets');
+  fd.append('base_url', base_url);
+  fd.append('origin', origin);
+  fd.append('user_id', user_id);
+  fd.append('token', t.token);
 
   try {
     const r = await fetch('/feishu', { method: 'POST', body: fd });
     const d = await r.json();
     if (d.success) {
-      document.getElementById('stats').innerHTML =
-        '<p>共 <b>' + d.total + '</b> 行 | 命中 <b>' + d.matched + '</b> | 未匹配 <b>' + d.unmatched + '</b></p>';
-      document.getElementById('downloadLink').href = d.download;
-      document.getElementById('result').classList.add('show');
-      document.getElementById('status').textContent = '匹配完成！';
+      t._sheets = d.sheets;
+      t._connected = true;
+      if (!t.active_sheet_ids || !t.active_sheet_ids.length) {
+        t.active_sheet_ids = d.sheets.map(s => s.sheetId);
+      }
+      status.textContent = `已连接，${d.sheets.length} 个 Sheet`;
+      saveTablesConfig();
     } else {
-      document.getElementById('error').textContent = d.error || '匹配失败';
-      document.getElementById('error').classList.add('show');
-      document.getElementById('status').textContent = '';
+      status.textContent = '连接失败：' + (d.error || '');
     }
-  } catch (err) {
-    document.getElementById('error').textContent = '网络错误：' + err.message;
-    document.getElementById('error').classList.add('show');
-    document.getElementById('status').textContent = '';
+  } catch (e) {
+    status.textContent = '网络错误';
+  }
+  refreshTable(idx);
+}
+
+// ═══ 读取数据 ═════════════════════════════
+async function loadTableData(idx) {
+  const t = tables[idx];
+  const base_url = document.getElementById('gw_base_url').value;
+  const origin = document.getElementById('gw_origin').value;
+  const user_id = document.getElementById('gw_user_id').value;
+  const status = document.getElementById(`status_${idx}`);
+  const activeIds = t.active_sheet_ids || [];
+  if (!activeIds.length) { status.textContent = '请至少选择一个 Sheet'; return; }
+  status.textContent = '读取中...';
+
+  const fd = new FormData();
+  fd.append('action', 'load_data');
+  fd.append('base_url', base_url);
+  fd.append('origin', origin);
+  fd.append('user_id', user_id);
+  fd.append('token', t.token);
+  fd.append('sheet_ids', JSON.stringify(activeIds));
+
+  try {
+    const r = await fetch('/feishu', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (d.success) {
+      t._headers = d.headers;
+      t._row_count = d.row_count;
+      t._loaded = true;
+      localHeaders = d.headers; // 让其他已展开的表格也能拿到飞书列
+      status.textContent = `✓ 已加载 ${d.row_count} 行`;
+      saveTablesConfig();
+    } else {
+      status.textContent = '读取失败：' + (d.error || '');
+    }
+  } catch (e) {
+    status.textContent = '网络错误';
+  }
+  refreshTable(idx);
+}
+
+// ═══ 一键更新 ═════════════════════════════
+async function connectAllTables() {
+  const batchStatus = document.getElementById('batch_status');
+  const base_url = document.getElementById('gw_base_url').value;
+  const origin = document.getElementById('gw_origin').value;
+  const user_id = document.getElementById('gw_user_id').value;
+
+  const withToken = tables.filter(t => t.token);
+  if (!withToken.length) { batchStatus.textContent = '没有配置 Token 的表格'; return; }
+
+  addLog('── 一键更新全部开始 ──');
+  batchStatus.textContent = '更新中...';
+  let ok = 0;
+
+  for (const t of withToken) {
+    const idx = tables.indexOf(t);
+    addLog(`[${t.name}] 连接中...`);
+    try {
+      const fd1 = new FormData();
+      fd1.append('action', 'load_sheets');
+      fd1.append('base_url', base_url);
+      fd1.append('origin', origin);
+      fd1.append('user_id', user_id);
+      fd1.append('token', t.token);
+      const r1 = await fetch('/feishu', { method: 'POST', body: fd1 });
+      const d1 = await r1.json();
+      if (!d1.success) { addLog(`[${t.name}] 连接失败：${d1.error}`); continue; }
+      t._sheets = d1.sheets;
+      t._connected = true;
+    } catch (e) { addLog(`[${t.name}] 连接异常`); continue; }
+
+    const onlineIds = new Set(d1.sheets.map(s => s.sheetId));
+    const savedIds = t.active_sheet_ids || [];
+    let activeIds;
+    if (!savedIds.length) {
+      activeIds = d1.sheets.map(s => s.sheetId);
+      t.active_sheet_ids = activeIds;
+    } else {
+      activeIds = savedIds.filter(sid => onlineIds.has(sid));
+      t.active_sheet_ids = activeIds;
+      const stale = savedIds.filter(sid => !onlineIds.has(sid));
+      if (stale.length) addLog(`[${t.name}] ⚠ Sheet 已失效并剔除：${stale.length} 个`);
+    }
+    if (!activeIds.length) { addLog(`[${t.name}] ✗ 所有 Sheet 已失效，跳过`); continue; }
+
+    addLog(`[${t.name}] 读取数据中...`);
+    try {
+      const fd2 = new FormData();
+      fd2.append('action', 'load_data');
+      fd2.append('base_url', base_url);
+      fd2.append('origin', origin);
+      fd2.append('user_id', user_id);
+      fd2.append('token', t.token);
+      fd2.append('sheet_ids', JSON.stringify(activeIds));
+      const r2 = await fetch('/feishu', { method: 'POST', body: fd2 });
+      const d2 = await r2.json();
+      if (d2.success) {
+        t._headers = d2.headers;
+        t._row_count = d2.row_count;
+        t._loaded = true;
+        ok++;
+        addLog(`[${t.name}] ✓ 已加载 ${d2.row_count} 行`);
+      } else {
+        addLog(`[${t.name}] 读取失败：${d2.error}`);
+      }
+    } catch (e) { addLog(`[${t.name}] 读取异常`); }
+  }
+  saveTablesConfig();
+  batchStatus.textContent = `✓ 完成 ${ok}/${withToken.length}`;
+  addLog(`── 批量更新完成：${ok}/${withToken.length} ──`);
+  renderTables();
+}
+
+// ═══ 运行匹配 ═════════════════════════════
+async function runMatch() {
+  const fileInput = document.getElementById('bomFile');
+  if (!fileInput.files[0]) { alert('请先上传 BOM 文件'); return; }
+
+  const enabledTables = tables.filter(t => t.enabled);
+  if (!enabledTables.length) { alert('请至少启用一个表格'); return; }
+
+  const btn = document.getElementById('matchBtn');
+  btn.disabled = true;
+  const status = document.getElementById('matchStatus');
+  status.textContent = '匹配中，请稍候...';
+  document.getElementById('resultBox').classList.remove('show');
+
+  const base_url = document.getElementById('gw_base_url').value;
+  const origin = document.getElementById('gw_origin').value;
+  const user_id = document.getElementById('gw_user_id').value;
+  const header_row = document.getElementById('header_row').value;
+
+  const tablesConfig = enabledTables.map(t => ({
+    name: t.name, token: t.token, category: t.category,
+    active_sheet_ids: t.active_sheet_ids || [],
+    local_key_names: t.local_key_names || ["", "", ""],
+    feishu_key_names: t.feishu_key_names || ["", "", ""],
+    fetch_col_names: t.fetch_col_names || [],
+  }));
+
+  const fd = new FormData();
+  fd.append('file', fileInput.files[0]);
+  fd.append('action', 'match');
+  fd.append('base_url', base_url);
+  fd.append('origin', origin);
+  fd.append('user_id', user_id);
+  fd.append('header_row', header_row);
+  fd.append('tables', JSON.stringify(tablesConfig));
+
+  const logBox = document.getElementById('logBox');
+  logBox.classList.add('show');
+  logBox.textContent = '匹配中，请稍候...\n';
+
+  try {
+    const r = await fetch('/feishu', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (d.logs) {
+      logBox.textContent = d.logs.join('\n');
+      logBox.scrollTop = logBox.scrollHeight;
+    }
+    if (d.success) {
+      document.getElementById('stats').innerHTML =
+        `共 <b>${d.total}</b> 行 | 命中 <b style="color:var(--green)">${d.matched}</b> | 未匹配 <b style="color:var(--orange)">${d.unmatched}</b>`;
+      document.getElementById('downloadLink').href = d.download;
+      document.getElementById('resultBox').classList.add('show');
+      status.textContent = '✅ 匹配完成！';
+    } else {
+      status.textContent = '❌ ' + (d.error || '匹配失败');
+    }
+  } catch (e) {
+    status.textContent = '网络错误：' + e.message;
+    logBox.textContent += '\n网络错误：' + e.message;
   }
   btn.disabled = false;
-};
+}
 
-renderTableConfigs();
+function addLog(msg) {
+  const box = document.getElementById('logBox');
+  box.classList.add('show');
+  box.textContent += msg + '\n';
+  box.scrollTop = box.scrollHeight;
+}
 </script>
 </body>
 </html>
