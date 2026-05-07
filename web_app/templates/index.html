@@ -55,8 +55,8 @@ input[type="file"] { font-size:13px; }
 .stat-item .lbl { font-size:11px; color:#888; margin-top:2px; }
 /* === 表格 === */
 table { width:100%; border-collapse:collapse; font-size:12px; margin-top:8px; }
-th { background:#f0f2f5; padding:8px 6px; text-align:left; font-weight:600; border-bottom:2px solid #d0d5dd; position:sticky; top:0; }
-td { padding:7px 6px; border-bottom:1px solid #e8eaed; }
+th { background:#f0f2f5; padding:8px 6px; text-align:left; font-weight:600; border-bottom:2px solid #d0d5dd; position:sticky; top:0; white-space:nowrap; }
+td { padding:7px 6px; border-bottom:1px solid #e8eaed; white-space:nowrap; }
 tr:hover td { background:#f7f9fc; }
 .table-wrap { max-height:320px; overflow:auto; border:1px solid #e0e0e0; border-radius:6px; }
 /* === Tab 切换 === */
@@ -136,19 +136,19 @@ tr:hover td { background:#f7f9fc; }
 </div>
 <div class="section"><h3>第二步：列映射（自动识别，可手动调整）</h3>
   <div class="row">
-    <label>物料名称列：</label><input type="text" id="bomColName" style="width:80px" placeholder="如 C">
-    <label>用量列：</label><input type="text" id="bomColQty" style="width:80px" placeholder="如 D">
-    <label>品牌/厂家列：</label><input type="text" id="bomColBrand" style="width:80px" placeholder="如 E">
-    <label>型号列：</label><input type="text" id="bomColModel" style="width:80px" placeholder="如 F">
-    <span class="hint">（填写列字母）</span>
-  </div>
-  <div class="row">
     <label>格式：</label>
     <select id="bomFmt">
       <option value="A">格式A — 品牌型号合并列（|| 或空格分隔）</option>
       <option value="B">格式B — 厂家/型号分开列，分号分隔</option>
       <option value="C">格式C — 制造商含编号，冒号分隔</option>
     </select>
+  </div>
+  <div class="row">
+    <label>物料名称列：</label><input type="text" id="bomColName" style="width:80px" placeholder="如 C">
+    <label>用量列：</label><input type="text" id="bomColQty" style="width:80px" placeholder="如 D">
+    <label>品牌/厂家列：</label><input type="text" id="bomColBrand" style="width:80px" placeholder="如 E">
+    <label>型号列：</label><input type="text" id="bomColModel" style="width:80px" placeholder="如 F">
+    <span class="hint">（填写列字母）</span>
   </div>
   <div id="bomDetected" class="hint" style="margin-top:4px"></div>
 </div>
@@ -371,11 +371,13 @@ function initBom(){
   $('bomMode').onchange=()=>{$('bomProjRow').style.display=$('bomMode').value==='internal'?'flex':'none';};
   $('bomSheet').onchange=function(){
     const f=$('bomFile').files[0];if(!f)return;
+    hide($('bomResult'));hide($('bomError'));
     let fd=new FormData();fd.append('file',f);fd.append('sheet_name',this.value);
     fetch('/api/bom/sheets',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{updateBomFromApi(d);});
   };
   $('bomFile').onchange=function(){
     const f=this.files[0];if(!f)return;
+    hide($('bomResult'));hide($('bomError'));
     let fd=new FormData();fd.append('file',f);fd.append('sheet_name',$('bomSheet').value);
     fetch('/api/bom/sheets',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{updateBomFromApi(d);});
   };
