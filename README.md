@@ -10,7 +10,6 @@
 |---|---|---|
 | `bom_gui.py` | 客户 BOM 格式转换，将多供应商 BOM 展开为多行 | v5.10 |
 | `plm_upload.py` | BOM 批量上传至 PLM 系统 | - |
-| `feishu_bom_matcher.py` | 飞书优选库全库匹配，BOM 逐行查找 HQ 料号 | v3.0 |
 | `feishu_multi_matcher.py` | 飞书多表格匹配，预置14库分优选/对应关系双类，多键AND匹配 | v3.0 |
 | `pstx_analyzer.py` | Cadence 原理图分析工具（BOM / DRC / 降额 / 查询 / 层次化页码） | v1.3 |
 | `csa_checker.py` | CSA 几何规范检查工具（DOT 四向十字 / 画圈检测） | v1.0 |
@@ -100,66 +99,9 @@ python bom_gui.py
 
 ---
 
-## feishu_bom_matcher.py — 飞书优选库匹配工具
+## feishu_multi_matcher.py — 飞书多表格匹配工具
 
-连接企业内部飞书 API 网关，将 BOM 中的厂家型号与所有优选库全库比对，自动补全料号、制造商等信息。
-
-**认证方式：** 企业内部 API 网关（origin + 工号，无需 App Secret）
-
-### 首次配置
-
-打开脚本，在顶部常量区填入：
-
-```python
-DEFAULT_BASE_URL = "https://your-gateway.example.com"  # 企业 API 网关地址
-DEFAULT_ORIGIN   = "cli_xxxxxx"                         # 应用 App ID
-DEFAULT_USER_ID  = "your_employee_id"                   # 员工工号
-```
-
-### 使用方式
-
-```
-python feishu_bom_matcher.py
-```
-
-### 操作流程
-
-#### 第一次使用：添加优选库（每个库只需配置一次）
-
-1. 打开「**库管理**」→ 点「+ 添加优选库」
-2. 填入库名称和飞书表格 Token（从表格 URL 中复制）
-3. 点「获取 Sheet 列表」，然后**双击每个 Sheet** 配置列映射：
-   - 匹配关键列（对应 BOM 中的厂家型号列，如 `Part Number`）
-   - 料号列（如 `料号`）
-   - 制造商列、规格型号列、描述列（可选）
-4. 确定后切换到「**同步数据**」→ 点「全部重新同步」
-
-同步完成后数据保存在本地 SQLite（`feishu_cache.db`），下次匹配无需联网。
-
-#### 日常使用：BOM 匹配
-
-1. 切到「**BOM匹配**」→ 上传本地 BOM 文件
-2. 选择表头行和关键列（自动识别包含「型号」的列）
-3. 勾选要输出的列（料号、制造商、规格型号、描述、来源库/Sheet）
-4. 点「**开始全库匹配**」→ 输出带黄色高亮的 Excel
-
-### 配置文件
-
-| 文件 | 说明 |
-|---|---|
-| `feishu_libraries.json` | 所有优选库的配置（自动生成，可手动编辑） |
-| `feishu_cache.db` | 本地缓存数据库（自动生成） |
-
-### 输出格式
-
-输出 Excel 在原 BOM 列右侧追加匹配列，黄色背景标注。同一物料有多个优选匹配时，展开为多行。
-
----
-
-## 注意事项
-
-- 飞书表格需先将对应应用添加为文档协作者（「···」→「添加文档应用」）
-- 优选库内容变动时，在「同步数据」页面重新同步对应库即可
+飞书多表格匹配，预置14库分优选/对应关系双类，多键AND匹配。
 
 ---
 
