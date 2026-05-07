@@ -4,15 +4,30 @@
 
 ---
 
-## 工具列表
+## 目录结构
 
-| 文件 | 功能 | 版本 |
+```
+bom-tools/
+├── scripts/        # CLI 工具脚本（单机运行）
+│   ├── bom_gui.py               BOM 格式转换
+│   ├── plm_upload.py            PLM 批量上传
+│   ├── feishu_multi_matcher.py  飞书多表匹配
+│   ├── pstx_analyzer.py         Cadence 原理图分析
+│   └── csa_checker.py           CSA 几何规范检查
+├── web_app/        # Flask Web 统一界面（推荐）
+├── deploy_bundle/  # 离线部署包（Windows 无网环境）
+└── CHANGELOG.md
+```
+
+### CLI 工具一览
+
+| 脚本 | 功能 | 版本 |
 |---|---|---|
-| `bom_gui.py` | 客户 BOM 格式转换，将多供应商 BOM 展开为多行 | v5.10 |
-| `plm_upload.py` | BOM 批量上传至 PLM 系统 | - |
-| `feishu_multi_matcher.py` | 飞书多表格匹配，预置14库分优选/对应关系双类，多键AND匹配 | v3.0 |
-| `pstx_analyzer.py` | Cadence 原理图分析工具（BOM / DRC / 降额 / 查询 / 层次化页码） | v1.3 |
-| `csa_checker.py` | CSA 几何规范检查工具（DOT 四向十字 / 画圈检测） | v1.0 |
+| `scripts/bom_gui.py` | 客户 BOM 格式转换，将多供应商 BOM 展开为多行 | v5.10 |
+| `scripts/plm_upload.py` | BOM 批量上传至 PLM 系统 | - |
+| `scripts/feishu_multi_matcher.py` | 飞书多表格匹配，预置14库分优选/对应关系双类，多键AND匹配 | v3.0 |
+| `scripts/pstx_analyzer.py` | Cadence 原理图分析工具（BOM / DRC / 降额 / 查询 / 层次化页码） | v1.3 |
+| `scripts/csa_checker.py` | CSA 几何规范检查工具（DOT 四向十字 / 画圈检测） | v1.0 |
 
 ### 🌐 Web 版（推荐）
 
@@ -22,16 +37,6 @@
 cd web_app
 pip install -r requirements.txt
 python app.py            # 默认 http://localhost:5000
-```
-
-部署到服务器：
-
-```bash
-# PM2
-pm2 start app.py --name bom-tools --interpreter python3
-
-# 或 nohup
-nohup python3 app.py &
 ```
 
 ---
@@ -49,8 +54,8 @@ nohup python3 app.py &
 
 ### 使用方式
 
-```
-python bom_gui.py
+```bash
+python scripts/bom_gui.py
 ```
 
 ### 操作步骤
@@ -113,8 +118,8 @@ python bom_gui.py
 
 ### 使用方式
 
-```
-python pstx_analyzer.py
+```bash
+python scripts/pstx_analyzer.py
 ```
 
 ### 输入文件
