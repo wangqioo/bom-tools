@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>原理图分析 — BOM Tools</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <h1>📊 原理图分析</h1>
+  <p>解析 Cadence Packager-XL 导出的 .dat 文件 → 多 Sheet Excel 报告</p>
+</header>
+<div class="container">
+  <div class="breadcrumb"><a href="/">← 返回首页</a></div>
+
+  <div class="form-card">
+    <h2>上传 PST 文件</h2>
+    <form id="pstxForm" enctype="multipart/form-data">
+      <div class="form-row">
+        <label>pstxprt.dat：</label>
+        <input type="file" name="prt_file" accept=".dat" required style="min-width:300px">
+        <span style="font-size:12px;color:#888">【必须】元件属性 — 位号、料号、封装、电气参数</span>
+      </div>
+      <div class="form-row">
+        <label>pstxnet.dat：</label>
+        <input type="file" name="net_file" accept=".dat" required style="min-width:300px">
+        <span style="font-size:12px;color:#888">【必须】网络连接 — 引脚与网络的映射关系</span>
+      </div>
+      <div class="form-row">
+        <label>降额百分比：</label>
+        <input type="number" name="pct" value="70" min="50" max="100" style="width:90px">
+        <span style="font-size:12px;color:#888">% — 工作电压上限占额定电压的百分比（默认 70%）</span>
+      </div>
+      <button type="submit" class="btn btn-primary">⚡ 开始分析</button>
+      <span class="status-msg" id="status"></span>
+    </form>
+  </div>
+
+  <div class="result-box" id="result">
+    <h3>✅ 分析完成</h3>
+    <div class="stat-grid">
+      <div class="stat-item"><div class="num" id="s-comps">-</div><div class="lbl">元件数</div></div>
+      <div class="stat-item"><div class="num" id="s-nets">-</div><div class="lbl">网络数</div></div>
+      <div class="stat-item"><div class="num" id="s-bom-n">-</div><div class="lbl">贴装种类</div></div>
+      <div class="stat-item"><div class="num" id="s-bom-d">-</div><div class="lbl">DEPOP种类</div></div>
+      <div class="stat-item"><div class="num" id="s-drc">-</div><div class="lbl">DRC问题</div></div>
+      <div class="stat-item"><div class="num" id="s-der">-</div><div class="lbl">降额不合格</div></div>
+    </div>
+    <p style="font-size:13px;color:#888;margin-top:8px">报告中包含以下 Sheet：概览 / BOM_贴装 / BOM_DEPOP / BOM_明细 / 网络分析 / 设计检查 / 降额分析 / 电阻检查</p>
+    <a class="download-btn" id="downloadLink" href="#">📥 下载分析报告 (Excel)</a>
+  </div>
+
+  <div class="error-msg" id="error"></div>
+</div>
+
+<script>
+document.getElementById('pstxForm').onsubmit = async function(e) {
+  e.preventDefault();
+  const btn = this.querySelector('button'); btn.disabled = true;
+  document.getElementById('status').textContent = '分析中，请稍候...';
+  document.getElementById('result').classList.remove('show');
+  document.getElementById('error').classList.remove('show');
+
+  const fd = new FormData(this);
+  try {
+    const r = await fetch('/pstx', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (d.success) {
+      document.getElementById('s-comps').textContent = d.components;
+      document.getElementById('s-nets').textContent = d.nets;
+      document.getElementById('s-bom-n').textContent = d.bom_normal;
+      document.getElementById('s-bom-d').textContent = d.bom_depop;
+      document.getElementById('s-drc').textContent = d.drc_total;
+      document.getElementById('s-der').textContent = d.derating_fail;
+      document.getElementById('downloadLink').href = d.download;
+      document.getElementById('result').classList.add('show');
+      document.getElementById('status').textContent = '分析完成！';
+    } else {
+      document.getElementById('error').textContent = d.error || '分析失败';
+      document.getElementById('error').classList.add('show');
+      document.getElementById('status').textContent = '';
+    }
+  } catch (err) {
+    document.getElementById('error').textContent = '网络错误：' + err.message;
+    document.getElementById('error').classList.add('show');
+    document.getElementById('status').textContent = '';
+  }
+  btn.disabled = false;
+};
+</script>
+</body>
+</html>

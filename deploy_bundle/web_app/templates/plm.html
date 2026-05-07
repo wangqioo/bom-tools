@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PLM 上传转换 — BOM Tools</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <h1>📤 PLM 上传转换</h1>
+  <p>整机BOM配置表 → PLM 系统导入格式</p>
+</header>
+<div class="container">
+  <div class="breadcrumb"><a href="/">← 返回首页</a></div>
+
+  <div class="form-card">
+    <h2>上传整机BOM配置表</h2>
+    <form id="plmForm" enctype="multipart/form-data">
+      <div class="form-row">
+        <label>Excel 文件：</label>
+        <input type="file" name="file" accept=".xlsx,.xlsm,.xls" required style="min-width:300px">
+      </div>
+      <div class="form-row">
+        <label>Sheet：</label>
+        <input type="text" name="sheet" placeholder="留空自动选第一个">
+        <label>表头行：</label>
+        <input type="number" name="header_row" value="4" min="1" style="width:80px">
+      </div>
+      <div class="form-row">
+        <label>项目名称：</label>
+        <input type="text" name="project_name" placeholder="写入PLM文件头部">
+      </div>
+      <div class="form-row">
+        <label>列映射：</label>
+        <input type="text" name="col_hqpn" placeholder="HQ PN 列" style="width:100px">
+        <input type="text" name="col_stype" placeholder="主二供列" style="width:100px">
+        <input type="text" name="col_qty" placeholder="用量列" style="width:100px">
+        <span style="font-size:12px;color:#888">（留空自动识别 序号/HQ PN/主二供/用量）</span>
+      </div>
+      <button type="submit" class="btn btn-primary">⚡ 开始转换</button>
+      <span class="status-msg" id="status"></span>
+    </form>
+  </div>
+
+  <div class="result-box" id="result">
+    <h3>✅ 转换完成</h3>
+    <div id="stats"></div>
+    <a class="download-btn" id="downloadLink" href="#">📥 下载 PLM 导入文件</a>
+  </div>
+
+  <div class="error-msg" id="error"></div>
+</div>
+
+<script>
+document.getElementById('plmForm').onsubmit = async function(e) {
+  e.preventDefault();
+  const btn = this.querySelector('button'); btn.disabled = true;
+  document.getElementById('status').textContent = '处理中...';
+  document.getElementById('result').classList.remove('show');
+  document.getElementById('error').classList.remove('show');
+
+  const fd = new FormData(this);
+  try {
+    const r = await fetch('/plm', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (d.success) {
+      document.getElementById('stats').innerHTML =
+        '<p>写入 <b>' + d.total + '</b> 行，跳过 <b>' + d.skipped + '</b> 行（用量为空不导入）</p>';
+      document.getElementById('downloadLink').href = d.download;
+      document.getElementById('result').classList.add('show');
+      document.getElementById('status').textContent = '完成！';
+    } else {
+      document.getElementById('error').textContent = d.error || '转换失败';
+      document.getElementById('error').classList.add('show');
+      document.getElementById('status').textContent = '';
+    }
+  } catch (err) {
+    document.getElementById('error').textContent = '网络错误：' + err.message;
+    document.getElementById('error').classList.add('show');
+    document.getElementById('status').textContent = '';
+  }
+  btn.disabled = false;
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+! SET PAGE_NUMBER "A1"
+WIRE Normal (50,100) (150,100)
+WIRE Normal (100,50) (100,150)
+DOT Normal (100,100)

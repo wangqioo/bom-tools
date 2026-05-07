@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>飞书多表格匹配 — BOM Tools</title>
+<link rel="stylesheet" href="/static/style.css">
+<style>
+.table-config { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin: 8px 0; padding: 8px; background: #f7f9fc; border-radius: 8px; }
+.table-config.enabled { background: #e8f5e9; border-left: 3px solid #2a8a2a; }
+.table-config select, .table-config input { min-width: 130px; }
+.section-title { font-size: 15px; font-weight: 700; color: #1a3a5c; margin: 16px 0 8px; padding-bottom: 6px; border-bottom: 2px solid #e8eaed; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🔍 飞书多表格匹配</h1>
+  <p>BOM 逐行匹配飞书优选库 → 自动补全 HQ 料号</p>
+</header>
+<div class="container">
+  <div class="breadcrumb"><a href="/">← 返回首页</a></div>
+
+  <div class="form-card">
+    <h2>1. 网关设置</h2>
+    <div class="form-row">
+      <label>网关地址：</label>
+      <input type="text" id="base_url" value="https://mcenter.huaqin.com" style="width:280px">
+      <label>Origin：</label>
+      <input type="text" id="origin" value="cli_a96ac38049f8d0e5" style="width:220px">
+      <label>工号：</label>
+      <input type="text" id="user_id" value="100448405" style="width:120px">
+    </div>
+  </div>
+
+  <div class="form-card">
+    <h2>2. 上传 BOM 文件</h2>
+    <div class="form-row">
+      <label>Excel 文件：</label>
+      <input type="file" id="bomFile" accept=".xlsx,.xlsm,.xls" style="min-width:300px">
+      <label>表头行：</label>
+      <input type="number" id="header_row" value="1" min="1" style="width:80px">
+    </div>
+  </div>
+
+  <div class="form-card">
+    <h2>3. 选择匹配表格</h2>
+    <p style="font-size:13px;color:#888;margin-bottom:8px">勾选要参与匹配的表格，为每张表格配置匹配键（本地列 ↔ 飞书列）和提取列</p>
+    <div class="categories" id="categories"></div>
+    <div id="tableConfigs"></div>
+  </div>
+
+  <div class="form-card">
+    <button id="matchBtn" class="btn btn-primary">⚡ 开始匹配</button>
+    <span class="status-msg" id="status"></span>
+  </div>
+
+  <div class="result-box" id="result">
+    <h3>✅ 匹配完成</h3>
+    <div id="stats"></div>
+    <a class="download-btn" id="downloadLink" href="#">📥 下载匹配结果</a>
+  </div>
+
+  <div class="error-msg" id="error"></div>
+</div>
+
+<script>
+const TABLES = {{ tables | tojson }};
+let activeTab = '全部';
+
+function renderTableConfigs() {
+  const catDiv = document.getElementById('categories');
+  catDiv.innerHTML = '<button class="cat-btn active" onclick="filterCat(\'全部\')">全部</button>';
+  const cats = [...new Set(TABLES.map(t => t.category))];
+  cats.forEach(c => catDiv.innerHTML += '<button class="cat-btn" onclick="filterCat(\'' + c + '\')">' + c + '</button>');
+
+  renderConfigs();
+}
+
+function filterCat(cat) {
+  activeTab = cat;
+  document.querySelectorAll('.cat-btn').forEach(b => b.classList.toggle('active', b.textContent === cat));
+  renderConfigs();
+}
+
+function renderConfigs() {
+  const div = document.getElementById('tableConfigs');
+  div.innerHTML = '';
+  TABLES.forEach((t, i) => {
+    if (activeTab !== '全部' && t.category !== activeTab) return;
+    div.innerHTML += `
+      <div class="section-title">${t.name} <span style="font-size:12px;color:#888;font-weight:400">(${t.category})</span></div>
+      <div class="table-config">
+        <label><input type="checkbox" class="tb-enabled" data-idx="${i}" onchange="toggleTable(${i})"> 启用</label>
+        <span>匹配键1：本地 <input type="text" class="tb-lk" data-idx="${i}" data-pair="0" style="width:120px" placeholder="本地列名"> ↔ 飞书 <input type="text" class="tb-fk" data-idx="${i}" data-pair="0" style="width:120px" placeholder="飞书列名"></span>
+      </div>
+      <div class="table-config">
+        <span>匹配键2：本地 <input type="text" class="tb-lk" data-idx="${i}" data-pair="1" style="width:120px" placeholder="可选"> ↔ 飞书 <input type="text" class="tb-fk" data-idx="${i}" data-pair="1" style="width:120px" placeholder="可选"></span>
+      </div>
+      <div class="table-config">
+        <span>匹配键3：本地 <input type="text" class="tb-lk" data-idx="${i}" data-pair="2" style="width:120px" placeholder="可选"> ↔ 飞书 <input type="text" class="tb-fk" data-idx="${i}" data-pair="2" style="width:120px" placeholder="可选"></span>
+      </div>
+      <div class="table-config">
+        <span>提取列（逗号分隔）：<input type="text" class="tb-fetch" data-idx="${i}" style="width:400px" placeholder="列名1,列名2,..."></span>
+      </div>
+    `;
+  });
+}
+
+function toggleTable(idx) {
+  const div = document.querySelector(`.table-config:nth-child(2)`);
+}
+
+function collectTables() {
+  const result = [];
+  TABLES.forEach((t, i) => {
+    const cb = document.querySelector(`.tb-enabled[data-idx="${i}"]`);
+    if (!cb || !cb.checked) return;
+    const lks = [], fks = [];
+    for (let p = 0; p < 3; p++) {
+      const lk = document.querySelector(`.tb-lk[data-idx="${i}"][data-pair="${p}"]`);
+      const fk = document.querySelector(`.tb-fk[data-idx="${i}"][data-pair="${p}"]`);
+      lks.push(lk ? lk.value : ''); fks.push(fk ? fk.value : '');
+    }
+    const fetchEl = document.querySelector(`.tb-fetch[data-idx="${i}"]`);
+    const fetch_cols = fetchEl ? fetchEl.value.split(',').map(s => s.trim()).filter(Boolean) : [];
+    result.push({ name: t.name, token: t.token, local_keys: lks, feishu_keys: fks, fetch_cols: fetch_cols });
+  });
+  return result;
+}
+
+document.getElementById('matchBtn').onclick = async function() {
+  const fileInput = document.getElementById('bomFile');
+  if (!fileInput.files[0]) { alert('请先上传 BOM 文件'); return; }
+  const tables = collectTables();
+  if (!tables.length) { alert('请至少选择一个启用表格并配置匹配键'); return; }
+
+  const btn = this; btn.disabled = true;
+  document.getElementById('status').textContent = '匹配中，请稍候...';
+  document.getElementById('result').classList.remove('show');
+  document.getElementById('error').classList.remove('show');
+
+  const fd = new FormData();
+  fd.append('file', fileInput.files[0]);
+  fd.append('action', 'match');
+  fd.append('base_url', document.getElementById('base_url').value);
+  fd.append('origin', document.getElementById('origin').value);
+  fd.append('user_id', document.getElementById('user_id').value);
+  fd.append('header_row', document.getElementById('header_row').value);
+  fd.append('tables', JSON.stringify(tables));
+
+  try {
+    const r = await fetch('/feishu', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (d.success) {
+      document.getElementById('stats').innerHTML =
+        '<p>共 <b>' + d.total + '</b> 行 | 命中 <b>' + d.matched + '</b> | 未匹配 <b>' + d.unmatched + '</b></p>';
+      document.getElementById('downloadLink').href = d.download;
+      document.getElementById('result').classList.add('show');
+      document.getElementById('status').textContent = '匹配完成！';
+    } else {
+      document.getElementById('error').textContent = d.error || '匹配失败';
+      document.getElementById('error').classList.add('show');
+      document.getElementById('status').textContent = '';
+    }
+  } catch (err) {
+    document.getElementById('error').textContent = '网络错误：' + err.message;
+    document.getElementById('error').classList.add('show');
+    document.getElementById('status').textContent = '';
+  }
+  btn.disabled = false;
+};
+
+renderTableConfigs();
+</script>
+</body>
+</html>

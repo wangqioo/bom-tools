@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CSA 几何检查 — BOM Tools</title>
+<link rel="stylesheet" href="/static/style.css">
+<style>
+table.results { margin-top: 16px; }
+.cross { color: #e07000; }
+.ok { color: #2a8a2a; }
+</style>
+</head>
+<body>
+<header>
+  <h1>📐 CSA 几何规范检查</h1>
+  <p>扫描 sch_1/page*.csa → DOT 四向十字交叉检测</p>
+</header>
+<div class="container">
+  <div class="breadcrumb"><a href="/">← 返回首页</a></div>
+
+  <div class="form-card">
+    <h2>上传 CSA 文件</h2>
+    <form id="csaForm" enctype="multipart/form-data">
+      <div class="form-row">
+        <label>page*.csa：</label>
+        <input type="file" name="files" accept=".csa" multiple required style="min-width:350px">
+        <span style="font-size:12px;color:#888">可多选 page1.csa、page2.csa…（按住Ctrl多选）</span>
+      </div>
+      <button type="submit" class="btn btn-primary">⚡ 开始检查</button>
+      <span class="status-msg" id="status"></span>
+    </form>
+  </div>
+
+  <div class="result-box" id="result">
+    <h3>检查结果</h3>
+    <div class="stat-grid">
+      <div class="stat-item"><div class="num" id="s-pages">-</div><div class="lbl">页面数</div></div>
+      <div class="stat-item"><div class="num" id="s-crosses">-</div><div class="lbl">四向十字</div></div>
+      <div class="stat-item"><div class="num" id="s-errors">-</div><div class="lbl">异常页面</div></div>
+    </div>
+    <table class="results" id="resultsTable">
+      <thead><tr><th>页面</th><th>文件</th><th>WIRE数</th><th>DOT数</th><th>四向十字</th><th>状态</th></tr></thead>
+      <tbody id="resultsBody"></tbody>
+    </table>
+  </div>
+
+  <div class="error-msg" id="error"></div>
+</div>
+
+<script>
+document.getElementById('csaForm').onsubmit = async function(e) {
+  e.preventDefault();
+  const files = document.querySelector('input[name="files"]').files;
+  if (!files.length) { alert('请上传 page*.csa 文件'); return; }
+
+  const btn = this.querySelector('button'); btn.disabled = true;
+  document.getElementById('status').textContent = '检查中...';
+  document.getElementById('result').classList.remove('show');
+  document.getElementById('error').classList.remove('show');
+
+  const fd = new FormData();
+  for (const f of files) fd.append('files', f);
+
+  try {
+    const r = await fetch('/csa', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (d.success) {
+      document.getElementById('s-pages').textContent = d.pages;
+      document.getElementById('s-crosses').textContent = d.total_crosses;
+      document.getElementById('s-errors').textContent = d.total_errors;
+      let html = '';
+      d.results.forEach(r => {
+        const cls = r.crosses > 0 ? 'cross' : 'ok';
+        const err = r.error ? ' ⚠ ' + r.error : '';
+        html += `<tr>
+          <td>${r.page}</td><td>${r.file}</td><td>${r.wires}</td><td>${r.dots}</td>
+          <td class="${cls}">${r.crosses}</td><td>${r.crosses > 0 ? '⚠ 发现十字' : '✅ 正常'}${err}</td>
+        </tr>`;
+      });
+      document.getElementById('resultsBody').innerHTML = html;
+      document.getElementById('result').classList.add('show');
+      document.getElementById('status').textContent = '检查完成！';
+    } else {
+      document.getElementById('error').textContent = d.error || '检查失败';
+      document.getElementById('error').classList.add('show');
+      document.getElementById('status').textContent = '';
+    }
+  } catch (err) {
+    document.getElementById('error').textContent = '网络错误：' + err.message;
+    document.getElementById('error').classList.add('show');
+    document.getElementById('status').textContent = '';
+  }
+  btn.disabled = false;
+};
+</script>
+</body>
+</html>

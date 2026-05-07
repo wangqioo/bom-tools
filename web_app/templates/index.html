@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BOM Tools · Web 版</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: -apple-system,'Segoe UI','Microsoft YaHei',sans-serif; display:flex; min-height:100vh; background:#f0f2f5; }
+/* === 左侧导航 === */
+.sidebar { width:200px; background:linear-gradient(180deg,#1a2942,#1a3a5c); color:#ccc; display:flex; flex-direction:column; flex-shrink:0; }
+.sidebar .logo { padding:18px 16px; font-size:15px; font-weight:700; color:#fff; border-bottom:1px solid rgba(255,255,255,.08); }
+.sidebar .logo .sub { font-size:11px; font-weight:400; color:#8ab4f8; display:block; margin-top:2px; }
+.sidebar nav { flex:1; padding:8px 0; overflow-y:auto; }
+.sidebar nav a { display:flex; align-items:center; gap:10px; padding:11px 18px; color:#b0bec5; text-decoration:none; font-size:14px; transition:all .12s; border-left:3px solid transparent; }
+.sidebar nav a:hover { background:rgba(255,255,255,.06); color:#e0e0e0; }
+.sidebar nav a.active { background:rgba(45,108,223,.25); color:#fff; border-left-color:#4a9eff; font-weight:600; }
+.sidebar nav a .icon { font-size:18px; width:24px; text-align:center; }
+/* === 主内容 === */
+.main { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+.toolbar { background:#fff; padding:10px 20px; border-bottom:1px solid #e0e0e0; display:flex; align-items:center; gap:12px; }
+.toolbar h2 { font-size:18px; color:#1a3a5c; }
+.toolbar .badge { background:#e8f0fe; color:#1a5ad4; padding:3px 10px; border-radius:10px; font-size:11px; }
+.content { flex:1; overflow-y:auto; padding:16px 20px; }
+/* === 通用组件 === */
+.section { background:#fff; border-radius:10px; padding:16px 20px; margin-bottom:12px; box-shadow:0 1px 4px rgba(0,0,0,.06); }
+.section h3 { font-size:14px; color:#1a3a5c; margin-bottom:10px; padding-bottom:6px; border-bottom:2px solid #e8f0fe; }
+.row { display:flex; gap:10px; align-items:center; margin-bottom:10px; flex-wrap:wrap; }
+.row label { font-weight:600; font-size:13px; min-width:65px; color:#444; white-space:nowrap; }
+.row .hint { font-size:11px; color:#999; margin-left:4px; }
+input[type="text"],input[type="number"],select { padding:7px 10px; border:1px solid #c8ccd0; border-radius:6px; font-size:13px; outline:none; }
+input[type="text"]:focus,input[type="number"]:focus,select:focus { border-color:#4a9eff; box-shadow:0 0 0 2px rgba(74,158,255,.12); }
+input[type="file"] { font-size:13px; }
+.btn { padding:8px 18px; border:none; border-radius:6px; font-size:13px; font-weight:600; cursor:pointer; transition:all .12s; }
+.btn-primary { background:#2d6cdf; color:#fff; }
+.btn-primary:hover { background:#1a5ad4; }
+.btn-primary:disabled { background:#a0bce8; cursor:not-allowed; }
+.btn-outline { background:#fff; color:#2d6cdf; border:1px solid #2d6cdf; }
+.btn-outline:hover { background:#e8f0fe; }
+.btn-sm { padding:4px 12px; font-size:12px; }
+.btn-gray { background:#f0f2f5; color:#555; border:1px solid #d0d5dd; }
+.btn-gray:hover { background:#e0e4e8; }
+.btn-green { background:#2a8a2a; color:#fff; }
+.btn-green:hover { background:#227322; }
+/* === 结果区 === */
+.result { display:none; background:#f0fdf0; border:1px solid #a3d9a3; border-radius:8px; padding:14px 18px; margin-top:12px; }
+.result.show { display:block; }
+.result .title { color:#2a8a2a; font-weight:700; font-size:14px; }
+.result .download { display:inline-block; margin-top:8px; background:#2a8a2a; color:#fff; padding:8px 18px; border-radius:6px; text-decoration:none; font-weight:600; font-size:13px; }
+.error { display:none; background:#fff0f0; color:#c00000; padding:12px 16px; border-radius:8px; margin-top:12px; border:1px solid #f0c0c0; }
+.error.show { display:block; }
+.stat-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:8px; margin:8px 0; }
+.stat-item { background:#f7f9fc; padding:10px; border-radius:6px; text-align:center; border:1px solid #e8eaed; }
+.stat-item .num { font-size:20px; font-weight:700; color:#1a3a5c; }
+.stat-item .lbl { font-size:11px; color:#888; margin-top:2px; }
+/* === 表格 === */
+table { width:100%; border-collapse:collapse; font-size:12px; margin-top:8px; }
+th { background:#f0f2f5; padding:8px 6px; text-align:left; font-weight:600; border-bottom:2px solid #d0d5dd; position:sticky; top:0; }
+td { padding:7px 6px; border-bottom:1px solid #e8eaed; }
+tr:hover td { background:#f7f9fc; }
+.table-wrap { max-height:320px; overflow:auto; border:1px solid #e0e0e0; border-radius:6px; }
+/* === Tab 切换 === */
+.tabs { display:flex; gap:0; border-bottom:2px solid #e0e0e0; margin-bottom:8px; }
+.tab-btn { padding:7px 14px; font-size:13px; cursor:pointer; border:none; background:none; color:#888; border-bottom:2px solid transparent; margin-bottom:-2px; transition:all .12s; }
+.tab-btn:hover { color:#333; }
+.tab-btn.active { color:#2d6cdf; border-bottom-color:#2d6cdf; font-weight:600; }
+.tab-content { display:none; }
+.tab-content.active { display:block; }
+/* === 树形列表（飞书表格库） === */
+.tree-list { border:1px solid #e0e0e0; border-radius:6px; max-height:420px; overflow-y:auto; background:#fff; }
+.tree-item { display:flex; align-items:center; padding:7px 12px; cursor:pointer; font-size:13px; border-bottom:1px solid #f0f0f0; gap:8px; }
+.tree-item:hover { background:#f7f9fc; }
+.tree-item.selected { background:#e8f0fe; color:#1a5ad4; font-weight:600; }
+.tree-item .indent { width:16px; flex-shrink:0; }
+.tree-cat { font-weight:700; font-size:12px; color:#1a5fa8; padding:6px 12px; background:#f0f5fd; border-bottom:1px solid #d0ddf0; cursor:default; }
+.tree-cat.alt { color:#7a3a9a; background:#f8f0ff; border-bottom-color:#e0d0f0; }
+.badge-sm { display:inline-block; padding:1px 8px; border-radius:8px; font-size:10px; font-weight:600; }
+.badge-green { background:#e8f5e9; color:#2a8a2a; }
+.badge-orange { background:#fff3e0; color:#e07000; }
+.badge-gray { background:#f0f0f0; color:#888; }
+.badge-blue { background:#e8f0fe; color:#2d6cdf; }
+/* === 详情面板（飞书表格） === */
+.detail-panel { background:#fafbfc; border:1px solid #e0e0e0; border-radius:6px; padding:14px; font-size:13px; }
+.detail-panel h4 { font-size:14px; margin-bottom:8px; }
+.grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+/* === checkbox list === */
+.chk-list { display:flex; flex-wrap:wrap; gap:3px; max-height:160px; overflow-y:auto; padding:6px; border:1px solid #e0e0e0; border-radius:6px; }
+.chk-list label { display:inline-flex; align-items:center; gap:3px; padding:2px 8px; font-size:12px; cursor:pointer; border-radius:4px; white-space:nowrap; }
+.chk-list label:hover { background:#f0f2f5; }
+/* === 进度条 === */
+.spinner { display:inline-block; animation:spin .8s linear infinite; }
+@keyframes spin { 100% { transform:rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<!-- ===== 左侧导航 ===== -->
+<aside class="sidebar">
+  <div class="logo">🛠 BOM Tools<span class="sub">硬件设计辅助平台</span></div>
+  <nav>
+    <a href="#" class="active" data-tool="bom"><span class="icon">📋</span>BOM 格式转换</a>
+    <a href="#" data-tool="plm"><span class="icon">📤</span>PLM 上传转换</a>
+    <a href="#" data-tool="feishu"><span class="icon">🔍</span>飞书多库匹配</a>
+    <a href="#" data-tool="pstx"><span class="icon">📊</span>原理图分析</a>
+    <a href="#" data-tool="csa"><span class="icon">📐</span>CSA 几何检查</a>
+  </nav>
+</aside>
+
+<!-- ===== 主内容区 ===== -->
+<div class="main">
+  <div class="toolbar">
+    <h2 id="toolTitle">BOM 格式转换</h2>
+    <span class="badge" id="toolBadge">v5.10</span>
+  </div>
+  <div class="content" id="contentArea"></div>
+</div>
+
+<!-- ===== 隐藏模板 ===== -->
+
+<!-- ── BOM 工具 ── -->
+<script type="text/html" id="tpl-bom">
+<div class="section"><h3>第一步：选择文件</h3>
+  <div class="row"><label>文件路径：</label><input type="file" id="bomFile" accept=".xlsx,.xlsm,.xls" style="width:320px"><button class="btn btn-outline btn-sm" id="bomBrowse">浏览...</button></div>
+  <div class="row"><label>Sheet：</label><select id="bomSheet" style="width:180px"><option>先选择文件</option></select><label>表头行：</label><input type="number" id="bomHdr" value="1" min="1" style="width:60px"><button class="btn btn-sm btn-gray" id="bomRefresh">刷新预览</button></div>
+  <div id="bomPreview" class="table-wrap" style="margin-top:8px"></div>
+</div>
+<div class="section"><h3>第二步：列映射（自动识别，可手动调整）</h3>
+  <div class="row">
+    <label>物料名称列：</label><input type="text" id="bomColName" style="width:80px" placeholder="如 C">
+    <label>用量列：</label><input type="text" id="bomColQty" style="width:80px" placeholder="如 D">
+    <label>品牌/厂家列：</label><input type="text" id="bomColBrand" style="width:80px" placeholder="如 E">
+    <label>型号列：</label><input type="text" id="bomColModel" style="width:80px" placeholder="如 F">
+    <span class="hint">（填写列字母）</span>
+  </div>
+  <div class="row">
+    <label>格式：</label>
+    <select id="bomFmt">
+      <option value="A">格式A — 品牌型号合并列（|| 或空格分隔）</option>
+      <option value="B">格式B — 厂家/型号分开列，分号分隔</option>
+      <option value="C">格式C — 制造商含编号，冒号分隔</option>
+    </select>
+  </div>
+  <div id="bomDetected" class="hint" style="margin-top:4px"></div>
+</div>
+<div class="section"><h3>第三步：输出设置</h3>
+  <div class="row">
+    <label>输出模式：</label>
+    <select id="bomMode">
+      <option value="expand">原格式展开 — 保留客户 BOM 所有列，供应商拆多行</option>
+      <option value="internal">转为内部格式 — 输出整机BOM配置表</option>
+    </select>
+  </div>
+  <div class="row" id="bomProjRow" style="display:none"><label>项目名称：</label><input type="text" id="bomProj" style="width:200px" placeholder="内部格式时填写"></div>
+  <button class="btn btn-primary" id="bomRun">⚡ 开始转换</button> <span id="bomStatus" style="font-size:13px;color:#888"></span>
+</div>
+<div class="result" id="bomResult"><span class="title">✅ 转换完成</span><br><span id="bomStats"></span><br><a class="download" id="bomDl" href="#">📥 下载结果</a></div>
+<div class="error" id="bomError"></div>
+</script>
+
+<!-- ── PLM 工具 ── -->
+<script type="text/html" id="tpl-plm">
+<div class="section"><h3>第一步：选择整机BOM配置表</h3>
+  <div class="row"><label>文件路径：</label><input type="file" id="plmFile" accept=".xlsx,.xlsm,.xls" style="width:320px"><button class="btn btn-outline btn-sm" id="plmBrowse">浏览...</button></div>
+  <div class="row"><label>Sheet：</label><select id="plmSheet" style="width:180px"><option>先选择文件</option></select><label>表头行：</label><input type="text" id="plmHdr" value="4" style="width:50px"><button class="btn btn-sm btn-gray" id="plmRefresh">加载 / 刷新</button></div>
+</div>
+<div class="section"><h3>第二步：列映射（自动识别，可手动填列字母覆盖）</h3>
+  <div id="plmDetectLog" style="font-size:12px;color:#555;background:#f7f9fc;padding:8px;border-radius:6px;margin-bottom:8px"></div>
+  <div class="row">
+    <label>HQ PN 列：</label><input type="text" id="plmColHqpn" style="width:60px" placeholder="如 B">
+    <label>主二供列：</label><input type="text" id="plmColStype" style="width:60px" placeholder="如 C">
+    <label>用量列：</label><input type="text" id="plmColQty" style="width:60px" placeholder="如 E">
+  </div>
+</div>
+<div class="section"><h3>第三步：输出设置</h3>
+  <div class="row"><label>项目名称：</label><input type="text" id="plmProj" style="width:240px" placeholder="写入PLM文件头部（可留空）"><span class="hint">（写入PLM文件头部）</span></div>
+  <button class="btn btn-primary" id="plmRun">⚡ 开始转换</button> <span id="plmStatus" style="font-size:13px;color:#888"></span>
+</div>
+<div class="result" id="plmResult"><span class="title">✅ 转换完成</span><br><span id="plmStats"></span><br><a class="download" id="plmDl" href="#">📥 下载 PLM 导入文件</a></div>
+<div class="error" id="plmError"></div>
+<div class="log-box" id="plmLogBox" style="display:none;margin-top:10px"><h4 style="margin:0 0 6px;font-size:13px">📋 处理日志</h4><pre id="plmLog" style="font-size:12px;background:#1a1a2e;color:#e0e0e0;padding:10px;border-radius:6px;max-height:200px;overflow:auto;white-space:pre-wrap;font-family:Consolas,'Courier New',monospace"></pre></div>
+</script>
+
+<!-- ── 飞书工具 ── -->
+<script type="text/html" id="tpl-feishu">
+<div class="section"><h3>网关设置</h3>
+  <div class="row">
+    <label>网关地址：</label><input type="text" id="fsBaseUrl" value="https://mcenter.huaqin.com" style="width:260px">
+    <label>Origin：</label><input type="text" id="fsOrigin" value="cli_a96ac38049f8d0e5" style="width:200px">
+    <label>工号：</label><input type="text" id="fsUserId" value="100448405" style="width:110px">
+  </div>
+</div>
+<div class="section"><h3>本地 BOM 文件</h3>
+  <div class="row"><label>文件路径：</label><input type="file" id="fsFile" accept=".xlsx,.xlsm,.xls" style="width:300px"><label>表头行：</label><input type="number" id="fsHdr" value="1" min="1" style="width:60px"></div>
+</div>
+<div class="section"><h3>表格库</h3>
+  <div class="row"><button class="btn btn-sm btn-gray" id="fsReloadTables">⟳ 刷新表格列表</button> <span id="fsReloadHint" class="hint"></span></div>
+  <div style="display:flex;gap:12px">
+    <div style="width:240px;flex-shrink:0">
+      <div class="tree-list" id="fsTreeList"></div>
+    </div>
+    <div class="detail-panel" style="flex:1" id="fsDetail">
+      <span style="color:#888">← 点击左侧表格查看详情</span>
+    </div>
+  </div>
+</div>
+<div class="section"><h3>列映射</h3>
+  <div class="row"><label>配置表格：</label><select id="fsMapTable" style="width:180px"><option>请先在表格库加载数据</option></select><button class="btn btn-sm btn-gray" id="fsMapRefresh">刷新</button></div>
+  <div class="section" style="background:#fafbfc"><h3>匹配键（AND 逻辑，第1对必填）</h3>
+    <div class="row"><label style="color:#c00000">第1对：</label>本地 <input type="text" id="fsLk1" style="width:140px" placeholder="本地列名"> ↔ 飞书 <input type="text" id="fsFk1" style="width:140px" placeholder="飞书列名"></div>
+    <div class="row"><label>第2对：</label>本地 <input type="text" id="fsLk2" style="width:140px" placeholder="可选"> ↔ 飞书 <input type="text" id="fsFk2" style="width:140px" placeholder="可选"> <button class="btn btn-sm btn-gray" id="fsClear2">清除</button></div>
+    <div class="row"><label>第3对：</label>本地 <input type="text" id="fsLk3" style="width:140px" placeholder="可选"> ↔ 飞书 <input type="text" id="fsFk3" style="width:140px" placeholder="可选"> <button class="btn btn-sm btn-gray" id="fsClear3">清除</button></div>
+  </div>
+  <div style="margin-top:10px"><b>要提取的列：</b> <button class="btn btn-sm btn-gray" id="fsSelAll">全选</button> <button class="btn btn-sm btn-gray" id="fsSelNone">全不选</button></div>
+  <div class="chk-list" id="fsChkList"></div>
+  <button class="btn btn-sm btn-primary" id="fsSaveMap" style="margin-top:8px">保存此表格列映射配置</button> <span id="fsSaveHint" class="hint"></span>
+  <div id="fsMapWarn" style="color:#c00000;font-size:12px;margin-top:4px"></div>
+</div>
+<div class="section"><h3>运行匹配</h3>
+  <div class="row"><label>输出文件：</label><input type="text" id="fsOutPath" value="飞书匹配结果.xlsx" style="width:240px"></div>
+  <div id="fsRunStatus" style="font-size:12px;margin-bottom:8px"></div>
+  <button class="btn btn-primary" id="fsRun">⚡ 开始匹配</button>
+  <button class="btn btn-gray" id="fsBatchUpdate" style="margin-left:8px">⟳ 一键更新全部表格数据</button>
+  <span id="fsRunStatus2" style="font-size:13px;color:#888;margin-left:8px"></span>
+</div>
+<div class="result" id="fsResult"><span class="title">✅ 匹配完成</span><br><span id="fsStats"></span><br><a class="download" id="fsDl" href="#">📥 下载匹配结果</a></div>
+<div class="error" id="fsError"></div>
+</script>
+
+<!-- ── PSTX 工具 ── -->
+<script type="text/html" id="tpl-pstx">
+<div class="section"><h3>文件加载</h3>
+  <div class="row"><label>pstxprt.dat：</label><input type="file" id="pxPrt" accept=".dat" style="width:280px"><span class="hint">【必须】元件属性</span></div>
+  <div class="row"><label>pstxnet.dat：</label><input type="file" id="pxNet" accept=".dat" style="width:280px"><span class="hint">【必须】网络连接</span></div>
+  <div class="row"><label>降额百分比：</label><input type="number" id="pxPct" value="70" min="50" max="100" style="width:60px"><span class="hint">% （默认70%）</span></div>
+  <button class="btn btn-primary" id="pxRun">⚡ 开始解析</button> <span id="pxStatus" style="font-size:13px;color:#888"></span>
+</div>
+<div id="pxOverview" class="section" style="display:none"><h3>解析概览</h3><div id="pxOview"></div></div>
+<div class="section" id="pxTabs" style="display:none">
+  <div class="tabs" id="pxTabBtns"></div>
+  <div id="pxTabContent"></div>
+</div>
+<div class="section" style="display:none" id="pxExportSec">
+  <button class="btn btn-green" id="pxExport">📥 导出 Excel 报告</button> <span id="pxExportHint" class="hint"></span>
+</div>
+<div class="error" id="pxError"></div>
+</script>
+
+<!-- ── CSA 工具 ── -->
+<script type="text/html" id="tpl-csa">
+<div class="section"><h3>项目选择</h3>
+  <div class="row"><label>项目根目录：</label><input type="file" id="csaFiles" accept=".csa" multiple style="width:320px"><span class="hint">可多选 page*.csa（Ctrl+多选）</span></div>
+  <button class="btn btn-primary" id="csaRun">⚡ 开始分析</button> <span id="csaStatus" style="font-size:13px;color:#888"></span>
+</div>
+<div id="csaResultBox" style="display:none">
+  <div class="section"><h3>概要</h3><div id="csaSummary"></div></div>
+  <div class="section"><h3>结果</h3>
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="csa-sum">概要</button>
+      <button class="tab-btn" data-tab="csa-cross">DOT四向十字</button>
+      <button class="tab-btn" data-tab="csa-circle">画圈对象</button>
+    </div>
+    <div class="tab-content active" id="csa-sum"></div>
+    <div class="tab-content" id="csa-cross"></div>
+    <div class="tab-content" id="csa-circle"></div>
+  </div>
+  <button class="btn btn-green" id="csaExport" style="margin-top:8px">📥 导出 CSV</button>
+</div>
+<div class="error" id="csaError"></div>
+</script>
+
+<script>
+// ═══════════════════ 通用函数 ═══════════════════
+function $(id){return document.getElementById(id);}
+function show(el){el.style.display='block';}
+function hide(el){el.style.display='none';}
+function render(el,html){el.innerHTML=html;}
+
+// ═══════════════════ 左侧导航切换 ═══════════════════
+const TOOLS = {
+  bom:  {title:'BOM 格式转换',badge:'v5.10',tpl:'tpl-bom'},
+  plm:  {title:'PLM 上传转换',badge:'v1.6', tpl:'tpl-plm'},
+  feishu:{title:'飞书多库匹配',badge:'v3.0',tpl:'tpl-feishu'},
+  pstx: {title:'原理图分析',  badge:'v1.3',tpl:'tpl-pstx'},
+  csa:  {title:'CSA 几何检查',badge:'v1.0',tpl:'tpl-csa'},
+};
+let curTool = 'bom';
+
+document.querySelectorAll('.sidebar nav a').forEach(a=>{
+  a.onclick=function(e){
+    e.preventDefault();
+    document.querySelectorAll('.sidebar nav a').forEach(x=>x.classList.remove('active'));
+    this.classList.add('active');
+    curTool = this.dataset.tool;
+    const t=TOOLS[curTool];
+    $('toolTitle').textContent=t.title;
+    $('toolBadge').textContent=t.badge;
+    $('contentArea').innerHTML=$(t.tpl).innerHTML;
+    initTool(curTool);
+  };
+});
+
+// ═══════════════════ 工具初始化 ═══════════════════
+function initTool(tool){
+  if(tool==='bom') initBom();
+  else if(tool==='plm') initPlm();
+  else if(tool==='feishu') initFeishu();
+  else if(tool==='pstx') initPstx();
+  else if(tool==='csa') initCsa();
+}
+
+// ─── BOM ───────────────────────────────────────
+function updateBomFromApi(d){
+  if(!d.success) return;
+  let opts='';d.sheets.forEach(s=>opts+=`<option${s===d.current_sheet?' selected':''}>${s}</option>`);
+  $('bomSheet').innerHTML=opts;
+  if(d.detected){
+    if(d.detected.name)$('bomColName').value=d.detected.name;
+    if(d.detected.qty)$('bomColQty').value=d.detected.qty;
+    if(d.detected.brand)$('bomColBrand').value=d.detected.brand;
+    if(d.detected.model)$('bomColModel').value=d.detected.model;
+  }
+  $('bomDetected').textContent='已识别：'+JSON.stringify(d.detected);
+  updateBomPreview(d.preview);
+}
+
+function initBom(){
+  $('bomBrowse').onclick=()=>$('bomFile').click();
+  $('bomMode').onchange=()=>{$('bomProjRow').style.display=$('bomMode').value==='internal'?'flex':'none';};
+  $('bomSheet').onchange=function(){
+    const f=$('bomFile').files[0];if(!f)return;
+    let fd=new FormData();fd.append('file',f);fd.append('sheet_name',this.value);
+    fetch('/api/bom/sheets',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{updateBomFromApi(d);});
+  };
+  $('bomFile').onchange=function(){
+    const f=this.files[0];if(!f)return;
+    let fd=new FormData();fd.append('file',f);fd.append('sheet_name',$('bomSheet').value);
+    fetch('/api/bom/sheets',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{updateBomFromApi(d);});
+  };
+  $('bomRefresh').onclick=()=>$('bomFile').onchange();
+  $('bomRun').onclick=async function(){
+    const f=$('bomFile').files[0];if(!f){alert('请选择文件');return;}
+    const btn=$('bomRun');btn.disabled=true;$('bomStatus').textContent='处理中...';
+    hide($('bomResult'));hide($('bomError'));
+    let fd=new FormData();fd.append('file',f);
+    fd.append('fmt',$('bomFmt').value);fd.append('mode',$('bomMode').value);
+    fd.append('sheet',$('bomSheet').value);fd.append('header_row',$('bomHdr').value);
+    fd.append('col_name',$('bomColName').value);fd.append('col_qty',$('bomColQty').value);
+    fd.append('col_brand',$('bomColBrand').value);fd.append('col_model',$('bomColModel').value);
+    fd.append('project_name',$('bomProj').value);
+    try{
+      const r=await fetch('/bom',{method:'POST',body:fd});
+      const d=await r.json();
+      if(d.success){$('bomStats').innerHTML='共 <b>'+d.rows+'</b> 行';$('bomDl').href=d.download;show($('bomResult'));$('bomStatus').textContent='完成！';}
+      else {$('bomError').textContent=d.error||'转换失败';show($('bomError'));$('bomStatus').textContent='';}
+    }catch(e){$('bomError').textContent=e.message;show($('bomError'));}
+    btn.disabled=false;
+  };
+}
+
+function updateBomPreview(rows){
+  if(!rows||!rows.length){$('bomPreview').innerHTML='';return;}
+  let h='<table>';rows.slice(0,6).forEach((r,i)=>{
+    h+='<tr>';
+    r.forEach(c=>h+=(i===0?'<th>':'<td>')+(c||'')+(i===0?'</th>':'</td>'));
+    h+='</tr>';
+  });
+  h+='</table>';$('bomPreview').innerHTML=h;
+}
+
+// ─── PLM ───────────────────────────────────────
+function updatePlmFromApi(d){
+  if(!d.success)return;
+  let opts='';d.sheets.forEach(s=>opts+=`<option${s===d.current_sheet?' selected':''}>${s}</option>`);
+  $('plmSheet').innerHTML=opts;
+  if(d.detected){
+    if(d.detected.hq_pn)$('plmColHqpn').value=d.detected.hq_pn;
+    if(d.detected.supply_type)$('plmColStype').value=d.detected.supply_type;
+    if(d.detected.qty)$('plmColQty').value=d.detected.qty;
+  }
+  $('plmDetectLog').textContent='自动识别：'+(d.headers||[]).join(' | ');
+}
+function initPlm(){
+  $('plmBrowse').onclick=()=>$('plmFile').click();
+  $('plmFile').onchange=function(){
+    const f=this.files[0];if(!f)return;
+    let fd=new FormData();fd.append('file',f);
+    let sn=$('plmSheet').value;if(sn&&sn!=='先选择文件')fd.append('sheet_name',sn);
+    fetch('/api/plm/sheets',{method:'POST',body:fd}).then(r=>r.json()).then(updatePlmFromApi);
+  };
+  $('plmSheet').onchange=function(){
+    const f=$('plmFile').files[0];if(!f)return;
+    let fd=new FormData();fd.append('file',f);
+    fd.append('sheet_name',this.value);
+    fetch('/api/plm/sheets',{method:'POST',body:fd}).then(r=>r.json()).then(updatePlmFromApi);
+  };
+  $('plmRefresh').onclick=()=>$('plmFile').onchange();
+  $('plmRun').onclick=async function(){
+    const f=$('plmFile').files[0];if(!f){alert('请选择文件');return;}
+    const btn=$('plmRun');btn.disabled=true;$('plmStatus').textContent='处理中...';
+    hide($('plmResult'));hide($('plmError'));
+    let fd=new FormData();fd.append('file',f);
+    fd.append('sheet',$('plmSheet').value);fd.append('header_row',$('plmHdr').value);
+    fd.append('col_hqpn',$('plmColHqpn').value);fd.append('col_stype',$('plmColStype').value);
+    fd.append('col_qty',$('plmColQty').value);fd.append('project_name',$('plmProj').value);
+    try{
+      const r=await fetch('/plm',{method:'POST',body:fd});
+      const d=await r.json();
+      if(d.success){$('plmStats').innerHTML='写入 <b>'+d.total+'</b> 行，跳过 <b>'+d.skipped+'</b> 行（用量为空不导入）';$('plmDl').href=d.download;show($('plmResult'));$('plmStatus').textContent='完成！';if(d.skip_logs&&d.skip_logs.length){$('plmLog').textContent=d.skip_logs.join('\n');show($('plmLogBox'));}else hide($('plmLogBox'));}
+      else {$('plmError').textContent=d.error||'转换失败';show($('plmError'));$('plmStatus').textContent='';}
+    }catch(e){$('plmError').textContent=e.message;show($('plmError'));}
+    btn.disabled=false;
+  };
+}
+
+// ─── 飞书匹配 ───────────────────────────────────────
+const FS_TABLES = {{ tables | tojson }};
+let fsTables=FS_TABLES.map(t=>({...t,_sheets:[],_rows:[],_headers:[],_connected:false,_loaded:false,enabled:false,active_sheet_ids:[],local_key_names:['','',''],feishu_key_names:['','',''],fetch_col_names:[]}));
+let fsCurIdx=null;
+
+function initFeishu(){
+  renderFsTrees();
+  $('fsReloadTables').onclick=renderFsTrees;
+  // 一键更新
+  $('fsBatchUpdate').onclick=fsBatchUpdate;
+  // 运行
+  $('fsRun').onclick=fsRunMatch;
+  // 列映射
+  $('fsMapRefresh').onclick=()=>{renderFsMapTable();};
+  $('fsMapTable').onchange=fsOnMapTableChange;
+  $('fsSelAll').onclick=()=>fsToggleFetchCols(true);
+  $('fsSelNone').onclick=()=>fsToggleFetchCols(false);
+  $('fsSaveMap').onclick=fsSaveMapping;
+  $('fsClear2').onclick=()=>{$('fsLk2').value='';$('fsFk2').value='';};
+  $('fsClear3').onclick=()=>{$('fsLk3').value='';$('fsFk3').value='';};
+  $('fsFile').onchange=function(){
+    const f=this.files[0];if(!f)return;
+    let fd=new FormData();fd.append('file',f);
+    fetch('/api/bom/sheets',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{
+      if(d.success){
+        window._fsLocalHeaders=d.headers||[];
+        // update local column datalists for key mapping
+        let datalist='';
+        (d.headers||[]).forEach(h=>datalist+=`<option value="${h}">`);
+        ['fsLk1','fsLk2','fsLk3'].forEach(id=>{
+          let dl=document.getElementById(id+'_list');
+          if(!dl){dl=document.createElement('datalist');dl.id=id+'_list';dl.innerHTML=datalist;document.body.appendChild(dl);}
+          $(id).setAttribute('list',id+'_list');
+        });
+      }
+    });
+  };
+}
+function renderFsTrees(){
+  // group by category
+  const cats={'优选库':[],'对应关系库':[]};
+  fsTables.forEach((t,i)=>{t.idx=i;const c=t.category||'优选库';(cats[c]=cats[c]||[]).push(t);});
+  let h='';
+  for(const [cat,ts] of Object.entries(cats)){
+    if(!ts.length)continue;
+    h+=`<div class="tree-cat${cat==='对应关系库'?' alt':''}">▸ ${cat}</div>`;
+    ts.forEach(t=>{
+      const ld=t._loaded?'✓':t._connected?'◎':'—';
+      const mt=t.enabled&&t._loaded?'●':t.enabled?'！':'○';
+      const ldCls=t._loaded?'badge-green':t._connected?'badge-blue':'badge-gray';
+      const mtCls=t.enabled&&t._loaded?'badge-green':t.enabled?'badge-orange':'badge-gray';
+      h+=`<div class="tree-item" data-idx="${t.idx}" onclick="fsSelectTable(${t.idx})">
+        <span class="indent"></span><span style="flex:1">${t.name}</span>
+        <span class="badge-sm ${ldCls}">${ld}</span>
+        <span class="badge-sm ${mtCls}">${mt}</span>
+      </div>`;
+    });
+  }
+  $('fsTreeList').innerHTML=h;
+  renderFsMapTable();
+}
+function fsSelectTable(idx){
+  fsCurIdx=idx;
+  const t=fsTables[idx];
+  document.querySelectorAll('#fsTreeList .tree-item').forEach(el=>el.classList.toggle('selected',parseInt(el.dataset.idx)===idx));
+  let h=`<h4>${t.name} <span style="font-size:11px;color:#888;font-weight:400">(${t.category||'优选库'})</span></h4>`;
+  h+=`<div class="row"><label>名称：</label><input type="text" id="fsDetName" value="${t.name}" style="width:180px"><label>Token：</label><input type="text" id="fsDetToken" value="${t.token||''}" style="width:260px"><label>启用：</label><input type="checkbox" id="fsDetEnable" ${t.enabled?'checked':''} onchange="fsTables[${idx}].enabled=this.checked;renderFsTrees()"></div>`;
+  h+=`<div class="row"><button class="btn btn-sm btn-primary" onclick="fsConnectTable(${idx})">连接并获取 Sheet 列表</button> <button class="btn btn-sm btn-gray" onclick="fsLoadTable(${idx})">读取选中 Sheet 数据</button> <button class="btn btn-sm btn-outline" onclick="fsUpdateTable(${idx})">⟳ 更新本地数据</button></div>`;
+  if(t._sheets.length){
+    h+=`<div style="margin-top:8px"><b>Sheet 选择（可多选）：</b></div><div class="chk-list" style="max-height:200px">`;
+    t._sheets.forEach(s=>{
+      const ckd=t.active_sheet_ids.includes(s.sheetId)?'checked':'';
+      h+=`<label><input type="checkbox" value="${s.sheetId}" ${ckd} onchange="fsToggleSheet(${idx},'${s.sheetId}',this.checked)"> ${s.title}</label>`;
+    });
+    h+='</div>';
+  }
+  h+=`<div style="margin-top:6px;font-size:12px">${t._loaded?`<span style="color:#2a8a2a">✓ 已加载 ${Math.max(t._rows.length-1,0)} 行</span>`:t._connected?'<span style="color:#2d6cdf">已连接</span>':''}</div>`;
+  $('fsDetail').innerHTML=h;
+}
+function fsToggleSheet(idx,sid,val){
+  const t=fsTables[idx];
+  if(val){if(!t.active_sheet_ids.includes(sid))t.active_sheet_ids.push(sid);}
+  else t.active_sheet_ids=t.active_sheet_ids.filter(x=>x!==sid);
+}
+async function fsConnectTable(idx){
+  const t=fsTables[idx];
+  if(!t.token){alert('请先填写 Token');return;}
+  $('fsDetail').querySelector('button').disabled=true;
+  try{
+    const fd=new FormData();
+    fd.append('action','sheets');fd.append('token',t.token);
+    fd.append('base_url',$('fsBaseUrl').value);fd.append('origin',$('fsOrigin').value);fd.append('user_id',$('fsUserId').value);
+    const r=await fetch('/feishu',{method:'POST',body:fd});
+    const d=await r.json();
+    if(d.success){t._sheets=d.sheets;t._connected=true;
+      // 首次连接自动全选所有 Sheet（与原版 tkinter 一致）
+      if(!t.active_sheet_ids.length){t.active_sheet_ids=d.sheets.map(s=>s.sheetId);}
+      fsSelectTable(idx);renderFsTrees();}
+    else alert(d.error);
+  }catch(e){alert(e.message);}
+  $('fsDetail').querySelector('button').disabled=false;
+}
+async function fsLoadTable(idx){
+  const t=fsTables[idx];
+  if(!t._connected){alert('请先连接');return;}
+  if(!t.active_sheet_ids.length){alert('请至少选择一个 Sheet');return;}
+  const fd=new FormData();fd.append('action','load');fd.append('token',t.token);
+  fd.append('base_url',$('fsBaseUrl').value);fd.append('origin',$('fsOrigin').value);fd.append('user_id',$('fsUserId').value);
+  fd.append('sheet_ids',JSON.stringify(t.active_sheet_ids));
+  try{
+    const r=await fetch('/feishu',{method:'POST',body:fd});
+    const d=await r.json();
+    if(d.success){t._rows=d.rows;t._headers=d.headers;t._loaded=true;fsSelectTable(idx);renderFsTrees();renderFsMapTable();}
+    else alert(d.error);
+  }catch(e){alert(e.message);}
+}
+async function fsUpdateTable(idx){
+  await fsConnectTable(idx);
+  if(fsTables[idx]._connected) await fsLoadTable(idx);
+}
+async function fsBatchUpdate(){
+  $('fsBatchUpdate').disabled=true;$('fsRunStatus2').textContent='更新中...';
+  let count=0;
+  for(let i=0;i<fsTables.length;i++){
+    const t=fsTables[i];
+    if(!t.token)continue;
+    $('fsRunStatus2').textContent=`更新中 (${count+1})：${t.name}`;
+    try{await fsConnectTable(i);if(t._connected)await fsLoadTable(i);count++;}
+    catch(e){console.error(e);}
+  }
+  $('fsBatchUpdate').disabled=false;$('fsRunStatus2').textContent=`✓ 完成 ${count} 个表格`;
+  renderFsTrees();
+}
+function renderFsMapTable(){
+  const loaded=fsTables.filter(t=>t._loaded);
+  let opts='<option value="">请选择已加载表格</option>';
+  loaded.forEach(t=>opts+=`<option value="${t.idx}">${t.name} (${Math.max(t._rows.length-1,0)} 行)</option>`);
+  $('fsMapTable').innerHTML=opts;
+}
+function fsOnMapTableChange(){
+  const idx=parseInt($('fsMapTable').value);if(isNaN(idx))return;
+  const t=fsTables[idx];
+  $('fsLk1').value=t.local_key_names[0]||'';$('fsFk1').value=t.feishu_key_names[0]||'';
+  $('fsLk2').value=t.local_key_names[1]||'';$('fsFk2').value=t.feishu_key_names[1]||'';
+  $('fsLk3').value=t.local_key_names[2]||'';$('fsFk3').value=t.feishu_key_names[2]||'';
+  // render fetch columns
+  let h='';
+  (t._headers||[]).forEach(col=>{
+    if(!col)return;
+    const ckd=t.fetch_col_names.includes(col)?'checked':'';
+    h+=`<label><input type="checkbox" value="${col}" ${ckd} class="fs-chk-col"> ${col}</label>`;
+  });
+  $('fsChkList').innerHTML=h;
+  // Add datalist for feishu keys
+  let dl='';
+  (t._headers||[]).forEach(h=>dl+=`<option value="${h}">`);
+  ['fsFk1','fsFk2','fsFk3'].forEach(id=>{
+    let el=document.getElementById(id+'_flist');
+    if(!el){el=document.createElement('datalist');el.id=id+'_flist';document.body.appendChild(el);}
+    el.innerHTML=dl;$(id).setAttribute('list',id+'_flist');
+  });
+}
+function fsToggleFetchCols(val){
+  document.querySelectorAll('.fs-chk-col').forEach(cb=>cb.checked=val);
+}
+function fsSaveMapping(){
+  const idx=parseInt($('fsMapTable').value);if(isNaN(idx))return;
+  const t=fsTables[idx];
+  t.local_key_names=[$('fsLk1').value,$('fsLk2').value,$('fsLk3').value];
+  t.feishu_key_names=[$('fsFk1').value,$('fsFk2').value,$('fsFk3').value];
+  t.fetch_col_names=[];
+  document.querySelectorAll('.fs-chk-col:checked').forEach(cb=>t.fetch_col_names.push(cb.value));
+  $('fsSaveHint').textContent='✓ 已保存';setTimeout(()=>$('fsSaveHint').textContent='',2000);
+}
+async function fsRunMatch(){
+  const f=$('fsFile').files[0];if(!f){alert('请先上传 BOM 文件');return;}
+  const enabled=fsTables.filter(t=>t.enabled&&t.token);
+  if(!enabled.length){alert('请先在表格库中启用至少一个表格');return;}
+  // auto-load unloaded tables
+  let needLoad=enabled.filter(t=>!t._loaded);
+  for(const t of needLoad){
+    $('fsRunStatus2').textContent=`自动加载中：${t.name}...`;
+    try{await fsConnectTable(t.idx);if(t._connected)await fsLoadTable(t.idx);}catch(e){}
+  }
+  const tables=enabled.filter(t=>t._loaded).map(t=>({
+    name:t.name,token:t.token,
+    local_keys:t.local_key_names,feishu_keys:t.feishu_key_names,fetch_cols:t.fetch_col_names
+  }));
+  if(!tables.length){alert('没有可用的已加载表格');return;}
+
+  $('fsRun').disabled=true;$('fsBatchUpdate').disabled=true;$('fsRunStatus2').textContent='匹配中...';
+  hide($('fsResult'));hide($('fsError'));
+  const fd=new FormData();fd.append('file',f);fd.append('action','match');
+  fd.append('base_url',$('fsBaseUrl').value);fd.append('origin',$('fsOrigin').value);fd.append('user_id',$('fsUserId').value);
+  fd.append('header_row',$('fsHdr').value);fd.append('tables',JSON.stringify(tables));
+  try{
+    const r=await fetch('/feishu',{method:'POST',body:fd});
+    const d=await r.json();
+    if(d.success){$('fsStats').innerHTML=`共 <b>${d.total}</b> 行 | 命中 <b>${d.matched}</b> | 未匹配 <b>${d.unmatched}</b>`;$('fsDl').href=d.download;show($('fsResult'));$('fsRunStatus2').textContent='完成！';}
+    else{$('fsError').textContent=d.error;show($('fsError'));$('fsRunStatus2').textContent='';}
+  }catch(e){$('fsError').textContent=e.message;show($('fsError'));}
+  $('fsRun').disabled=false;$('fsBatchUpdate').disabled=false;
+}
+
+// ─── PSTX 原理图分析 ───────────────────────────────────────
+function initPstx(){
+  $('pxRun').onclick=async function(){
+    const prt=$('pxPrt').files[0],net=$('pxNet').files[0];
+    if(!prt||!net){alert('请上传 pstxprt.dat 和 pstxnet.dat');return;}
+    const btn=$('pxRun');btn.disabled=true;$('pxStatus').textContent='解析中...';
+    let fd=new FormData();fd.append('prt_file',prt);fd.append('net_file',net);
+    fd.append('pct',$('pxPct').value);
+    try{
+      const r=await fetch('/pstx',{method:'POST',body:fd});
+      const d=await r.json();
+      if(d.success){
+        show($('pxOverview'));
+        $('pxOview').innerHTML=`<div class="stat-grid">
+          <div class="stat-item"><div class="num">${d.components}</div><div class="lbl">元件数</div></div>
+          <div class="stat-item"><div class="num">${d.nets}</div><div class="lbl">网络数</div></div>
+          <div class="stat-item"><div class="num">${d.bom_normal}</div><div class="lbl">贴装种类</div></div>
+          <div class="stat-item"><div class="num">${d.bom_depop}</div><div class="lbl">DEPOP种类</div></div>
+          <div class="stat-item"><div class="num">${d.drc_total}</div><div class="lbl">DRC问题</div></div>
+          <div class="stat-item"><div class="num">${d.derating_fail}</div><div class="lbl">降额不合格</div></div>
+        </div>`;
+        show($('pxTabs'));
+        // Build tabs
+        const tabs=[
+          {name:'BOM 管理',html:pxBuildTable(d.bom_detail||[],['位号','料号','值','封装','类型','页面'])},
+          {name:'网络分析',html:pxBuildNetworkTabs(d)},
+          {name:'设计检查',html:pxBuildDRCTabs(d)},
+          {name:'电阻检查',html:pxBuildResTabs(d)},
+          {name:'电容降额',html:pxBuildTable(d.derating||[],['位号','值','封装','额定电压','推断工作电压(V)','降额比','状态','页面'])},
+        ];
+        let tb='',tc='';
+        tabs.forEach((t,i)=>{
+          const act=i===0?' active':'';
+          tb+=`<button class="tab-btn${act}" onclick="pxSwitchTab(event,'pxTab${i}')">${t.name}</button>`;
+          tc+=`<div class="tab-content${act}" id="pxTab${i}">${t.html}</div>`;
+        });
+        $('pxTabBtns').innerHTML=tb;$('pxTabContent').innerHTML=tc;
+        show($('pxExportSec'));
+        $('pxExport').onclick=function(){window.open(d.download,'_blank');};
+        $('pxStatus').textContent='✅ 解析完成';
+      }else{$('pxError').textContent=d.error;show($('pxError'));}
+    }catch(e){$('pxError').textContent=e.message;show($('pxError'));}
+    btn.disabled=false;
+  };
+}
+function pxSwitchTab(e,tabId){
+  e.target.parentElement.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  e.target.classList.add('active');
+  e.target.parentElement.parentElement.querySelectorAll('.tab-content').forEach(t=>t.classList.toggle('active',t.id===tabId));
+}
+function pxBuildTable(rows,cols){
+  if(!rows||!rows.length)return '<p>（无数据）</p>';
+  let h=`<div class="table-wrap"><table><tr>`;
+  cols.forEach(c=>h+=`<th>${c}</th>`);h+='</tr>';
+  rows.slice(0,200).forEach(r=>{
+    h+='<tr>';
+    cols.forEach(c=>h+=`<td>${r[c]||''}</td>`);
+    h+='</tr>';
+  });
+  h+=`</table></div><p style="font-size:11px;color:#888">共 ${rows.length} 行</p>`;
+  return h;
+}
+function pxBuildNetworkTabs(d){
+  const na=d.net_analysis||{};
+  let h='<div style="margin-bottom:8px;font-size:13px">网络总数：<b>'+na.total+'</b> | 电源：<b>'+(na.power_nets?Object.keys(na.power_nets).length:0)+'</b> | GND：<b>'+(na.gnd_nets?Object.keys(na.gnd_nets).length:0)+'</b> | 差分对：<b>'+(na.diff_pairs?Object.keys(na.diff_pairs).length:0)+'</b> | 单端（疑似漏连）：<b>'+(na.single_node?Object.keys(na.single_node).length:0)+'</b></div>';
+  return h;
+}
+function pxBuildDRCTabs(d){
+  const drc=d.drc||{};
+  let h='';
+  const sections=[
+    ['缺少料号','missing_hq_code'],['缺少 VALUE','missing_value'],['缺少封装','missing_package'],
+    ['TBD 属性','tbd_attrs'],['单端网络','single_pin_nets'],['未命名网络','unnamed_nets'],
+    ['BOM_OPTION','bom_option_components']
+  ];
+  sections.forEach(([title,key])=>{
+    const rows=drc[key]||[];
+    if(!rows.length)return;
+    h+=`<p style="font-weight:600;margin:10px 0 4px">${title}（${rows.length}项）</p>`;
+    h+=pxBuildTable(rows,Object.keys(rows[0]));
+  });
+  return h||'<p>未发现问题</p>';
+}
+function pxBuildResTabs(d){
+  const res=d.resistor_analysis||{};
+  let h='';
+  const sections=[['串阻分压风险','divider_risks'],['重复上拉','dup_pullups'],['重复下拉','dup_pulldowns']];
+  sections.forEach(([title,key])=>{
+    const rows=res[key]||[];
+    if(!rows.length)return;
+    h+=`<p style="font-weight:600;margin:10px 0 4px">${title}（${rows.length}项）</p>`;
+    h+=pxBuildTable(rows,Object.keys(rows[0]));
+  });
+  return h||'<p>未发现问题</p>';
+}
+
+// ─── CSA 几何检查 ───────────────────────────────────────
+function initCsa(){
+  $('csaRun').onclick=async function(){
+    const files=$('csaFiles').files;
+    if(!files.length){alert('请上传 page*.csa 文件');return;}
+    const btn=$('csaRun');btn.disabled=true;$('csaStatus').textContent='分析中...';
+    let fd=new FormData();
+    for(const f of files)fd.append('files',f);
+    try{
+      const r=await fetch('/csa',{method:'POST',body:fd});
+      const d=await r.json();
+      if(d.success){
+        show($('csaResultBox'));
+        $('csaSummary').innerHTML=`<div class="stat-grid">
+          <div class="stat-item"><div class="num">${d.pages}</div><div class="lbl">页面数</div></div>
+          <div class="stat-item"><div class="num">${d.total_crosses}</div><div class="lbl">四向十字</div></div>
+          <div class="stat-item"><div class="num">${d.total_errors}</div><div class="lbl">异常页面</div></div>
+        </div>`;
+        // 概要表
+        let sumHtml='<div class="table-wrap"><table><tr><th>页面</th><th>文件</th><th>WIRE数</th><th>DOT数</th><th>四向十字</th><th>状态</th></tr>';
+        d.results.forEach(r=>{
+          const cls=r.crosses>0?'color:#e07000':'color:#2a8a2a';
+          sumHtml+=`<tr><td>${r.page}</td><td>${r.file}</td><td>${r.wires}</td><td>${r.dots}</td><td style="${cls}">${r.crosses}</td><td>${r.error?'⚠ '+r.error:r.crosses>0?'⚠ 发现十字':'✅ 正常'}</td></tr>`;
+        });
+        sumHtml+='</table></div>';
+        $('csa-sum').innerHTML=sumHtml;
+        // 十字表
+        let crossHtml='<div class="table-wrap"><table><tr><th>页面</th><th>坐标</th><th>DOT行号</th><th>WIRE数</th></tr>';
+        d.results.forEach(r=>{r.findings&&r.findings.forEach(f=>crossHtml+=`<tr><td>${r.page}</td><td>(${f.x},${f.y})</td><td>${f.dot_line}</td><td>${f.wires}</td></tr>`)});
+        crossHtml+='</table></div>';
+        $('csa-cross').innerHTML=crossHtml;
+        $('csa-circle').innerHTML='<p>画圈检测结果</p>';
+        $('csaExport').onclick=()=>csaExportCSV(d);
+        $('csaStatus').textContent='✅ 分析完成';
+      }else{$('csaError').textContent=d.error;show($('csaError'));}
+    }catch(e){$('csaError').textContent=e.message;show($('csaError'));}
+    btn.disabled=false;
+  };
+  // Tab切换 — 绑定到内容区（不是模板）
+  setTimeout(()=>{
+    document.querySelectorAll('#contentArea .tab-btn').forEach(btn=>{
+      btn.onclick=function(){
+        const tabGroup=this.closest('.tabs');
+        if(tabGroup) tabGroup.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+        this.classList.add('active');
+        const target=this.dataset.tab;
+        const section=this.closest('.section');
+        if(section) section.querySelectorAll('.tab-content').forEach(t=>t.classList.toggle('active',t.id===target));
+      };
+    });
+  }, 10);
+}
+function csaExportCSV(d){
+  let csv='页面,文件,WIRE数,DOT数,四向十字,状态\n';
+  d.results.forEach(r=>csv+=`${r.page},${r.file},${r.wires},${r.dots},${r.crosses},${r.error||(r.crosses>0?'发现十字':'正常')}\n`);
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='csa_分析结果.csv';a.click();
+}
+
+// ═══════════════════ 页面加载 ═══════════════════
+initTool('bom');
+</script>
+</body>
+</html>

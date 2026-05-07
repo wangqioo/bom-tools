@@ -1,0 +1,6 @@
+__pycache__/
+web_app/uploads/
+web_app/outputs/
+deploy_bundle/web_app/uploads/
+deploy_bundle/web_app/outputs/
+*.zip
