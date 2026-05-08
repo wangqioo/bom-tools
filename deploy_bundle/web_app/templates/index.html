@@ -6,7 +6,7 @@
 <title>BOM Tools · Web 版</title>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
-body { font-family: -apple-system,'Segoe UI','Microsoft YaHei',sans-serif; display:flex; min-height:100vh; background:#f0f2f5; }
+body { font-family: -apple-system,'Segoe UI','Microsoft YaHei',sans-serif; display:flex; height:100vh; background:#f0f2f5; }
 /* === 左侧导航 === */
 .sidebar { width:200px; background:linear-gradient(180deg,#1a2942,#1a3a5c); color:#ccc; display:flex; flex-direction:column; flex-shrink:0; }
 .sidebar .logo { padding:18px 16px; font-size:15px; font-weight:700; color:#fff; border-bottom:1px solid rgba(255,255,255,.08); }
@@ -109,8 +109,9 @@ tr:hover td { background:#f7f9fc; }
   <div class="logo" onclick="showOverview()" style="cursor:pointer">🛠 BOM Tools<span class="sub">硬件设计辅助平台</span></div>
   <nav>
     <a href="#" data-tool="bom"><span class="icon">📋</span>BOM 格式转换</a>
-    <a href="#" data-tool="plm"><span class="icon">📤</span>PLM 上传转换</a>
     <a href="#" data-tool="feishu"><span class="icon">🔍</span>飞书多库匹配</a>
+    <a href="#" data-tool="prefrate"><span class="icon">📈</span>BOM优选率计算</a>
+    <a href="#" data-tool="plm"><span class="icon">📤</span>PLM 上传转换</a>
     <a href="#" data-tool="pstx"><span class="icon">📊</span>原理图分析</a>
     <a href="#" data-tool="csa"><span class="icon">📐</span>CSA 几何检查</a>
   </nav>
@@ -156,8 +157,8 @@ tr:hover td { background:#f7f9fc; }
   <div class="row">
     <label>输出模式：</label>
     <select id="bomMode">
-      <option value="expand">原格式展开 — 保留客户 BOM 所有列，供应商拆多行</option>
-      <option value="internal">转为内部格式 — 输出整机BOM配置表</option>
+      <option value="expand">主二供拆成多行 — 保留客户 BOM 所有列，主供应商+二供拆多行</option>
+      <option value="internal">转为内部格式 — 输出单列「规格型号」Excel</option>
     </select>
   </div>
   <div class="row" id="bomProjRow" style="display:none"><label>项目名称：</label><input type="text" id="bomProj" style="width:200px" placeholder="内部格式时填写"></div>
@@ -165,6 +166,15 @@ tr:hover td { background:#f7f9fc; }
 </div>
 <div class="result" id="bomResult"><span class="title">✅ 转换完成</span><br><span id="bomStats"></span><br><a class="download" id="bomDl" href="#">📥 下载结果</a></div>
 <div class="error" id="bomError"></div>
+</script>
+
+<!-- ── BOM优选率计算（预留） ── -->
+<script type="text/html" id="tpl-prefrate">
+<div class="section" style="text-align:center;padding:60px 20px;color:#888">
+  <div style="font-size:48px;margin-bottom:16px">📈</div>
+  <h3 style="color:#666;margin-bottom:8px">BOM 优选率计算</h3>
+  <p style="font-size:14px">功能开发中，敬请期待...</p>
+</div>
 </script>
 
 <!-- ── PLM 工具 ── -->
@@ -201,7 +211,7 @@ tr:hover td { background:#f7f9fc; }
   </div>
 </div>
 <div class="section"><h3>本地 BOM 文件</h3>
-  <div class="row"><label>文件路径：</label><input type="file" id="fsFile" accept=".xlsx,.xlsm,.xls" style="width:300px"><label>表头行：</label><input type="number" id="fsHdr" value="1" min="1" style="width:60px"></div>
+  <div class="row"><label>文件路径：</label><input type="file" id="fsFile" accept=".xlsx,.xlsm,.xls" style="width:300px"><label>Sheet：</label><select id="fsSheet" style="width:180px"><option>先选择文件</option></select><span class="hint">（一次只能匹配一个 Sheet）</span><label>表头行：</label><input type="number" id="fsHdr" value="1" min="1" style="width:60px"></div>
 </div>
 <div class="section"><h3>表格库</h3>
   <div class="row"><button class="btn btn-sm btn-gray" id="fsReloadTables">⟳ 刷新表格列表</button> <span id="fsReloadHint" class="hint"></span></div>
@@ -290,10 +300,12 @@ function render(el,html){el.innerHTML=html;}
 const TOOLS = {
   bom:  {title:'BOM 格式转换',badge:'v5.10',tpl:'tpl-bom',
          desc:'将客户提供的多种格式 BOM 表（Excel）自动识别列映射，支持品牌型号合并列/分开列，展开为多供应商独立行，输出标准格式供内部评审或 PLM 导入。'},
+  feishu:{title:'飞书多库匹配',badge:'v3.0',tpl:'tpl-feishu',
+         desc:'连接飞书多维表格，支持 14 个预置库（优选库 + 对应关系库），多键 AND 匹配（最多 3 对），批量提取字段，一键更新表格数据。'},
+  prefrate:{title:'BOM优选率计算',badge:'v0.1',tpl:'tpl-prefrate',
+          desc:'计算整机 BOM 的元器件优选率，对比标准优选库（如 HQ PN 优选、厂家优选），输出达标/未达标明细及统计报告。'},
   plm:  {title:'PLM 上传转换',badge:'v1.6', tpl:'tpl-plm',
          desc:'将整机 BOM 配置表转换为 PLM 系统可导入的标准格式，自动识别列映射关系，支持用量校验和项目信息写入。'},
-  feishu:{title:'飞书多库匹配',badge:'v3.0',tpl:'tpl-feishu',
-          desc:'连接飞书多维表格，支持 14 个预置库（优选库 + 对应关系库），多键 AND 匹配（最多 3 对），批量提取字段，一键更新表格数据。'},
   pstx: {title:'原理图分析',  badge:'v1.3',tpl:'tpl-pstx',
          desc:'解析 Cadence 原理图 pstxprt.dat / pstxnet.dat 文件，生成 BOM 清单、DRC 检查、降额分析、元件查询和层次化页码报告。'},
   csa:  {title:'CSA 几何检查',badge:'v1.0',tpl:'tpl-csa',
@@ -345,10 +357,16 @@ document.querySelectorAll('.sidebar nav a').forEach(a=>{
 // ═══════════════════ 工具初始化 ═══════════════════
 function initTool(tool){
   if(tool==='bom') initBom();
-  else if(tool==='plm') initPlm();
   else if(tool==='feishu') initFeishu();
+  else if(tool==='prefrate') initPrefrate();
+  else if(tool==='plm') initPlm();
   else if(tool==='pstx') initPstx();
   else if(tool==='csa') initCsa();
+}
+
+// ─── BOM优选率计算（预留）─────────────────────
+function initPrefrate(){
+  // 暂无实现
 }
 
 // ─── BOM ───────────────────────────────────────
@@ -368,7 +386,7 @@ function updateBomFromApi(d){
 
 function initBom(){
   $('bomBrowse').onclick=()=>$('bomFile').click();
-  $('bomMode').onchange=()=>{$('bomProjRow').style.display=$('bomMode').value==='internal'?'flex':'none';};
+  $('bomMode').onchange=()=>{$('bomProjRow').style.display='none';};
   $('bomSheet').onchange=function(){
     const f=$('bomFile').files[0];if(!f)return;
     hide($('bomResult'));hide($('bomError'));
@@ -504,6 +522,15 @@ function initFeishu(){
     fetch('/api/bom/sheets',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{
       if(d.success){
         window._fsLocalHeaders=d.headers||[];
+        // populate sheet selector
+        const sel=$('fsSheet');
+        sel.innerHTML='';
+        (d.sheets||[]).forEach((s,i)=>{
+          const opt=document.createElement('option');
+          opt.value=s;opt.textContent=s;
+          if(i===0)opt.selected=true;
+          sel.appendChild(opt);
+        });
         // update local column datalists for key mapping
         let datalist='';
         (d.headers||[]).forEach(h=>datalist+=`<option value="${h}">`);
@@ -672,7 +699,7 @@ async function fsRunMatch(){
   hide($('fsResult'));hide($('fsError'));
   const fd=new FormData();fd.append('file',f);fd.append('action','match');
   fd.append('base_url',$('fsBaseUrl').value);fd.append('origin',$('fsOrigin').value);fd.append('user_id',$('fsUserId').value);
-  fd.append('header_row',$('fsHdr').value);fd.append('tables',JSON.stringify(tables));
+  fd.append('header_row',$('fsHdr').value);fd.append('sheet_name',$('fsSheet').value);fd.append('tables',JSON.stringify(tables));
   try{
     const r=await fetch('/feishu',{method:'POST',body:fd});
     const d=await r.json();
