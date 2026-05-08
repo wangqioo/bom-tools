@@ -181,6 +181,222 @@ def api_plm_sheets():
     })
 
 
+# ── 客户BOM → HQ BOM 格式 ──────────────────────────────────
+
+def _detect_columns_plm2(ws, header_row):
+    result = {}
+    found_headers = []
+    scan_cols = max((ws.max_column or 0) + 5, 30)
+    for ci in range(1, scan_cols + 1):
+        raw = ws.cell(row=header_row, column=ci).value
+        if raw is None:
+            continue
+        h = str(raw).replace('\n', '').replace('\r', '').strip()
+        hl = h.lower().replace(' ', '')
+        if h:
+            found_headers.append(f"{get_column_letter(ci)}:{h}")
+        if 'hq' in hl and 'pn' in hl:
+            result.setdefault('hq_pn', ci)
+        if '主二供' in h or '主供' in h:
+            result.setdefault('supply_type', ci)
+        if '位号' in h or 'ref' in hl or 'des' in hl:
+            result.setdefault('refdes', ci)
+        if '用量' in h or '单耗' in h:
+            result.setdefault('qty', ci)
+    return result, found_headers
+
+
+def _do_plm2_convert(in_file, sheet_name, header_row, col_hqpn, col_stype, col_refdes, col_qty, project_name, uid):
+    wb_in = openpyxl.load_workbook(in_file, data_only=True)
+    ws_in = wb_in[sheet_name]
+    max_col = ws_in.max_column
+
+    data_rows = []
+    for ri in range(header_row + 1, ws_in.max_row + 1):
+        rv = {ci: ws_in.cell(row=ri, column=ci).value for ci in range(1, max_col + 1)}
+        if any(v is not None and str(v).strip() for v in rv.values()):
+            data_rows.append(rv)
+
+    bdr = Border(left=Side('thin'), right=Side('thin'), top=Side('thin'), bottom=Side('thin'))
+    meta_font = Font(bold=True, size=10)
+
+    # 按 HQ PN 聚合
+    groups = {}  # hqpn -> {'refdes': set, 'qty': float, 'stype': str}
+    skipped = 0
+    skip_logs = []
+
+    for rv in data_rows:
+        hqpn = str(rv.get(col_hqpn) or '').strip()
+        if not hqpn:
+            continue
+
+        rd = str(rv.get(col_refdes) or '').strip()
+        qty_raw = rv.get(col_qty)
+        if qty_raw is None or str(qty_raw).strip() == '':
+            skipped += 1
+            skip_logs.append(f"  跳过（用量为空）: {hqpn} / {rd}")
+            continue
+        try:
+            qty = float(qty_raw)
+        except ValueError:
+            skipped += 1
+            skip_logs.append(f"  跳过（用量为空）: {hqpn} / {rd}")
+            continue
+
+        stype = str(rv.get(col_stype) or '').strip()
+
+        if hqpn not in groups:
+            groups[hqpn] = {'refdes': set(), 'qty': 0.0, 'stype': stype}
+        if rd:
+            # 每个位置可能有逗号/空格分隔的多个位号
+            for part in re.split(r'[,;，；\s]+', rd):
+                p = part.strip()
+                if p:
+                    groups[hqpn]['refdes'].add(p)
+        groups[hqpn]['qty'] += qty
+        if stype:
+            groups[hqpn]['stype'] = stype
+
+    # 创建输出
+    wb_out = Workbook()
+    ws_out = wb_out.active
+    ws_out.title = "PLM导入"
+
+    ws_out.cell(row=1, column=1, value="料号:").font = meta_font
+    ws_out.cell(row=1, column=2, value=project_name or "").font = Font(size=10)
+    ws_out.cell(row=1, column=3, value="描述:").font = meta_font
+    ws_out.cell(row=1, column=5, value="工程师:").font = meta_font
+    ws_out.cell(row=2, column=1, value="版本:").font = meta_font
+    ws_out.cell(row=2, column=3, value="替代项").font = meta_font
+    ws_out.cell(row=2, column=5, value="BOM名称:").font = meta_font
+    ws_out.cell(row=2, column=7, value="归档部门:").font = meta_font
+
+    for offset, hdr_txt in enumerate(PLM_HEADERS):
+        c = ws_out.cell(row=3, column=offset + 1, value=hdr_txt)
+        c.font = Font(bold=True, color='FF0000', size=9)
+        c.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        c.border = bdr
+        ws_out.column_dimensions[get_column_letter(offset + 1)].width = 14
+    ws_out.column_dimensions['B'].width = 22
+    ws_out.row_dimensions[3].height = 60
+
+    dr = 4
+    seq = 0
+    total = 0
+    for hqpn, g in sorted(groups.items()):
+        is_primary = (g['stype'] == '主供' or g['stype'] == '')
+        if is_primary:
+            seq += 1
+
+        def w(idx, val):
+            cell = ws_out.cell(row=dr, column=idx + 1, value=val)
+            cell.border = bdr
+
+        w(0, seq)
+        w(1, hqpn)
+        if is_primary and g['qty'] > 0:
+            w(4, g['qty'])
+        # 位号列 (第7列, 0-index=6) — 聚合排序
+        refdes_sorted = sorted(g['refdes'])
+        if refdes_sorted:
+            w(6, ', '.join(refdes_sorted))
+        dr += 1
+        total += 1
+
+    safe_name = re.sub(r'[\\/*?:"<>|]', '_', project_name or '客户BOM')
+    out_file = os.path.join(OUTPUT_DIR, f"HQ_BOM_{safe_name}_{uid}.xlsx")
+    wb_out.save(out_file)
+    wb_in.close()
+
+    return {
+        'total': total,
+        'skipped': skipped,
+        'download': f'/download/HQ_BOM_{safe_name}_{uid}.xlsx',
+        'project': project_name or '',
+    }, skip_logs
+
+
+@plm_bp.route('/api/plm2/sheets', methods=['POST'])
+def api_plm2_sheets():
+    file = request.files.get('file')
+    if not file:
+        return jsonify({'success': False, 'error': '请上传文件'})
+    uid = str(uuid.uuid4())[:8]
+    in_path = os.path.join(UPLOAD_DIR, f"plm2_pre_{uid}.xlsx")
+    file.save(in_path)
+    wb = openpyxl.load_workbook(in_path, read_only=True, data_only=True)
+    sheets = wb.sheetnames
+    wb.close()
+    sheet_name = request.form.get('sheet_name', '')
+    if not sheet_name or sheet_name not in sheets:
+        sheet_name = sheets[0] if sheets else ''
+    wb2 = openpyxl.load_workbook(in_path, data_only=True)
+    ws = wb2[sheet_name] if sheet_name else wb2[wb2.sheetnames[0]]
+    header_row = int(request.form.get('header_row', 1))
+    detected, raw_headers = _detect_columns_plm2(ws, header_row)
+    wb2.close()
+    result = {}
+    for k, v in detected.items():
+        if v:
+            result[k] = get_column_letter(v)
+    return jsonify({
+        'success': True, 'sheets': sheets, 'current_sheet': sheet_name,
+        'detected': result, 'headers': raw_headers,
+    })
+
+
+@plm_bp.route('/plm2', methods=['POST'])
+def tool_plm2():
+    file = request.files.get('file')
+    if not file:
+        return "请上传文件", 400
+    sheet_name = request.form.get('sheet', '')
+    header_row = int(request.form.get('header_row', 1))
+    project_name = request.form.get('project_name', '')
+    col_hqpn_str = request.form.get('col_hqpn', '')
+    col_stype_str = request.form.get('col_stype', '')
+    col_refdes_str = request.form.get('col_refdes', '')
+    col_qty_str = request.form.get('col_qty', '')
+
+    uid = str(uuid.uuid4())[:8]
+    in_path = os.path.join(UPLOAD_DIR, f"plm2_in_{uid}.xlsx")
+    file.save(in_path)
+
+    wb = openpyxl.load_workbook(in_path, read_only=True, data_only=True)
+    sheets = wb.sheetnames
+    wb.close()
+    if not sheet_name or sheet_name not in sheets:
+        sheet_name = sheets[0]
+
+    wb2 = openpyxl.load_workbook(in_path, data_only=True)
+    ws = wb2[sheet_name]
+    detected, raw_headers = _detect_columns_plm2(ws, header_row)
+    wb2.close()
+
+    if not col_hqpn_str and 'hq_pn' in detected:
+        col_hqpn_str = str(detected['hq_pn'])
+    if not col_stype_str and 'supply_type' in detected:
+        col_stype_str = str(detected['supply_type'])
+    if not col_qty_str and 'qty' in detected:
+        col_qty_str = str(detected['qty'])
+
+    col_hqpn = _col_int(col_hqpn_str)
+    col_stype = _col_int(col_stype_str)
+    col_refdes = _col_int(col_refdes_str)
+    col_qty = _col_int(col_qty_str)
+    if not all([col_hqpn, col_stype, col_qty]):
+        return jsonify({
+            'success': False, 'error': '请指定有效的 HQ PN 列、主二供列、用量列',
+            'detected': detected, 'headers': raw_headers,
+        })
+    result, skip_logs = _do_plm2_convert(
+        in_path, sheet_name, header_row, col_hqpn, col_stype, col_refdes, col_qty, project_name, uid)
+    return jsonify({
+        'success': True, **result, 'skip_logs': skip_logs,
+        'sheets': sheets, 'detected': detected, 'headers': raw_headers,
+    })
+
+
 @plm_bp.route('/plm', methods=['GET', 'POST'])
 def tool_plm():
     if request.method == 'POST':

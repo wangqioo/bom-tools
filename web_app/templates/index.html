@@ -100,6 +100,13 @@ tr:hover td { background:#f7f9fc; }
 /* === 进度条 === */
 .spinner { display:inline-block; animation:spin .8s linear infinite; }
 @keyframes spin { 100% { transform:rotate(360deg); } }
+/* === Tab 切换 === */
+.tabs { display:flex; gap:0; border-bottom:2px solid #d0d5dd; margin-bottom:16px; }
+.tab-btn { padding:8px 20px; background:#f5f7fa; border:1px solid #d0d5dd; border-bottom:none; border-radius:6px 6px 0 0; cursor:pointer; font-size:14px; font-weight:500; color:#666; margin-bottom:-2px; position:relative; }
+.tab-btn.active { background:#fff; color:#1a5ad4; border-color:#1a5ad4; }
+.tab-btn:hover { background:#eef2f7; }
+.tab-content { display:none; }
+.tab-content.active { display:block; }
 </style>
 </head>
 <body>
@@ -177,8 +184,14 @@ tr:hover td { background:#f7f9fc; }
 </div>
 </script>
 
-<!-- ── PLM 工具 ── -->
+<!-- ── PLM 工具（二级Tab） ── -->
 <script type="text/html" id="tpl-plm">
+<div class="tabs">
+  <button class="tab-btn active" data-plmtab="tab-plm1">整机BOM配置表</button>
+  <button class="tab-btn" data-plmtab="tab-plm2">客户BOM转换HQ BOM格式</button>
+</div>
+
+<div id="tab-plm1" class="tab-content active">
 <div class="section"><h3>第一步：选择整机BOM配置表</h3>
   <div class="row"><label>文件路径：</label><input type="file" id="plmFile" accept=".xlsx,.xlsm,.xls" style="width:320px"><button class="btn btn-outline btn-sm" id="plmBrowse">浏览...</button></div>
   <div class="row"><label>Sheet：</label><select id="plmSheet" style="width:180px"><option>先选择文件</option></select><label>表头行：</label><input type="text" id="plmHdr" value="4" style="width:50px"><button class="btn btn-sm btn-gray" id="plmRefresh">加载 / 刷新</button></div>
@@ -199,6 +212,31 @@ tr:hover td { background:#f7f9fc; }
 <div class="result" id="plmResult"><span class="title">✅ 转换完成</span><br><span id="plmStats" style="display:inline-block;margin-top:6px"></span><br><span id="plmDlArea"></span></div>
 <div class="error" id="plmError"></div>
 <div class="log-box" id="plmLogBox" style="display:none;margin-top:10px"><h4 style="margin:0 0 6px;font-size:13px">📋 处理日志</h4><pre id="plmLog" style="font-size:12px;background:#1a1a2e;color:#e0e0e0;padding:10px;border-radius:6px;max-height:200px;overflow:auto;white-space:pre-wrap;font-family:Consolas,'Courier New',monospace"></pre></div>
+</div>
+
+<div id="tab-plm2" class="tab-content">
+<div class="section"><h3>第一步：上传已分解的客户BOM</h3>
+  <div class="row"><label>文件路径：</label><input type="file" id="p2File" accept=".xlsx,.xlsm,.xls" style="width:320px"><button class="btn btn-outline btn-sm" id="p2Browse">浏览...</button></div>
+  <div class="row"><label>Sheet：</label><select id="p2Sheet" style="width:180px"><option>先选择文件</option></select><label>表头行：</label><input type="text" id="p2Hdr" value="1" style="width:50px"><button class="btn btn-sm btn-gray" id="p2Refresh">加载 / 刷新</button></div>
+</div>
+<div class="section"><h3>第二步：列映射（自动识别，可手动填列字母覆盖）</h3>
+  <div id="p2DetectLog" style="font-size:12px;color:#555;background:#f7f9fc;padding:8px;border-radius:6px;margin-bottom:8px"></div>
+  <div id="p2ColMap" class="table-wrap" style="margin-bottom:10px;max-height:200px"></div>
+  <div class="row">
+    <label>HQ PN 列：</label><input type="text" id="p2ColHqpn" style="width:60px" placeholder="如 B">
+    <label>主二供列：</label><input type="text" id="p2ColStype" style="width:60px" placeholder="如 C">
+    <label>位号列：</label><input type="text" id="p2ColRefdes" style="width:60px" placeholder="如 G">
+    <label>用量列：</label><input type="text" id="p2ColQty" style="width:60px" placeholder="如 E">
+  </div>
+</div>
+<div class="section"><h3>第三步：输出设置</h3>
+  <div class="row"><label>项目名称：</label><input type="text" id="p2Proj" style="width:240px" placeholder="写入PLM文件头部（可留空）"></div>
+  <button class="btn btn-primary" id="p2Run">⚡ 开始转换</button> <span id="p2Status" style="font-size:13px;color:#888"></span>
+</div>
+<div class="result" id="p2Result"><span class="title">✅ 转换完成</span><br><span id="p2Stats" style="display:inline-block;margin-top:6px"></span><br><a class="download" id="p2Dl" href="#">📥 下载 HQ BOM 导入文件</a></div>
+<div class="error" id="p2Error"></div>
+<div class="log-box" id="p2LogBox" style="display:none;margin-top:10px"><h4 style="margin:0 0 6px;font-size:13px">📋 处理日志</h4><pre id="p2Log" style="font-size:12px;background:#1a1a2e;color:#e0e0e0;padding:10px;border-radius:6px;max-height:200px;overflow:auto;white-space:pre-wrap;font-family:Consolas,'Courier New',monospace"></pre></div>
+</div>
 </script>
 
 <!-- ── 飞书工具 ── -->
@@ -359,7 +397,7 @@ function initTool(tool){
   if(tool==='bom') initBom();
   else if(tool==='feishu') initFeishu();
   else if(tool==='prefrate') initPrefrate();
-  else if(tool==='plm') initPlm();
+  else if(tool==='plm'){ initPlm(); initPlm2(); }
   else if(tool==='pstx') initPstx();
   else if(tool==='csa') initCsa();
 }
@@ -541,8 +579,84 @@ function initPlm(){
     }catch(e){$('plmError').textContent=e.message;show($('plmError'));}
     btn.disabled=false;
   };
+  // 二级Tab切换
+  const plmTabs=document.querySelectorAll('.tab-btn[data-plmtab]');
+  plmTabs.forEach(btn=>{
+    btn.onclick=function(){
+      plmTabs.forEach(b=>b.classList.remove('active'));
+      this.classList.add('active');
+      document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
+      show(document.getElementById(this.dataset.plmtab));
+    };
+  });
 }
-
+// ─── PLM Tab2：客户BOM → HQ BOM ──────────────────
+function updatePlm2FromApi(d){
+  if(!d.success)return;
+  let opts='';d.sheets.forEach(s=>opts+=`<option${s===d.current_sheet?' selected':''}>${s}</option>`);
+  $('p2Sheet').innerHTML=opts;
+  if(d.detected){
+    if(d.detected.hq_pn)$('p2ColHqpn').value=d.detected.hq_pn;
+    if(d.detected.supply_type)$('p2ColStype').value=d.detected.supply_type;
+    if(d.detected.qty_col && d.detected.qty_col.length){
+      $('p2ColQty').value=d.detected.qty_col[0];
+    }
+    if(d.detected.refdes_col)$('p2ColRefdes').value=d.detected.refdes_col;
+  }
+  $('p2DetectLog').textContent='自动识别：'+(d.headers||[]).join(' | ');
+  // 列字母对照表
+  const mapArea=$('p2ColMap');
+  if(d.headers&&d.headers.length){
+    let h='<table><tr style="background:#e8f0fe"><th>列</th><th>列名</th></tr>';
+    d.headers.forEach(e=>{
+      const m=e.match(/^([A-Z]+):(.+)/);
+      if(m) h+=`<tr><td style="font-weight:700;color:#1a5ad4;width:50px">${m[1]}</td><td>${m[2]}</td></tr>`;
+      else h+=`<tr><td></td><td>${e}</td></tr>`;
+    });
+    h+='</table>';
+    mapArea.innerHTML=h;
+  } else mapArea.innerHTML='';
+}
+function initPlm2(){
+  $('p2Browse').onclick=()=>$('p2File').click();
+  $('p2File').onchange=function(){
+    const f=this.files[0];if(!f)return;
+    let fd=new FormData();fd.append('file',f);
+    let sn=$('p2Sheet').value;if(sn&&sn!=='先选择文件')fd.append('sheet_name',sn);
+    fetch('/api/plm2/sheets',{method:'POST',body:fd}).then(r=>r.json()).then(updatePlm2FromApi);
+  };
+  $('p2Sheet').onchange=function(){
+    const f=$('p2File').files[0];if(!f)return;
+    let fd=new FormData();fd.append('file',f);
+    fd.append('sheet_name',this.value);
+    fetch('/api/plm2/sheets',{method:'POST',body:fd}).then(r=>r.json()).then(updatePlm2FromApi);
+  };
+  $('p2Refresh').onclick=()=>$('p2File').onchange();
+  $('p2Run').onclick=async function(){
+    const f=$('p2File').files[0];if(!f){alert('请选择客户BOM文件');return;}
+    const btn=$('p2Run');btn.disabled=true;$('p2Status').textContent='处理中...';
+    hide($('p2Result'));hide($('p2Error'));hide($('p2LogBox'));
+    let fd=new FormData();fd.append('file',f);
+    fd.append('sheet',$('p2Sheet').value);fd.append('header_row',$('p2Hdr').value);
+    fd.append('col_hqpn',$('p2ColHqpn').value);
+    fd.append('col_stype',$('p2ColStype').value);
+    fd.append('col_refdes',$('p2ColRefdes').value);
+    fd.append('col_qty',$('p2ColQty').value);
+    fd.append('project_name',$('p2Proj').value);
+    try{
+      const r=await fetch('/plm2',{method:'POST',body:fd});
+      const d=await r.json();
+      if(d.success){
+        $('p2Stats').textContent=`写入 ${d.total} 行${d.skipped?`，跳过 ${d.skipped} 行（用量为空）`:''}`;
+        $('p2Dl').href=d.download;
+        show($('p2Result'));$('p2Status').textContent='完成！';
+        if(d.skip_logs&&d.skip_logs.length){$('p2Log').textContent=d.skip_logs.join('\n');show($('p2LogBox'));}else hide($('p2LogBox'));
+      }
+      else {$('p2Error').textContent=d.error||'转换失败';show($('p2Error'));$('p2Status').textContent='';}
+    }catch(e){$('p2Error').textContent=e.message;show($('p2Error'));}
+    btn.disabled=false;
+  };
+}
 // ─── 飞书匹配 ───────────────────────────────────────
 const FS_TABLES = {{ tables | tojson }};
 let fsTables=FS_TABLES.map(t=>({...t,_sheets:[],_rows:[],_headers:[],_connected:false,_loaded:false,enabled:false,active_sheet_ids:[],local_key_names:['','',''],feishu_key_names:['','',''],fetch_col_names:[]}));
