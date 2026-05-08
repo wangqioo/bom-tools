@@ -680,8 +680,9 @@ function initPlm(){
     btn.onclick=function(){
       plmTabs.forEach(b=>b.classList.remove('active'));
       this.classList.add('active');
-      document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
-      show(document.getElementById(this.dataset.plmtab));
+      // 只清理contentArea内的tab-content，避免误伤其他工具
+      document.getElementById('contentArea').querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
+      document.getElementById(this.dataset.plmtab).classList.add('active');
     };
   });
 }
