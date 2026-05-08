@@ -192,7 +192,7 @@ tr:hover td { background:#f7f9fc; }
   <div class="row">
     <label>HQ PN 列：</label><input type="text" id="plmColHqpn" style="width:60px" placeholder="如 B">
     <label>主二供列：</label><input type="text" id="plmColStype" style="width:60px" placeholder="如 C">
-    <label>用量列（可多选）：</label><span id="plmQtyChecks" style="display:inline-flex;gap:4px;flex-wrap:wrap"></span>
+    <label>用量列（逗号分隔）：</label><input type="text" id="plmQtyInput" style="width:160px" placeholder="如 E,F,G">
   </div>
 </div>
 <div class="section"><h3>第三步：输出设置</h3>
@@ -418,26 +418,14 @@ function updateBomPreview(rows){
 }
 
 // ─── PLM：多用量列 + 多项目导出 ─────────────────────
-function renderPlmQtyChecks(qtyCols, headers){
-  const area=$('plmQtyChecks');
-  if(!qtyCols||!qtyCols.length){area.innerHTML='<span class="hint" style="color:#999">（未检测到用量/单耗列，加载文件后自动识别）</span>';return;}
-  let html='';
-  qtyCols.forEach(c=>{
-    const h=(headers||[]).find(h=>h.startsWith(c+':'));
-    const lbl=h?h.replace(/^[A-Z]+:/,''):c;
-    html+=`<label style="padding:2px 8px;cursor:pointer;border-radius:4px;font-size:12px;background:#e8f0fe"><input type="checkbox" class="plm-qty-cb" value="${c}" checked> ${c}:${lbl}</label>`;
-  });
-  area.innerHTML=html;
-  area.querySelectorAll('.plm-qty-cb').forEach(cb=>cb.onchange=renderPlmProjNames);
-  renderPlmProjNames();
-}
 function renderPlmProjNames(){
-  const checked=document.querySelectorAll('.plm-qty-cb:checked');
+  const raw=($('plmQtyInput')||{value:''}).value;
+  const cols=raw.split(',').map(s=>s.trim().toUpperCase()).filter(s=>s);
   const area=$('plmProjNames');
-  if(!checked.length){area.innerHTML='<div class="hint" style="color:#999">请至少勾选一个用量列</div>';return;}
-  let html='<div style="margin-bottom:6px;font-weight:600;font-size:13px;color:#333">项目名称（按顺序对应勾选的用量列）：</div>';
-  checked.forEach((cb,i)=>{
-    html+=`<div class="row" style="margin-bottom:6px"><label>项目${i+1}（${cb.value}）：</label><input type="text" class="plm-proj-input" data-qty-col="${cb.value}" style="width:220px" placeholder="如 华为P70"></div>`;
+  if(!cols.length){area.innerHTML='<div class="hint" style="color:#999">请填写用量列后自动生成项目名称输入框</div>';return;}
+  let html='<div style="margin-bottom:6px;font-weight:600;font-size:13px;color:#333">各用量列对应的项目名称：</div>';
+  cols.forEach((c,i)=>{
+    html+=`<div class="row" style="margin-bottom:6px"><label>项目${i+1}（列 ${c}）：</label><input type="text" class="plm-proj-input" data-qty-col="${c}" style="width:220px" placeholder="如 华为P70"></div>`;
   });
   area.innerHTML=html;
 }
@@ -448,10 +436,9 @@ function updatePlmFromApi(d){
   if(d.detected){
     if(d.detected.hq_pn)$('plmColHqpn').value=d.detected.hq_pn;
     if(d.detected.supply_type)$('plmColStype').value=d.detected.supply_type;
-    renderPlmQtyChecks(d.detected.qty_cols||[], d.headers||[]);
-  } else {
-    renderPlmQtyChecks(null);
+    if(d.detected.qty_cols&&d.detected.qty_cols.length)$('plmQtyInput').value=d.detected.qty_cols.join(',');
   }
+  renderPlmProjNames();
   $('plmDetectLog').textContent='自动识别：'+(d.headers||[]).join(' | ');
   // 列字母对照表
   if(d.headers&&d.headers.length){
@@ -482,18 +469,18 @@ function initPlm(){
     fetch('/api/plm/sheets',{method:'POST',body:fd}).then(r=>r.json()).then(updatePlmFromApi);
   };
   $('plmRefresh').onclick=()=>$('plmFile').onchange();
+  $('plmQtyInput').oninput=renderPlmProjNames;
   $('plmRun').onclick=async function(){
     const f=$('plmFile').files[0];if(!f){alert('请选择文件');return;}
     const btn=$('plmRun');btn.disabled=true;$('plmStatus').textContent='处理中...';
     hide($('plmResult'));hide($('plmError'));hide($('plmLogBox'));
-    // 收集勾选的用量列和对应的项目名称
-    const qtyCols=[],projNames=[];
-    document.querySelectorAll('.plm-qty-cb:checked').forEach(cb=>{
-      qtyCols.push(cb.value);
-      const inp=document.querySelector(`.plm-proj-input[data-qty-col="${cb.value}"]`);
-      projNames.push(inp?inp.value:'');
+    // 收集用量列和对应的项目名称
+    const qtyCols=$('plmQtyInput').value.split(',').map(s=>s.trim().toUpperCase()).filter(s=>s);
+    const projNames=qtyCols.map(c=>{
+      const inp=document.querySelector(`.plm-proj-input[data-qty-col="${c}"]`);
+      return inp?inp.value:'';
     });
-    if(!qtyCols.length){$('plmError').textContent='请至少勾选一个用量列';show($('plmError'));btn.disabled=false;$('plmStatus').textContent='';return;}
+    if(!qtyCols.length){$('plmError').textContent='请填写用量列（如 E,F,G）';show($('plmError'));btn.disabled=false;$('plmStatus').textContent='';return;}
     let fd=new FormData();fd.append('file',f);
     fd.append('sheet',$('plmSheet').value);fd.append('header_row',$('plmHdr').value);
     fd.append('col_hqpn',$('plmColHqpn').value);fd.append('col_stype',$('plmColStype').value);
