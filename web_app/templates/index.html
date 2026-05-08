@@ -157,8 +157,8 @@ tr:hover td { background:#f7f9fc; }
   <div class="row">
     <label>输出模式：</label>
     <select id="bomMode">
-      <option value="expand">原格式展开 — 保留客户 BOM 所有列，供应商拆多行</option>
-      <option value="internal">转为内部格式 — 输出整机BOM配置表</option>
+      <option value="expand">主二供拆成多行 — 保留客户 BOM 所有列，主供应商+二供拆多行</option>
+      <option value="internal">转为内部格式 — 输出单列「规格型号」Excel</option>
     </select>
   </div>
   <div class="row" id="bomProjRow" style="display:none"><label>项目名称：</label><input type="text" id="bomProj" style="width:200px" placeholder="内部格式时填写"></div>
@@ -386,7 +386,7 @@ function updateBomFromApi(d){
 
 function initBom(){
   $('bomBrowse').onclick=()=>$('bomFile').click();
-  $('bomMode').onchange=()=>{$('bomProjRow').style.display=$('bomMode').value==='internal'?'flex':'none';};
+  $('bomMode').onchange=()=>{$('bomProjRow').style.display='none';};
   $('bomSheet').onchange=function(){
     const f=$('bomFile').files[0];if(!f)return;
     hide($('bomResult'));hide($('bomError'));

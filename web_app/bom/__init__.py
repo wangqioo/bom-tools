@@ -494,30 +494,29 @@ def tool_bom():
                     ws, header_row, col_brand_int, col_model_int, col_qty_int, fmt, out_path)
                 msg = f"写入 {total} 行（跳过空行 {skipped}）"
             else:
-                if not project_name:
-                    return jsonify({'success': False, 'error': 'HQ格式需要填写项目名称'})
-                rows = []
-                seq = 0
+                """内部格式：输出仅含「规格型号」列的单列 Excel"""
+                if not col_model_int:
+                    return jsonify({'success': False, 'error': '内部格式需要指定型号列'})
+                model_vals = []
                 skipped = 0
                 max_row = ws.max_row
                 for ri in range(header_row + 1, max_row + 1):
-                    nv = ws.cell(row=ri, column=col_name_int).value if col_name_int else ""
-                    qv = ws.cell(row=ri, column=col_qty_int).value if col_qty_int else ""
-                    bv = ws.cell(row=ri, column=col_brand_int).value
-                    mv = ws.cell(row=ri, column=col_model_int).value if col_model_int else None
-                    if not nv and not bv:
+                    mv = ws.cell(row=ri, column=col_model_int).value
+                    if mv is None or str(mv).strip() == "":
                         skipped += 1
                         continue
-                    sr = parse_suppliers(bv, mv, fmt)
-                    if not sr:
-                        sr = [("", "")]
-                    mq = safe_qty(qv)
-                    suppliers = [(b, m, mq if i == 0 else 0) for i, (b, m) in enumerate(sr)]
-                    seq += 1
-                    rows.append({"seq": seq, "name": str(nv or "").strip(), "suppliers": suppliers})
-                msg = f"解析 {len(rows)} 个物料（跳过空行 {skipped}）"
-                total = write_review_bom(rows, out_path, project_name)
-                msg += f"，共写入 {total} 行"
+                    model_vals.append(str(mv).strip())
+                wb_simple = Workbook()
+                ws_simple = wb_simple.active
+                ws_simple.title = "规格型号"
+                c = ws_simple.cell(row=1, column=1, value="规格型号")
+                c.font = Font(bold=True)
+                for i, val in enumerate(model_vals, 2):
+                    ws_simple.cell(row=i, column=1, value=val)
+                ws_simple.column_dimensions['A'].width = 45
+                wb_simple.save(out_path)
+                wb_simple.close()
+                msg = f"共输出 {len(model_vals)} 行规格型号（跳过空行 {skipped}）"
 
             return jsonify({
                 'success': True, 'message': msg,
