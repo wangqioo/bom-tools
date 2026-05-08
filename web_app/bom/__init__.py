@@ -166,64 +166,26 @@ def detect_columns(ws, header_row):
 
 # ── 输出器 ──────────────────────────────────────────────────
 
-def write_review_bom(rows, output_file, project_name):
-    """输出为 SW节点整机BOM配置表"""
+def write_simple_spec_list(ws, header_row, col_name_int, output_file):
+    """输出简单规格型号清单（仅一列：规格型号）"""
     wb = Workbook()
-    ws = wb.active
-    ws.title = "SW节点整机BOM配置"
-    GREEN = "92D050"
-    YELLOW = "FFFF00"
-    ORANGE = "FFC000"
-    thin = Side(style="thin")
-    bdr = Border(left=thin, right=thin, top=thin, bottom=thin)
+    ws_out = wb.active
+    ws_out.title = "规格型号"
+    ws_out.cell(row=1, column=1, value="规格型号").font = Font(bold=True, size=12)
+    ws_out.column_dimensions['A'].width = 45
 
-    def S(cell, bold=False, bg=None, color="000000", h="center", v="center", size=11):
-        cell.font = Font(bold=bold, color=color, size=size)
-        if bg:
-            cell.fill = PatternFill("solid", start_color=bg)
-        cell.alignment = Alignment(horizontal=h, vertical=v)
-
-    ws.merge_cells("A1:A2")
-    ws["A1"] = "项目名称"
-    S(ws["A1"], bold=True, bg=GREEN, size=14)
-    ws.merge_cells("B1:B2")
-    ws["B1"] = project_name
-    S(ws["B1"], bold=True, bg=GREEN, size=14)
-    ws.merge_cells("E1:I2")
-    ws["E1"] = "整机BOM配置表"
-    S(ws["E1"], bold=True, bg=GREEN, size=16)
-    ws["J1"] = "配置说明"
-    S(ws["J1"], bold=True, bg=GREEN)
-    ws["K1"] = "TBD"
-    S(ws["K1"], bg="BDD7EE")
-    ws.row_dimensions[1].height = 30
-    ws.merge_cells("A3:I3")
-    ws["A3"] = "SW节点HQ SN"
-    S(ws["A3"], bold=True, bg=YELLOW, color="FF0000", size=12)
-    ws["K3"] = ""
-    S(ws["K3"], bg=ORANGE, color="FF0000")
-    ws.row_dimensions[3].height = 20
-    headers = ["序号", "组件子类", "虚拟层/物料", "物料类型", "HQ PN", "物料名称", "厂商型号", "厂商", "主二供", "", "用量"]
-    for ci, h in enumerate(headers, 1):
-        c = ws.cell(row=4, column=ci, value=h)
-        S(c, bold=True, bg="D9D9D9")
-        c.border = bdr
-    ws.row_dimensions[4].height = 22
-    dr = 5
-    for item in rows:
-        for si, (brand, model, qty) in enumerate(item["suppliers"]):
-            label = SUPPLIER_LABELS[si] if si < len(SUPPLIER_LABELS) else f"{si+1}供"
-            for ci, val in enumerate([
-                item["seq"], "", "", "", "", item["name"], model, brand, label, "", qty
-            ], 1):
-                c = ws.cell(row=dr, column=ci, value=val)
-                c.border = bdr
-                c.alignment = Alignment(horizontal="center", vertical="center")
+    dr = 2
+    count = 0
+    for ri in range(header_row + 1, ws.max_row + 1):
+        v = ws.cell(row=ri, column=col_name_int).value if col_name_int else None
+        s = str(v).strip() if v is not None else ""
+        if s:
+            ws_out.cell(row=dr, column=1, value=s)
             dr += 1
-    for i, w in enumerate([6, 10, 12, 10, 18, 35, 30, 20, 8, 6, 8], 1):
-        ws.column_dimensions[get_column_letter(i)].width = w
+            count += 1
+
     wb.save(output_file)
-    return dr - 5
+    return count
 
 
 def write_expanded_bom(ws_in, header_row, col_brand, col_model, col_qty, fmt, out_file):

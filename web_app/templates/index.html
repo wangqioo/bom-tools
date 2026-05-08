@@ -211,7 +211,7 @@ tr:hover td { background:#f7f9fc; }
   </div>
 </div>
 <div class="section"><h3>本地 BOM 文件</h3>
-  <div class="row"><label>文件路径：</label><input type="file" id="fsFile" accept=".xlsx,.xlsm,.xls" style="width:300px"><label>表头行：</label><input type="number" id="fsHdr" value="1" min="1" style="width:60px"></div>
+  <div class="row"><label>文件路径：</label><input type="file" id="fsFile" accept=".xlsx,.xlsm,.xls" style="width:300px"><label>Sheet：</label><select id="fsSheet" style="width:180px"><option>先选择文件</option></select><label>表头行：</label><input type="number" id="fsHdr" value="1" min="1" style="width:60px"></div>
 </div>
 <div class="section"><h3>表格库</h3>
   <div class="row"><button class="btn btn-sm btn-gray" id="fsReloadTables">⟳ 刷新表格列表</button> <span id="fsReloadHint" class="hint"></span></div>
@@ -522,6 +522,15 @@ function initFeishu(){
     fetch('/api/bom/sheets',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{
       if(d.success){
         window._fsLocalHeaders=d.headers||[];
+        // populate sheet selector
+        const sel=$('fsSheet');
+        sel.innerHTML='';
+        (d.sheets||[]).forEach((s,i)=>{
+          const opt=document.createElement('option');
+          opt.value=s;opt.textContent=s;
+          if(i===0)opt.selected=true;
+          sel.appendChild(opt);
+        });
         // update local column datalists for key mapping
         let datalist='';
         (d.headers||[]).forEach(h=>datalist+=`<option value="${h}">`);
@@ -690,7 +699,7 @@ async function fsRunMatch(){
   hide($('fsResult'));hide($('fsError'));
   const fd=new FormData();fd.append('file',f);fd.append('action','match');
   fd.append('base_url',$('fsBaseUrl').value);fd.append('origin',$('fsOrigin').value);fd.append('user_id',$('fsUserId').value);
-  fd.append('header_row',$('fsHdr').value);fd.append('tables',JSON.stringify(tables));
+  fd.append('header_row',$('fsHdr').value);fd.append('sheet_name',$('fsSheet').value);fd.append('tables',JSON.stringify(tables));
   try{
     const r=await fetch('/feishu',{method:'POST',body:fd});
     const d=await r.json();

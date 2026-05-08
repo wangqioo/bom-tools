@@ -373,6 +373,7 @@ def tool_feishu():
             origin = request.form.get('origin', 'cli_a96ac38049f8d0e5')
             user_id = request.form.get('user_id', '100448405')
             header_row = int(request.form.get('header_row', 1))
+            sheet_name = request.form.get('sheet_name', '')
             tables_json = request.form.get('tables', '[]')
 
             try:
@@ -389,7 +390,10 @@ def tool_feishu():
             file.save(in_path)
 
             wb = openpyxl.load_workbook(in_path, data_only=True)
-            ws = wb[wb.sheetnames[0]]
+            if sheet_name and sheet_name in wb.sheetnames:
+                ws = wb[sheet_name]
+            else:
+                ws = wb[wb.sheetnames[0]]
             local_headers = [_cell_str(ws.cell(row=header_row, column=ci).value)
                              for ci in range(1, ws.max_column + 1)]
 
