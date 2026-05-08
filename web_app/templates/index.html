@@ -6,7 +6,7 @@
 <title>BOM Tools · Web 版</title>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
-body { font-family: -apple-system,'Segoe UI','Microsoft YaHei',sans-serif; display:flex; min-height:100vh; background:#f0f2f5; }
+body { font-family: -apple-system,'Segoe UI','Microsoft YaHei',sans-serif; display:flex; height:100vh; background:#f0f2f5; }
 /* === 左侧导航 === */
 .sidebar { width:200px; background:linear-gradient(180deg,#1a2942,#1a3a5c); color:#ccc; display:flex; flex-direction:column; flex-shrink:0; }
 .sidebar .logo { padding:18px 16px; font-size:15px; font-weight:700; color:#fff; border-bottom:1px solid rgba(255,255,255,.08); }
@@ -109,8 +109,8 @@ tr:hover td { background:#f7f9fc; }
   <div class="logo" onclick="showOverview()" style="cursor:pointer">🛠 BOM Tools<span class="sub">硬件设计辅助平台</span></div>
   <nav>
     <a href="#" data-tool="bom"><span class="icon">📋</span>BOM 格式转换</a>
-    <a href="#" data-tool="plm"><span class="icon">📤</span>PLM 上传转换</a>
     <a href="#" data-tool="feishu"><span class="icon">🔍</span>飞书多库匹配</a>
+    <a href="#" data-tool="plm"><span class="icon">📤</span>PLM 上传转换</a>
     <a href="#" data-tool="pstx"><span class="icon">📊</span>原理图分析</a>
     <a href="#" data-tool="csa"><span class="icon">📐</span>CSA 几何检查</a>
   </nav>
@@ -290,10 +290,10 @@ function render(el,html){el.innerHTML=html;}
 const TOOLS = {
   bom:  {title:'BOM 格式转换',badge:'v5.10',tpl:'tpl-bom',
          desc:'将客户提供的多种格式 BOM 表（Excel）自动识别列映射，支持品牌型号合并列/分开列，展开为多供应商独立行，输出标准格式供内部评审或 PLM 导入。'},
+  feishu:{title:'飞书多库匹配',badge:'v3.0',tpl:'tpl-feishu',
+         desc:'连接飞书多维表格，支持 14 个预置库（优选库 + 对应关系库），多键 AND 匹配（最多 3 对），批量提取字段，一键更新表格数据。'},
   plm:  {title:'PLM 上传转换',badge:'v1.6', tpl:'tpl-plm',
          desc:'将整机 BOM 配置表转换为 PLM 系统可导入的标准格式，自动识别列映射关系，支持用量校验和项目信息写入。'},
-  feishu:{title:'飞书多库匹配',badge:'v3.0',tpl:'tpl-feishu',
-          desc:'连接飞书多维表格，支持 14 个预置库（优选库 + 对应关系库），多键 AND 匹配（最多 3 对），批量提取字段，一键更新表格数据。'},
   pstx: {title:'原理图分析',  badge:'v1.3',tpl:'tpl-pstx',
          desc:'解析 Cadence 原理图 pstxprt.dat / pstxnet.dat 文件，生成 BOM 清单、DRC 检查、降额分析、元件查询和层次化页码报告。'},
   csa:  {title:'CSA 几何检查',badge:'v1.0',tpl:'tpl-csa',
