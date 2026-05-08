@@ -116,7 +116,6 @@ tr:hover td { background:#f7f9fc; }
   <div class="logo" onclick="showOverview()" style="cursor:pointer">🛠 BOM Tools<span class="sub">硬件设计辅助平台</span></div>
   <nav>
     <a href="#" data-tool="bom"><span class="icon">📋</span>BOM 格式转换</a>
-    <a href="#" data-tool="bom-hq"><span class="icon">📋</span>整机BOM配置表</a>
     <a href="#" data-tool="feishu"><span class="icon">🔍</span>飞书优选库+关系库匹配</a>
     <a href="#" data-tool="prefrate"><span class="icon">📈</span>BOM优选率计算</a>
     <a href="#" data-tool="plm"><span class="icon">📤</span>转换为上传PLM系统格式</a>
@@ -166,39 +165,6 @@ tr:hover td { background:#f7f9fc; }
 </div>
 <div class="result" id="bomResult"><span class="title">✅ 转换完成</span><br><span id="bomStats"></span><br><a class="download" id="bomDl" href="#">📥 下载结果</a></div>
 <div class="error" id="bomError"></div>
-</script>
-
-<!-- ── 整机BOM配置表 ── -->
-<script type="text/html" id="tpl-bom-hq">
-<div class="section"><h3>第一步：选择文件</h3>
-  <div class="row"><label>文件路径：</label><input type="file" id="hqFile" accept=".xlsx,.xlsm,.xls" style="width:320px"><button class="btn btn-outline btn-sm" id="hqBrowse">浏览...</button></div>
-  <div class="row"><label>Sheet：</label><select id="hqSheet" style="width:180px"><option>先选择文件</option></select><label>表头行：</label><input type="number" id="hqHdr" value="1" min="1" style="width:60px"><button class="btn btn-sm btn-gray" id="hqRefresh">刷新预览</button></div>
-  <div id="hqPreview" class="table-wrap" style="margin-top:8px"></div>
-</div>
-<div class="section"><h3>第二步：列映射（自动识别，可手动调整）</h3>
-  <div class="row">
-    <label>格式：</label>
-    <select id="hqFmt">
-      <option value="A">格式A — 品牌型号合并列（|| 或空格分隔）</option>
-      <option value="B">格式B — 厂家/型号分开列，分号分隔</option>
-      <option value="C">格式C — 制造商含编号，冒号分隔</option>
-    </select>
-  </div>
-  <div class="row">
-    <label>物料名称列：</label><input type="text" id="hqColName" style="width:80px" placeholder="如 C">
-    <label>用量列：</label><input type="text" id="hqColQty" style="width:80px" placeholder="如 D">
-    <label>品牌/厂家列：</label><input type="text" id="hqColBrand" style="width:80px" placeholder="如 E">
-    <label>型号列：</label><input type="text" id="hqColModel" style="width:80px" placeholder="如 F">
-    <span class="hint">（填写列字母）</span>
-  </div>
-  <div id="hqDetected" class="hint" style="margin-top:4px"></div>
-</div>
-<div class="section"><h3>第三步：输出设置</h3>
-  <div class="row"><label>项目名称：</label><input type="text" id="hqProj" style="width:240px" placeholder="必填，如 华为P70"></div>
-  <button class="btn btn-primary" id="hqRun">⚡ 生成 HQ BOM</button> <span id="hqStatus" style="font-size:13px;color:#888"></span>
-</div>
-<div class="result" id="hqResult"><span class="title">✅ 生成完成</span><br><span id="hqStats"></span><br><a class="download" id="hqDl" href="#">📥 下载整机BOM配置表</a></div>
-<div class="error" id="hqError"></div>
 </script>
 
 <!-- ── BOM优选率计算（预留） ── -->
@@ -364,8 +330,6 @@ function render(el,html){el.innerHTML=html;}
 const TOOLS = {
   bom:  {title:'BOM 格式转换',badge:'v5.10',tpl:'tpl-bom',
          desc:'将客户提供的多种格式 BOM 表（Excel）自动识别列映射，支持品牌型号合并列/分开列，展开为多供应商独立行，输出标准格式供内部评审或 PLM 导入。'},
-  'bom-hq':{title:'整机BOM配置表',badge:'v1.0',tpl:'tpl-bom-hq',
-         desc:'将客户 BOM 转换为整机BOM配置表格式（内部评审格式），含项目名称、供应商展开、物料名称列，生成 HQ BOM 导入文件。'},
   feishu:{title:'飞书优选库+关系库匹配',badge:'v3.0',tpl:'tpl-feishu',
          desc:'连接飞书多维表格，支持 14 个预置库（优选库 + 对应关系库），多键 AND 匹配（最多 3 对），批量提取字段，一键更新表格数据。'},
   prefrate:{title:'BOM优选率计算',badge:'v0.1',tpl:'tpl-prefrate',
@@ -423,7 +387,6 @@ document.querySelectorAll('.sidebar nav a').forEach(a=>{
 // ═══════════════════ 工具初始化 ═══════════════════
 function initTool(tool){
   if(tool==='bom') initBom();
-  else if(tool==='bom-hq') initBomHq();
   else if(tool==='feishu') initFeishu();
   else if(tool==='prefrate') initPrefrate();
   else if(tool==='plm'){ initPlm(); initPlm2(); }
@@ -501,74 +464,6 @@ function updateBomPreview(rows){
     h+='</tr>';
   });
   h+='</table>';$('bomPreview').innerHTML=h;
-}
-
-// ─── 整机BOM配置表 ────────────────────────────
-function updateBomHqFromApi(d){
-  if(!d.success) return;
-  let opts='';d.sheets.forEach(s=>opts+=`<option${s===d.current_sheet?' selected':''}>${s}</option>`);
-  $('hqSheet').innerHTML=opts;
-  if(d.detected){
-    if(d.detected.name)$('hqColName').value=d.detected.name;
-    if(d.detected.qty)$('hqColQty').value=d.detected.qty;
-    if(d.detected.brand)$('hqColBrand').value=d.detected.brand;
-    if(d.detected.model)$('hqColModel').value=d.detected.model;
-  }
-  $('hqDetected').textContent='已识别：'+JSON.stringify(d.detected);
-  updateBomHqPreview(d.preview);
-}
-
-function initBomHq(){
-  $('hqBrowse').onclick=()=>$('hqFile').click();
-  $('hqSheet').onchange=function(){
-    const f=$('hqFile').files[0];if(!f)return;
-    hide($('hqResult'));hide($('hqError'));
-    let fd=new FormData();fd.append('file',f);fd.append('sheet_name',this.value);
-    fetch('/api/bom-hq/sheets',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{updateBomHqFromApi(d);});
-  };
-  $('hqFile').onchange=function(){
-    const f=this.files[0];if(!f)return;
-    hide($('hqResult'));hide($('hqError'));
-    let fd=new FormData();fd.append('file',f);fd.append('sheet_name',$('hqSheet').value);
-    fetch('/api/bom-hq/sheets',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{updateBomHqFromApi(d);});
-  };
-  $('hqRefresh').onclick=()=>$('hqFile').onchange();
-  $('hqRun').onclick=async function(){
-    const f=$('hqFile').files[0];if(!f){alert('请选择文件');return;}
-    const proj=$('hqProj').value.trim();
-    if(!proj){alert('请填写项目名称');return;}
-    const btn=$('hqRun');btn.disabled=true;$('hqStatus').textContent='处理中...';
-    hide($('hqResult'));hide($('hqError'));
-    let fd=new FormData();fd.append('file',f);
-    fd.append('fmt',$('hqFmt').value);
-    fd.append('sheet',$('hqSheet').value);fd.append('header_row',$('hqHdr').value);
-    fd.append('project_name',proj);
-    fd.append('col_name',$('hqColName').value);fd.append('col_qty',$('hqColQty').value);
-    fd.append('col_brand',$('hqColBrand').value);fd.append('col_model',$('hqColModel').value);
-    try{
-      const r=await fetch('/bom-hq',{method:'POST',body:fd});
-      const d=await r.json();
-      if(d.success){$('hqStats').innerHTML=d.message||'写入成功';$('hqDl').href=d.download;show($('hqResult'));$('hqStatus').textContent='完成！';}
-      else {$('hqError').textContent=d.error||'转换失败';show($('hqError'));$('hqStatus').textContent='';}
-    }catch(e){$('hqError').textContent=e.message;show($('hqError'));}
-    btn.disabled=false;
-  };
-}
-
-function updateBomHqPreview(rows){
-  if(!rows||!rows.length){$('hqPreview').innerHTML='';return;}
-  let h='<table>';
-  if(rows.length && rows[0].length){
-    h+='<tr style="background:#e8f0fe">';
-    rows[0].forEach((_,ci)=>h+=`<th style="color:#1a5ad4;font-size:11px;font-weight:700;padding:2px 6px">${String.fromCharCode(65+ci)}</th>`);
-    h+='</tr>';
-  }
-  rows.slice(0,6).forEach((r,i)=>{
-    h+='<tr>';
-    r.forEach(c=>h+=(i===0?'<th>':'<td>')+(c||'')+(i===0?'</th>':'</td>'));
-    h+='</tr>';
-  });
-  h+='</table>';$('hqPreview').innerHTML=h;
 }
 
 // ─── PLM：多用量列 + 多项目导出 ─────────────────────
