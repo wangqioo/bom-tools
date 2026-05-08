@@ -40,7 +40,7 @@ def _cleanup_job():
         time.sleep(600)
         _cleanup_old_files(UPLOAD_DIR, 30)
         _cleanup_old_files(OUTPUT_DIR, 30)
-        _cleanup_old_files(CACHE_DIR, 7 * 24 * 60)  # 缓存保留 7 天
+        # 飞书缓存文件不自动清理，由用户手动刷新
 
 
 threading.Thread(target=_cleanup_job, daemon=True).start()
