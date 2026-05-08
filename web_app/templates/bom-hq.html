@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BOM 物料清单转换</title>
+<title>整机BOM配置表</title>
 <link rel="stylesheet" href="/static/style.css">
 <style>
 :root{--primary:#1a73e8;--bg:#f8f9fa;--card:#fff;--border:#dadce0;--text:#202124;--text2:#5f6368;--green:#34a853;--amber:#fbbc04;--red:#ea4335;--radius:8px}
@@ -57,9 +57,9 @@ th{background:#f1f3f4;font-weight:600;position:sticky;top:0}
 </head>
 <body>
 <div class="container">
-<h1>📋 BOM 物料清单转换</h1>
+<h1>📋 整机BOM配置表</h1>
 <p style="color:var(--text2);font-size:0.9rem;margin-bottom:16px">
-支持格式A(品牌型号合并)、格式B(厂家/型号分列;分隔)、格式C(制造商编号:分隔)
+将客户 BOM 转换为 SW 节点整机BOM配置表格式，含项目名称、供应商展开、物料名称。
 </p>
 
 <!-- 步骤指示器 -->
@@ -89,7 +89,7 @@ th{background:#f1f3f4;font-weight:600;position:sticky;top:0}
 </div>
 </div>
 
-<!-- 步骤2: 列映射 (初始隐藏) -->
+<!-- 步骤2: 列映射 -->
 <div class="card" id="step2" style="display:none">
 <h3>列映射配置</h3>
 <div id="fileInfo" class="status-bar" style="display:none">
@@ -123,7 +123,7 @@ th{background:#f1f3f4;font-weight:600;position:sticky;top:0}
 <select id="colQty"></select>
 </div>
 <div class="form-group">
-<label>物料名称列 <span class="detected-badge badge-name">建议</span></label>
+<label>物料名称列 <span class="detected-badge badge-name" style="background:var(--red)">必填</span></label>
 <select id="colName"></select>
 </div>
 </div>
@@ -136,7 +136,7 @@ th{background:#f1f3f4;font-weight:600;position:sticky;top:0}
 </div>
 </div>
 
-<!-- 步骤3: 输出设置 (初始隐藏) -->
+<!-- 步骤3: 输出设置 -->
 <div class="card" id="step3" style="display:none">
 <h3>输出设置</h3>
 <div class="form-row">
@@ -147,7 +147,11 @@ th{background:#f1f3f4;font-weight:600;position:sticky;top:0}
 <option value="B">格式B — 厂家/型号分列（;分隔）</option>
 <option value="C">格式C — 制造商含编号（:分隔）</option>
 <option value="auto">自动检测</option>
-    </select>
+</select>
+</div>
+<div class="form-group">
+<label>项目名称 <span class="detected-badge" style="background:var(--red)">必填</span></label>
+<input type="text" id="projectName" placeholder="请输入项目名称">
 </div>
 </div>
 <div id="convertInfo" class="status-bar">
@@ -159,12 +163,12 @@ th{background:#f1f3f4;font-weight:600;position:sticky;top:0}
 </div>
 </div>
 
-<!-- 步骤4: 完成 (初始隐藏) -->
+<!-- 步骤4: 完成 -->
 <div class="card" id="step4" style="display:none">
 <h3>✅ 转换完成</h3>
 <div id="resultAlert" class="alert"></div>
 <div class="form-actions">
-<a id="downloadLink" class="btn btn-primary" style="display:none;text-decoration:none" download>⬇️ 下载转换结果</a>
+<a id="downloadLink" class="btn btn-primary" style="display:none;text-decoration:none" download>⬇️ 下载整机BOM配置表</a>
 <button class="btn" onclick="resetAll()" style="background:#e8eaed">🔄 转换另一份</button>
 </div>
 </div>
@@ -172,7 +176,7 @@ th{background:#f1f3f4;font-weight:600;position:sticky;top:0}
 </div>
 
 <script>
-let bomState = {
+let hqState = {
   sheets: [],
   currentSheet: '',
   headers: [],
@@ -183,10 +187,14 @@ let bomState = {
   file_id: ''
 };
 
+function $(id) { return document.getElementById(id); }
+function show(id) { id.style.display = id.tagName === 'DIV' ? 'block' : null; }
+function hide(id) { id.style.display = 'none'; }
+
 function showStep(n) {
   for (let i = 1; i <= 4; i++) {
-    document.getElementById(`step${i}`).style.display = i === n ? 'block' : 'none';
-    const ind = document.getElementById(`step${i}-ind`);
+    $(`step${i}`).style.display = i === n ? 'block' : 'none';
+    const ind = $(`step${i}-ind`);
     ind.className = 'step';
     if (i < n) ind.classList.add('done');
     else if (i === n) ind.classList.add('active');
@@ -196,24 +204,23 @@ function showStep(n) {
 document.getElementById('uploadForm').onsubmit = async function(e) {
   e.preventDefault();
   const fd = new FormData(this);
-  const file = fd.get('file');
-  bomState.fileName = file.name;
+  hqState.fileName = fd.get('file').name;
 
-  document.getElementById('loadingSpinner').style.display = 'block';
-  document.getElementById('scanBtn').disabled = true;
+  $('loadingSpinner').style.display = 'block';
+  $('scanBtn').disabled = true;
 
   try {
-    const resp = await fetch('/api/bom/sheets', { method: 'POST', body: fd });
+    const resp = await fetch('/api/bom-hq/sheets', { method: 'POST', body: fd });
     const data = await resp.json();
     if (!data.success) { alert('扫描失败: ' + data.error); return; }
 
-    bomState.file_id = data.file_id || '';
-    bomState.sheets = data.sheets;
-    bomState.currentSheet = data.current_sheet;
-    bomState.headers = data.headers;
-    bomState.detected = data.detected || {};
-    bomState.colResults = data.col_results || {};
-    bomState.preview = data.preview || [];
+    hqState.file_id = data.file_id || '';
+    hqState.sheets = data.sheets;
+    hqState.currentSheet = data.current_sheet;
+    hqState.headers = data.headers;
+    hqState.detected = data.detected || {};
+    hqState.colResults = data.col_results || {};
+    hqState.preview = data.preview || [];
 
     showScanResult();
     populateColumnSelects();
@@ -222,14 +229,14 @@ document.getElementById('uploadForm').onsubmit = async function(e) {
   } catch (err) {
     alert('网络错误: ' + err.message);
   } finally {
-    document.getElementById('loadingSpinner').style.display = 'none';
-    document.getElementById('scanBtn').disabled = false;
+    $('loadingSpinner').style.display = 'none';
+    $('scanBtn').disabled = false;
   }
 };
 
 function onSheetChange() {
-  const sheet = document.getElementById('sheetSelect').value;
-  if (sheet !== bomState.currentSheet) doRescan();
+  const sheet = $('sheetSelect').value;
+  if (sheet !== hqState.currentSheet) doRescan();
 }
 
 function onHeaderRowChange() {
@@ -237,14 +244,14 @@ function onHeaderRowChange() {
 }
 
 async function doRescan() {
-  if (!bomState.file_id) { alert('请先上传文件'); return; }
-  const sheet_name = document.getElementById('sheetSelect').value || bomState.currentSheet;
-  const header_row = parseInt(document.getElementById('headerRowInput').value) || 1;
+  if (!hqState.file_id) { alert('请先上传文件'); return; }
+  const sheet_name = $('sheetSelect').value || hqState.currentSheet;
+  const header_row = parseInt($('headerRowInput').value) || 1;
 
-  document.getElementById('loadingSpinner').style.display = 'block';
+  $('loadingSpinner').style.display = 'block';
 
   const fd = new FormData();
-  fd.append('file_id', bomState.file_id);
+  fd.append('file_id', hqState.file_id);
   fd.append('sheet_name', sheet_name);
   fd.append('header_row', header_row);
 
@@ -253,13 +260,13 @@ async function doRescan() {
     const data = await resp.json();
     if (!data.success) { alert('重新扫描失败: ' + data.error); return; }
 
-    bomState.currentSheet = data.current_sheet;
-    bomState.headers = data.headers;
-    bomState.detected = data.detected || {};
-    bomState.colResults = data.col_results || {};
-    bomState.preview = data.preview || [];
+    hqState.currentSheet = data.current_sheet;
+    hqState.headers = data.headers;
+    hqState.detected = data.detected || {};
+    hqState.colResults = data.col_results || {};
+    hqState.preview = data.preview || [];
 
-    const sel = document.getElementById('sheetSelect');
+    const sel = $('sheetSelect');
     sel.innerHTML = (data.sheets || []).map(s =>
       `<option value="${s}" ${s === data.current_sheet ? 'selected' : ''}>${s}</option>`
     ).join('');
@@ -270,14 +277,14 @@ async function doRescan() {
   } catch (err) {
     alert('网络错误: ' + err.message);
   } finally {
-    document.getElementById('loadingSpinner').style.display = 'none';
+    $('loadingSpinner').style.display = 'none';
   }
 }
 
 function showScanResult() {
-  const container = document.getElementById('scanResultContainer');
+  const container = $('scanResultContainer');
   container.innerHTML = '';
-  const results = bomState.colResults;
+  const results = hqState.colResults;
   const keys = Object.keys(results);
   if (keys.length === 0) {
     container.innerHTML = '<div style="color:var(--text2);padding:10px">未检测到已知列类型，请手动选择列映射</div>';
@@ -292,33 +299,32 @@ function showScanResult() {
       <span><span class="detected-badge ${badgeClass}">${info.role}</span> <span class="samples">${samples}</span></span>
     </div>`;
   }
-  document.getElementById('scanResult').style.display = 'block';
-  document.getElementById('fileInfo').style.display = 'flex';
-  document.getElementById('fileName').textContent = bomState.fileName;
-  const sel = document.getElementById('sheetSelect');
-  sel.innerHTML = bomState.sheets.map(s =>
-    `<option value="${s}" ${s === bomState.currentSheet ? 'selected' : ''}>${s}</option>`
+  $('scanResult').style.display = 'block';
+  $('fileInfo').style.display = 'flex';
+  $('fileName').textContent = hqState.fileName;
+  const sel = $('sheetSelect');
+  sel.innerHTML = hqState.sheets.map(s =>
+    `<option value="${s}" ${s === hqState.currentSheet ? 'selected' : ''}>${s}</option>`
   ).join('');
 }
 
 function populateColumnSelects() {
   const headers = ['(自动检测)'];
-  if (bomState.headers) {
-    bomState.headers.forEach((h, i) => {
+  if (hqState.headers) {
+    hqState.headers.forEach((h, i) => {
       if (h) headers.push(`${getColLetter(i + 1)}: ${h}`);
       else headers.push(`${getColLetter(i + 1)}: (空白)`);
     });
   }
   const map = { colBrand: 'brand', colModel: 'model', colQty: 'qty', colName: 'name' };
   for (const [selId, key] of Object.entries(map)) {
-    const sel = document.getElementById(selId);
+    const sel = $(selId);
     sel.innerHTML = headers.map((h, i) => {
       const v = i === 0 ? '' : getColLetter(i);
       return `<option value="${v}">${h}</option>`;
     }).join('');
-    // Set detected value
-    if (bomState.detected[key]) {
-      sel.value = bomState.detected[key];
+    if (hqState.detected[key]) {
+      sel.value = hqState.detected[key];
     }
   }
   updateFormat();
@@ -335,46 +341,35 @@ function getColLetter(i) {
 }
 
 function updateFormat() {
-  const fmtSelect = document.getElementById('fmtSelect');
-  const fmtDisplay = document.getElementById('currentFmtDisplay');
-  const fmt = bomState.detected.fmt || '';
-  if (fmt === 'A') {
-    fmtDisplay.textContent = '格式A (合并列 || 分隔)';
-    fmtSelect.value = 'A';
-  } else if (fmt === 'B') {
-    fmtDisplay.textContent = '格式B (分列 ; 分隔)';
-    fmtSelect.value = 'B';
-  } else if (fmt === 'C') {
-    fmtDisplay.textContent = '格式C (制造商编号 : 分隔)';
-    fmtSelect.value = 'C';
-  } else {
-    const model = document.getElementById('colModel').value;
-    fmtDisplay.textContent = model ? '自动检测 (B/C)' : '格式A (合并列)';
-    fmtSelect.value = model ? 'auto' : 'A';
-  }
+  const fmt = hqState.detected.fmt || '';
+  const display = $('currentFmtDisplay');
+  if (fmt === 'A')      display.textContent = '格式A (合并列 || 分隔)';
+  else if (fmt === 'B') display.textContent = '格式B (分列 ; 分隔)';
+  else if (fmt === 'C') display.textContent = '格式C (制造商编号 : 分隔)';
+  else display.textContent = $('colModel').value ? '自动检测 (B/C)' : '格式A (合并列)';
 }
 
 function goStep2() { showStep(2); }
 function goStep3() { showStep(3); }
 
 function renderPreview() {
-  const wrap = document.getElementById('previewTable');
-  if (!bomState.preview || bomState.preview.length === 0) {
+  const wrap = $('previewTable');
+  if (!hqState.preview || hqState.preview.length === 0) {
     wrap.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text2)">无数据预览</div>';
     return;
   }
   let html = '<table><thead><tr>';
-  const maxCol = Math.min(bomState.preview[0]?.length || 5, 10);
+  const maxCol = Math.min(hqState.preview[0]?.length || 5, 10);
   for (let ci = 0; ci < maxCol; ci++) {
     const letter = getColLetter(ci + 1);
-    const h = bomState.headers?.[ci] || '';
+    const h = hqState.headers?.[ci] || '';
     html += `<th>${letter}<br><small>${h}</small></th>`;
   }
   html += '</tr></thead><tbody>';
-  for (let ri = 0; ri < Math.min(bomState.preview.length, 11); ri++) {
+  for (let ri = 0; ri < Math.min(hqState.preview.length, 11); ri++) {
     html += '<tr>';
     for (let ci = 0; ci < maxCol; ci++) {
-      html += `<td>${(bomState.preview[ri][ci] || '').substring(0, 20)}</td>`;
+      html += `<td>${(hqState.preview[ri][ci] || '').substring(0, 20)}</td>`;
     }
     html += '</tr>';
   }
@@ -383,45 +378,49 @@ function renderPreview() {
 }
 
 async function doConvert() {
-  const btn = document.getElementById('convertBtn');
+  const btn = $('convertBtn');
+  const projectName = $('projectName').value.trim();
+  if (!projectName) { alert('请填写项目名称'); return; }
+
   btn.disabled = true;
   btn.textContent = '⏳ 转换中...';
 
-  // Re-upload the file by creating a hidden file input
   const fileInput = document.querySelector('input[name="file"]');
   if (!fileInput.files[0]) { alert('请重新上传文件'); btn.disabled = false; btn.textContent = '🔄 开始转换'; return; }
 
   const fd = new FormData();
   fd.append('file', fileInput.files[0]);
-  fd.append('fmt', document.getElementById('fmtSelect').value);
-  fd.append('sheet', bomState.currentSheet);
-  fd.append('header_row', parseInt(document.getElementById('headerRowInput').value) || 1);
-  fd.append('col_brand', document.getElementById('colBrand').value);
-  fd.append('col_model', document.getElementById('colModel').value);
-  fd.append('col_qty', document.getElementById('colQty').value);
+  fd.append('fmt', $('fmtSelect').value);
+  fd.append('sheet', hqState.currentSheet);
+  fd.append('header_row', parseInt($('headerRowInput').value) || 1);
+  fd.append('project_name', projectName);
+  fd.append('col_brand', $('colBrand').value);
+  fd.append('col_model', $('colModel').value);
+  fd.append('col_qty', $('colQty').value);
+  fd.append('col_name', $('colName').value);
 
   try {
-    const resp = await fetch('/bom', { method: 'POST', body: fd });
+    const resp = await fetch('/bom-hq', { method: 'POST', body: fd });
     const data = await resp.json();
     if (!data.success) {
-      document.getElementById('resultAlert').className = 'alert alert-error';
-      document.getElementById('resultAlert').textContent = '❌ 转换失败: ' + (data.error || '未知错误');
-      document.getElementById('resultAlert').style.display = 'block';
-      document.getElementById('downloadLink').style.display = 'none';
+      $('resultAlert').className = 'alert alert-error';
+      $('resultAlert').textContent = '❌ 转换失败: ' + (data.error || '未知错误');
+      $('resultAlert').style.display = 'block';
+      $('downloadLink').style.display = 'none';
     } else {
-      document.getElementById('resultAlert').className = 'alert alert-success';
-      document.getElementById('resultAlert').textContent = '✅ ' + (data.message || '转换成功');
-      document.getElementById('resultAlert').style.display = 'block';
-      const link = document.getElementById('downloadLink');
+      $('resultAlert').className = 'alert alert-success';
+      $('resultAlert').textContent = '✅ ' + (data.message || '转换成功');
+      $('resultAlert').style.display = 'block';
+      const link = $('downloadLink');
       link.href = data.download;
       link.style.display = 'inline-block';
     }
     showStep(4);
   } catch (err) {
-    document.getElementById('resultAlert').className = 'alert alert-error';
-    document.getElementById('resultAlert').textContent = '❌ 网络错误: ' + err.message;
-    document.getElementById('resultAlert').style.display = 'block';
-    document.getElementById('downloadLink').style.display = 'none';
+    $('resultAlert').className = 'alert alert-error';
+    $('resultAlert').textContent = '❌ 网络错误: ' + err.message;
+    $('resultAlert').style.display = 'block';
+    $('downloadLink').style.display = 'none';
     showStep(4);
   } finally {
     btn.disabled = false;
@@ -432,10 +431,10 @@ async function doConvert() {
 function resetAll() {
   showStep(1);
   document.getElementById('uploadForm').reset();
-  document.getElementById('step2').style.display = 'none';
-  document.getElementById('step3').style.display = 'none';
-  document.getElementById('step4').style.display = 'none';
-  bomState = { sheets: [], currentSheet: '', headers: [], detected: {}, colResults: {}, preview: [], fileName: '', file_id: '' };
+  $('step2').style.display = 'none';
+  $('step3').style.display = 'none';
+  $('step4').style.display = 'none';
+  hqState = { sheets: [], currentSheet: '', headers: [], detected: {}, colResults: {}, preview: [], fileName: '', file_id: '' };
 }
 </script>
 </body>

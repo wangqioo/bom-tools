@@ -276,6 +276,43 @@ def write_expanded_bom(ws_in, header_row, col_brand, col_model, col_qty, fmt, ou
     return total, skipped
 
 
+# ── 整机BOM配置表输出 ──────────────────────────────────────────
+
+def write_review_bom(rows, output_file, project_name):
+    """生成 HQ 内部评审格式「整机BOM配置表」"""
+    wb = Workbook(); ws = wb.active; ws.title = "SW节点整机BOM配置"
+    GREEN = "92D050"; YELLOW = "FFFF00"; ORANGE = "FFC000"
+    thin = Side(style="thin"); bdr = Border(left=thin, right=thin, top=thin, bottom=thin)
+    def S(cell, bold=False, bg=None, color="000000", h="center", v="center", size=11):
+        cell.font = Font(bold=bold, color=color, size=size)
+        if bg: cell.fill = PatternFill("solid", start_color=bg)
+        cell.alignment = Alignment(horizontal=h, vertical=v)
+    ws.merge_cells("A1:A2"); ws["A1"] = "项目名称"; S(ws["A1"], bold=True, bg=GREEN, size=14)
+    ws.merge_cells("B1:B2"); ws["B1"] = project_name; S(ws["B1"], bold=True, bg=GREEN, size=14)
+    ws.merge_cells("E1:I2"); ws["E1"] = "整机BOM配置表"; S(ws["E1"], bold=True, bg=GREEN, size=16)
+    ws["J1"] = "配置说明"; S(ws["J1"], bold=True, bg=GREEN)
+    ws["K1"] = "TBD"; S(ws["K1"], bg="BDD7EE")
+    ws.row_dimensions[1].height = 30
+    ws.merge_cells("A3:I3"); ws["A3"] = "SW节点HQ SN"
+    S(ws["A3"], bold=True, bg=YELLOW, color="FF0000", size=12)
+    ws["K3"] = ""; S(ws["K3"], bg=ORANGE, color="FF0000"); ws.row_dimensions[3].height = 20
+    headers = ["序号","组件子类","虚拟层/物料","物料类型","HQ PN","物料名称","厂商型号","厂商","主二供","","用量"]
+    for ci, h in enumerate(headers, 1):
+        c = ws.cell(row=4, column=ci, value=h); S(c, bold=True, bg="D9D9D9"); c.border = bdr
+    ws.row_dimensions[4].height = 22
+    dr = 5
+    for item in rows:
+        for si, (brand, model, qty) in enumerate(item["suppliers"]):
+            label = SUPPLIER_LABELS[si] if si < len(SUPPLIER_LABELS) else f"{si+1}供"
+            for ci, val in enumerate([item["seq"],"","","","",item["name"],model,brand,label,"",qty], 1):
+                c = ws.cell(row=dr, column=ci, value=val); c.border = bdr
+                c.alignment = Alignment(horizontal="center", vertical="center")
+            dr += 1
+    for i, w in enumerate([6,10,12,10,18,35,30,20,8,6,8], 1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+    wb.save(output_file); return dr - 5
+
+
 # ── 扫描助手 ────────────────────────────────────────────────
 
 def _scan_file_result(in_path, sheet_name, header_row):
@@ -389,10 +426,8 @@ def tool_bom():
         if not file:
             return "请上传文件", 400
         fmt = request.form.get('fmt', 'A')
-        mode = request.form.get('mode', 'expand')
         sheet_name = request.form.get('sheet', '')
         header_row = int(request.form.get('header_row', 1))
-        project_name = request.form.get('project_name', '')
         col_brand = request.form.get('col_brand', '')
         col_model = request.form.get('col_model', '')
         col_qty = request.form.get('col_qty', '')
@@ -449,36 +484,11 @@ def tool_bom():
             return jsonify({'success': False, 'error': '请指定品牌/厂家列'})
 
         try:
-            if mode == 'expand':
-                if not col_qty_int:
-                    return jsonify({'success': False, 'error': '原格式展开需要指定用量列'})
-                total, skipped = write_expanded_bom(
-                    ws, header_row, col_brand_int, col_model_int, col_qty_int, fmt, out_path)
-                msg = f"写入 {total} 行（跳过空行 {skipped}）"
-            else:
-                """内部格式：输出仅含「规格型号」列的单列 Excel"""
-                if not col_model_int:
-                    return jsonify({'success': False, 'error': '内部格式需要指定型号列'})
-                model_vals = []
-                skipped = 0
-                max_row = ws.max_row
-                for ri in range(header_row + 1, max_row + 1):
-                    mv = ws.cell(row=ri, column=col_model_int).value
-                    if mv is None or str(mv).strip() == "":
-                        skipped += 1
-                        continue
-                    model_vals.append(str(mv).strip())
-                wb_simple = Workbook()
-                ws_simple = wb_simple.active
-                ws_simple.title = "规格型号"
-                c = ws_simple.cell(row=1, column=1, value="规格型号")
-                c.font = Font(bold=True)
-                for i, val in enumerate(model_vals, 2):
-                    ws_simple.cell(row=i, column=1, value=val)
-                ws_simple.column_dimensions['A'].width = 45
-                wb_simple.save(out_path)
-                wb_simple.close()
-                msg = f"共输出 {len(model_vals)} 行规格型号（跳过空行 {skipped}）"
+            if not col_qty_int:
+                return jsonify({'success': False, 'error': '原格式展开需要指定用量列'})
+            total, skipped = write_expanded_bom(
+                ws, header_row, col_brand_int, col_model_int, col_qty_int, fmt, out_path)
+            msg = f"写入 {total} 行（跳过空行 {skipped}）"
 
             return jsonify({
                 'success': True, 'message': msg,
@@ -489,3 +499,84 @@ def tool_bom():
             return jsonify({'success': False, 'error': f"{e}\n{traceback.format_exc()}"})
 
     return render_template('bom.html')
+
+
+@bom_bp.route('/api/bom-hq/sheets', methods=['POST'])
+def api_bom_hq_sheets():
+    """整机BOM配置表扫描API，复用 BOM 的扫描逻辑"""
+    return api_bom_sheets()
+
+
+@bom_bp.route('/bom-hq', methods=['GET', 'POST'])
+def tool_bom_hq():
+    if request.method == 'POST':
+        file = request.files.get('file')
+        if not file:
+            return "请上传文件", 400
+        fmt = request.form.get('fmt', 'A')
+        sheet_name = request.form.get('sheet', '')
+        header_row = int(request.form.get('header_row', 1))
+        project_name = request.form.get('project_name', '')
+        col_brand = request.form.get('col_brand', '')
+        col_model = request.form.get('col_model', '')
+        col_qty = request.form.get('col_qty', '')
+        col_name = request.form.get('col_name', '')
+
+        uid = str(uuid.uuid4())[:8]
+        in_path = os.path.join(UPLOAD_DIR, f"bomhq_in_{uid}.xlsx")
+        out_path = os.path.join(OUTPUT_DIR, f"整机BOM配置表_{uid}.xlsx")
+        file.save(in_path)
+
+        wb = openpyxl.load_workbook(in_path, read_only=True, data_only=True)
+        sheets = wb.sheetnames
+        wb.close()
+        if not sheet_name or sheet_name not in sheets:
+            sheet_name = sheets[0]
+
+        try:
+            wb_d = openpyxl.load_workbook(in_path, data_only=True)
+            ws_d = wb_d[sheet_name]
+            col_name_int = _col_int(col_name) if col_name else 0
+            col_qty_int = _col_int(col_qty) if col_qty else 0
+            col_brand_int = _col_int(col_brand) if col_brand else 0
+            col_model_int = _col_int(col_model) if col_model else None
+
+            rows = []
+            seq = 0
+            skipped = 0
+            for ri in range(header_row + 1, ws_d.max_row + 1):
+                nv = ws_d.cell(row=ri, column=col_name_int).value if col_name_int else ""
+                qv = ws_d.cell(row=ri, column=col_qty_int).value if col_qty_int else ""
+                bv = ws_d.cell(row=ri, column=col_brand_int).value
+                mv = ws_d.cell(row=ri, column=col_model_int).value if col_model_int else None
+                nv_s = str(nv or "").strip() if nv else ""
+                bv_s = str(bv or "").strip() if bv else ""
+                if not nv_s and not bv_s:
+                    skipped += 1
+                    continue
+                sr = parse_suppliers(bv, mv, fmt)
+                if not sr:
+                    sr = [("", "")]
+                mq = safe_qty(qv)
+                suppliers = [(b, m, mq if i == 0 else 0)
+                             for i, (b, m) in enumerate(sr)]
+                seq += 1
+                rows.append({
+                    "seq": seq,
+                    "name": nv_s,
+                    "suppliers": suppliers,
+                })
+            wb_d.close()
+
+            total = write_review_bom(rows, out_path, project_name)
+            return jsonify({
+                'success': True,
+                'message': f"共输出 {total} 行（跳过空行 {skipped}）",
+                'download': f'/download/整机BOM配置表_{uid}.xlsx',
+                'sheets': sheets,
+                'rows': total,
+            })
+        except Exception as e:
+            return jsonify({'success': False, 'error': f"{e}\\n{traceback.format_exc()}"})
+
+    return render_template('bom-hq.html')
