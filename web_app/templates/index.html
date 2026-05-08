@@ -111,7 +111,7 @@ tr:hover td { background:#f7f9fc; }
     <a href="#" data-tool="bom"><span class="icon">📋</span>BOM 格式转换</a>
     <a href="#" data-tool="feishu"><span class="icon">🔍</span>飞书优选库+关系库匹配</a>
     <a href="#" data-tool="prefrate"><span class="icon">📈</span>BOM优选率计算</a>
-    <a href="#" data-tool="plm"><span class="icon">📤</span>PLM 上传转换</a>
+    <a href="#" data-tool="plm"><span class="icon">📤</span>转换为上传PLM系统格式</a>
     <a href="#" data-tool="pstx"><span class="icon">📊</span>原理图分析</a>
     <a href="#" data-tool="csa"><span class="icon">📐</span>CSA 几何检查</a>
   </nav>
@@ -189,14 +189,14 @@ tr:hover td { background:#f7f9fc; }
   <div class="row">
     <label>HQ PN 列：</label><input type="text" id="plmColHqpn" style="width:60px" placeholder="如 B">
     <label>主二供列：</label><input type="text" id="plmColStype" style="width:60px" placeholder="如 C">
-    <label>用量列：</label><input type="text" id="plmColQty" style="width:60px" placeholder="如 E">
+    <label>用量列（可多选）：</label><span id="plmQtyChecks" style="display:inline-flex;gap:4px;flex-wrap:wrap"></span>
   </div>
 </div>
 <div class="section"><h3>第三步：输出设置</h3>
-  <div class="row"><label>项目名称：</label><input type="text" id="plmProj" style="width:240px" placeholder="写入PLM文件头部（可留空）"><span class="hint">（写入PLM文件头部）</span></div>
+  <div id="plmProjNames" style="margin-bottom:10px"></div>
   <button class="btn btn-primary" id="plmRun">⚡ 开始转换</button> <span id="plmStatus" style="font-size:13px;color:#888"></span>
 </div>
-<div class="result" id="plmResult"><span class="title">✅ 转换完成</span><br><span id="plmStats"></span><br><a class="download" id="plmDl" href="#">📥 下载 PLM 导入文件</a></div>
+<div class="result" id="plmResult"><span class="title">✅ 转换完成</span><br><span id="plmStats" style="display:inline-block;margin-top:6px"></span><br><span id="plmDlArea"></span></div>
 <div class="error" id="plmError"></div>
 <div class="log-box" id="plmLogBox" style="display:none;margin-top:10px"><h4 style="margin:0 0 6px;font-size:13px">📋 处理日志</h4><pre id="plmLog" style="font-size:12px;background:#1a1a2e;color:#e0e0e0;padding:10px;border-radius:6px;max-height:200px;overflow:auto;white-space:pre-wrap;font-family:Consolas,'Courier New',monospace"></pre></div>
 </script>
@@ -304,8 +304,8 @@ const TOOLS = {
          desc:'连接飞书多维表格，支持 14 个预置库（优选库 + 对应关系库），多键 AND 匹配（最多 3 对），批量提取字段，一键更新表格数据。'},
   prefrate:{title:'BOM优选率计算',badge:'v0.1',tpl:'tpl-prefrate',
           desc:'计算整机 BOM 的元器件优选率，对比标准优选库（如 HQ PN 优选、厂家优选），输出达标/未达标明细及统计报告。'},
-  plm:  {title:'PLM 上传转换',badge:'v1.6', tpl:'tpl-plm',
-         desc:'将整机 BOM 配置表转换为 PLM 系统可导入的标准格式，自动识别列映射关系，支持用量校验和项目信息写入。'},
+  plm:  {title:'转换为上传PLM系统格式',badge:'v2.0',tpl:'tpl-plm',
+         desc:'将整机 BOM 配置表转换为 PLM 系统可导入的标准格式，支持多项目用量列，一次勾选多个用量列并分别指定项目名称，按项目导出多份 PLM 导入文件。'},
   pstx: {title:'原理图分析',  badge:'v1.3',tpl:'tpl-pstx',
          desc:'解析 Cadence 原理图 pstxprt.dat / pstxnet.dat 文件，生成 BOM 清单、DRC 检查、降额分析、元件查询和层次化页码报告。'},
   csa:  {title:'CSA 几何检查',badge:'v1.0',tpl:'tpl-csa',
@@ -438,7 +438,30 @@ function updateBomPreview(rows){
   h+='</table>';$('bomPreview').innerHTML=h;
 }
 
-// ─── PLM ───────────────────────────────────────
+// ─── PLM：多用量列 + 多项目导出 ─────────────────────
+function renderPlmQtyChecks(qtyCols, headers){
+  const area=$('plmQtyChecks');
+  if(!qtyCols||!qtyCols.length){area.innerHTML='<span class="hint" style="color:#999">（未检测到用量/单耗列，加载文件后自动识别）</span>';return;}
+  let html='';
+  qtyCols.forEach(c=>{
+    const h=(headers||[]).find(h=>h.startsWith(c+':'));
+    const lbl=h?h.replace(/^[A-Z]+:/,''):c;
+    html+=`<label style="padding:2px 8px;cursor:pointer;border-radius:4px;font-size:12px;background:#e8f0fe"><input type="checkbox" class="plm-qty-cb" value="${c}" checked> ${c}:${lbl}</label>`;
+  });
+  area.innerHTML=html;
+  area.querySelectorAll('.plm-qty-cb').forEach(cb=>cb.onchange=renderPlmProjNames);
+  renderPlmProjNames();
+}
+function renderPlmProjNames(){
+  const checked=document.querySelectorAll('.plm-qty-cb:checked');
+  const area=$('plmProjNames');
+  if(!checked.length){area.innerHTML='<div class="hint" style="color:#999">请至少勾选一个用量列</div>';return;}
+  let html='<div style="margin-bottom:6px;font-weight:600;font-size:13px;color:#333">项目名称（按顺序对应勾选的用量列）：</div>';
+  checked.forEach((cb,i)=>{
+    html+=`<div class="row" style="margin-bottom:6px"><label>项目${i+1}（${cb.value}）：</label><input type="text" class="plm-proj-input" data-qty-col="${cb.value}" style="width:220px" placeholder="如 华为P70"></div>`;
+  });
+  area.innerHTML=html;
+}
 function updatePlmFromApi(d){
   if(!d.success)return;
   let opts='';d.sheets.forEach(s=>opts+=`<option${s===d.current_sheet?' selected':''}>${s}</option>`);
@@ -446,7 +469,9 @@ function updatePlmFromApi(d){
   if(d.detected){
     if(d.detected.hq_pn)$('plmColHqpn').value=d.detected.hq_pn;
     if(d.detected.supply_type)$('plmColStype').value=d.detected.supply_type;
-    if(d.detected.qty)$('plmColQty').value=d.detected.qty;
+    renderPlmQtyChecks(d.detected.qty_cols||[], d.headers||[]);
+  } else {
+    renderPlmQtyChecks(null);
   }
   $('plmDetectLog').textContent='自动识别：'+(d.headers||[]).join(' | ');
   // 列字母对照表
@@ -481,15 +506,37 @@ function initPlm(){
   $('plmRun').onclick=async function(){
     const f=$('plmFile').files[0];if(!f){alert('请选择文件');return;}
     const btn=$('plmRun');btn.disabled=true;$('plmStatus').textContent='处理中...';
-    hide($('plmResult'));hide($('plmError'));
+    hide($('plmResult'));hide($('plmError'));hide($('plmLogBox'));
+    // 收集勾选的用量列和对应的项目名称
+    const qtyCols=[],projNames=[];
+    document.querySelectorAll('.plm-qty-cb:checked').forEach(cb=>{
+      qtyCols.push(cb.value);
+      const inp=document.querySelector(`.plm-proj-input[data-qty-col="${cb.value}"]`);
+      projNames.push(inp?inp.value:'');
+    });
+    if(!qtyCols.length){$('plmError').textContent='请至少勾选一个用量列';show($('plmError'));btn.disabled=false;$('plmStatus').textContent='';return;}
     let fd=new FormData();fd.append('file',f);
     fd.append('sheet',$('plmSheet').value);fd.append('header_row',$('plmHdr').value);
     fd.append('col_hqpn',$('plmColHqpn').value);fd.append('col_stype',$('plmColStype').value);
-    fd.append('col_qty',$('plmColQty').value);fd.append('project_name',$('plmProj').value);
+    fd.append('col_qty',qtyCols.join(','));fd.append('project_names',projNames.join(','));
     try{
       const r=await fetch('/plm',{method:'POST',body:fd});
       const d=await r.json();
-      if(d.success){$('plmStats').innerHTML='写入 <b>'+d.total+'</b> 行，跳过 <b>'+d.skipped+'</b> 行（用量为空不导入）';$('plmDl').href=d.download;show($('plmResult'));$('plmStatus').textContent='完成！';if(d.skip_logs&&d.skip_logs.length){$('plmLog').textContent=d.skip_logs.join('\n');show($('plmLogBox'));}else hide($('plmLogBox'));}
+      if(d.success){
+        let stats='';
+        (d.files||[]).forEach(f=>{
+          stats+=`<div style="margin:4px 0">📄 <b>${f.project||'未命名'}</b>：写入 ${f.total} 行${f.skipped?`，跳过 ${f.skipped} 行（用量为空）`:''}</div>`;
+        });
+        $('plmStats').innerHTML=stats;
+        // 多处下载链接
+        let dlHtml='';
+        (d.files||[]).forEach(f=>{
+          dlHtml+=`<a class="download" href="${f.download}" style="margin-right:8px;display:inline-block">📥 下载 ${f.project||'PLM导入'} 文件</a> `;
+        });
+        $('plmDlArea').innerHTML=dlHtml;
+        show($('plmResult'));$('plmStatus').textContent='完成！';
+        if(d.skip_logs&&d.skip_logs.length){$('plmLog').textContent=d.skip_logs.join('\n');show($('plmLogBox'));}else hide($('plmLogBox'));
+      }
       else {$('plmError').textContent=d.error||'转换失败';show($('plmError'));$('plmStatus').textContent='';}
     }catch(e){$('plmError').textContent=e.message;show($('plmError'));}
     btn.disabled=false;
