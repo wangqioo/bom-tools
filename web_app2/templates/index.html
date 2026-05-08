@@ -3,975 +3,721 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BOM 工具集 v2.0</title>
+<title>BOM Tools · Web 版 v2</title>
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:"Microsoft YaHei",Arial,sans-serif;font-size:13px;background:#f0f2f5;color:#333}
-/* ── 顶部导航 ── */
-.navbar{background:#1a4a8a;color:#fff;padding:0 20px;display:flex;align-items:center;height:48px;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.3)}
-.navbar h1{font-size:16px;font-weight:600;margin-right:32px}
-.nav-tabs{display:flex;height:100%;list-style:none}
-.nav-tabs li a{display:flex;align-items:center;height:100%;padding:0 18px;color:rgba(255,255,255,.7);text-decoration:none;border-bottom:3px solid transparent;transition:.2s;font-size:13px}
-.nav-tabs li a:hover{color:#fff;background:rgba(255,255,255,.1)}
-.nav-tabs li a.active{color:#fff;border-bottom-color:#52c0f5;background:rgba(255,255,255,.08)}
-/* ── 主体 ── */
-.container{max-width:1100px;margin:20px auto;padding:0 16px}
-.tab-pane{display:none}.tab-pane.active{display:block}
-/* ── 卡片 ── */
-.card{background:#fff;border-radius:6px;box-shadow:0 1px 4px rgba(0,0,0,.12);margin-bottom:16px}
-.card-header{padding:12px 16px;border-bottom:1px solid #eee;font-weight:600;font-size:13px;background:#fafafa;border-radius:6px 6px 0 0;display:flex;align-items:center;gap:8px}
-.card-header .step-badge{background:#1a4a8a;color:#fff;border-radius:50%;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0}
-.card-body{padding:14px 16px}
-/* ── 表单控件 ── */
-.form-row{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px}
-.form-row label{min-width:90px;color:#555;flex-shrink:0}
-.form-row label.required::after{content:" *";color:#e00}
-input[type=text],input[type=number],select{border:1px solid #ccc;border-radius:4px;padding:5px 8px;font-size:12px;outline:none;transition:.2s}
-input[type=text]:focus,input[type=number]:focus,select:focus{border-color:#1a4a8a;box-shadow:0 0 0 2px rgba(26,74,138,.15)}
-input[type=text]{width:160px}
-input[type=number]{width:60px}
-select{width:200px}
-.file-input-wrap{display:flex;align-items:center;gap:8px}
-.file-btn{padding:5px 12px;background:#1a4a8a;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px}
-.file-btn:hover{background:#15397a}
-.file-name{color:#888;font-size:12px;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-/* ── 按钮 ── */
-.btn{padding:6px 16px;border:none;border-radius:4px;cursor:pointer;font-size:12px;font-weight:500;transition:.2s}
-.btn-primary{background:#1a4a8a;color:#fff}.btn-primary:hover{background:#15397a}
-.btn-success{background:#389e0d;color:#fff}.btn-success:hover{background:#2d7a08}
-.btn-default{background:#f5f5f5;color:#333;border:1px solid #d9d9d9}.btn-default:hover{background:#eee}
-.btn-sm{padding:3px 10px;font-size:11px}
-.btn:disabled{opacity:.5;cursor:not-allowed}
-/* ── 单选/复选 ── */
-.radio-group,.check-group{display:flex;flex-wrap:wrap;gap:12px}
-.radio-group label,.check-group label{display:flex;align-items:center;gap:4px;cursor:pointer;font-weight:normal}
-/* ── 提示 ── */
-.hint{color:#888;font-size:11px;line-height:1.5}
-.tag-info{display:inline-block;background:#e6f4ff;border:1px solid #91caff;color:#0958d9;border-radius:3px;padding:1px 6px;font-size:11px}
-.tag-ok{background:#f6ffed;border-color:#b7eb8f;color:#389e0d}
-.tag-warn{background:#fffbe6;border-color:#ffe58f;color:#d48806}
-.tag-err{background:#fff2f0;border-color:#ffccc7;color:#cf1322}
-/* ── 表格预览 ── */
-.preview-wrap{overflow-x:auto;margin-top:8px}
-.preview-table{border-collapse:collapse;font-size:11px;white-space:nowrap}
-.preview-table th{background:#e8edf5;padding:4px 10px;border:1px solid #ddd;font-weight:600;text-align:left;position:sticky;top:0}
-.preview-table td{padding:3px 10px;border:1px solid #eee}
-.preview-table tr:nth-child(even) td{background:#fafafa}
-/* ── 结果区 ── */
-.result-box{background:#f6ffed;border:1px solid #b7eb8f;border-radius:4px;padding:10px 14px;margin-top:10px}
-.result-box.err{background:#fff2f0;border-color:#ffccc7}
-.result-box .dl-link{color:#1a4a8a;font-weight:600;font-size:13px;text-decoration:none}
-.result-box .dl-link:hover{text-decoration:underline}
-/* ── 日志 ── */
-.log-box{background:#1e1e1e;color:#d4d4d4;font-size:11px;font-family:Consolas,monospace;padding:10px;border-radius:4px;max-height:160px;overflow-y:auto;line-height:1.6}
-/* ── 飞书表格配置 ── */
-.table-list{border:1px solid #ddd;border-radius:4px;overflow:hidden}
-.table-row{display:flex;align-items:stretch;border-bottom:1px solid #eee;transition:.15s}
-.table-row:last-child{border-bottom:none}
-.table-row:hover{background:#f8f9ff}
-.table-row.enabled{background:#f0f7ff}
-.table-row-head{display:flex;align-items:center;padding:8px 10px;gap:8px;flex:1;min-width:0;cursor:pointer}
-.table-row-head input[type=checkbox]{flex-shrink:0}
-.table-row-name{font-weight:500;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
-.table-row-cat{font-size:10px;color:#888;flex-shrink:0}
-.table-row-actions{display:flex;align-items:center;padding:0 8px;gap:4px;border-left:1px solid #eee}
-.table-detail{background:#f8f9ff;border-top:1px solid #e0e8ff;padding:12px 16px;display:none}
-.table-detail.open{display:block}
-.key-pair-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
-.key-pair-row label{color:#666;font-size:11px;min-width:60px}
-.fetch-cols-wrap{margin-top:8px}
-.fetch-cols-wrap .col-chip{display:inline-flex;align-items:center;background:#e6f4ff;border:1px solid #91caff;border-radius:3px;padding:2px 6px;font-size:11px;gap:4px;margin:2px}
-.fetch-cols-wrap .col-chip span{cursor:pointer;color:#999;line-height:1}.fetch-cols-wrap .col-chip span:hover{color:#cf1322}
-/* ── 加载状态 ── */
-.spinner{display:inline-block;width:14px;height:14px;border:2px solid #ccc;border-top-color:#1a4a8a;border-radius:50%;animation:spin .6s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
-.loading-mask{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:9999;align-items:center;justify-content:center;flex-direction:column;gap:12px;color:#fff;font-size:14px}
-.loading-mask.show{display:flex}
-.loading-box{background:rgba(0,0,0,.75);border-radius:8px;padding:20px 32px;text-align:center}
-/* ── 分割线 ── */
-hr{border:none;border-top:1px solid #eee;margin:12px 0}
-/* ── 折叠区 ── */
-.collapsible-header{cursor:pointer;user-select:none;display:flex;align-items:center;gap:6px}
-.collapsible-header .arrow{font-size:10px;transition:.2s;color:#888}
-.collapsible-header.open .arrow{transform:rotate(90deg)}
-.collapsible-body{display:none}.collapsible-body.open{display:block}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: -apple-system,'Segoe UI','Microsoft YaHei',sans-serif; display:flex; height:100vh; background:#f0f2f5; }
+/* === 左侧导航 === */
+.sidebar { width:200px; background:linear-gradient(180deg,#1a2942,#1a3a5c); color:#ccc; display:flex; flex-direction:column; flex-shrink:0; }
+.sidebar .logo { padding:18px 16px; font-size:15px; font-weight:700; color:#fff; border-bottom:1px solid rgba(255,255,255,.08); cursor:pointer; }
+.sidebar .logo .sub { font-size:11px; font-weight:400; color:#8ab4f8; display:block; margin-top:2px; }
+.sidebar nav { flex:1; padding:8px 0; overflow-y:auto; }
+.sidebar nav a { display:flex; align-items:center; gap:10px; padding:11px 18px; color:#b0bec5; text-decoration:none; font-size:14px; transition:all .12s; border-left:3px solid transparent; }
+.sidebar nav a:hover { background:rgba(255,255,255,.06); color:#e0e0e0; }
+.sidebar nav a.active { background:rgba(45,108,223,.25); color:#fff; border-left-color:#4a9eff; font-weight:600; }
+.sidebar nav a .icon { font-size:18px; width:24px; text-align:center; }
+/* === 主内容 === */
+.main { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+.toolbar { background:#fff; padding:10px 20px; border-bottom:1px solid #e0e0e0; display:flex; align-items:center; gap:12px; }
+.toolbar h2 { font-size:18px; color:#1a3a5c; }
+.toolbar .badge { background:#e8f0fe; color:#1a5ad4; padding:3px 10px; border-radius:10px; font-size:11px; }
+.content { flex:1; overflow-y:auto; padding:16px 20px; }
+/* === 通用组件 === */
+.section { background:#fff; border-radius:10px; padding:16px 20px; margin-bottom:12px; box-shadow:0 1px 4px rgba(0,0,0,.06); }
+.section h3 { font-size:14px; color:#1a3a5c; margin-bottom:10px; padding-bottom:6px; border-bottom:2px solid #e8f0fe; }
+.row { display:flex; gap:10px; align-items:center; margin-bottom:10px; flex-wrap:wrap; }
+.row label { font-weight:600; font-size:13px; min-width:65px; color:#444; white-space:nowrap; }
+.row .hint { font-size:11px; color:#999; margin-left:4px; }
+input[type="text"],input[type="number"],select { padding:7px 10px; border:1px solid #c8ccd0; border-radius:6px; font-size:13px; outline:none; }
+input[type="text"]:focus,input[type="number"]:focus,select:focus { border-color:#4a9eff; box-shadow:0 0 0 2px rgba(74,158,255,.12); }
+input[type="file"] { font-size:13px; }
+.btn { padding:8px 18px; border:none; border-radius:6px; font-size:13px; font-weight:600; cursor:pointer; transition:all .12s; }
+.btn-primary { background:#2d6cdf; color:#fff; }
+.btn-primary:hover { background:#1a5ad4; }
+.btn-primary:disabled { background:#a0bce8; cursor:not-allowed; }
+.btn-outline { background:#fff; color:#2d6cdf; border:1px solid #2d6cdf; }
+.btn-outline:hover { background:#e8f0fe; }
+.btn-sm { padding:4px 12px; font-size:12px; }
+.btn-gray { background:#f0f2f5; color:#555; border:1px solid #d0d5dd; }
+.btn-gray:hover { background:#e0e4e8; }
+.btn-green { background:#2a8a2a; color:#fff; }
+.btn-green:hover { background:#227322; }
+/* === 结果区 === */
+.result { display:none; background:#f0fdf0; border:1px solid #a3d9a3; border-radius:8px; padding:14px 18px; margin-top:12px; }
+.result.show { display:block; }
+.result .title { color:#2a8a2a; font-weight:700; font-size:14px; }
+.result .download { display:inline-block; margin-top:8px; background:#2a8a2a; color:#fff; padding:8px 18px; border-radius:6px; text-decoration:none; font-weight:600; font-size:13px; }
+.result .download:hover { background:#227322; }
+.error { display:none; background:#fff0f0; color:#c00000; padding:12px 16px; border-radius:8px; margin-top:12px; border:1px solid #f0c0c0; }
+.error.show { display:block; }
+/* === 表格 === */
+table { width:100%; border-collapse:collapse; font-size:12px; margin-top:8px; }
+th { background:#f0f2f5; padding:8px 6px; text-align:left; font-weight:600; border-bottom:2px solid #d0d5dd; position:sticky; top:0; white-space:nowrap; }
+td { padding:7px 6px; border-bottom:1px solid #e8eaed; white-space:nowrap; }
+tr:hover td { background:#f7f9fc; }
+.table-wrap { max-height:320px; overflow:auto; border:1px solid #e0e0e0; border-radius:6px; }
+/* === Tab 切换 === */
+.tabs { display:flex; gap:0; border-bottom:2px solid #d0d5dd; margin-bottom:16px; }
+.tab-btn { padding:8px 20px; background:#f5f7fa; border:1px solid #d0d5dd; border-bottom:none; border-radius:6px 6px 0 0; cursor:pointer; font-size:14px; font-weight:500; color:#666; margin-bottom:-2px; position:relative; }
+.tab-btn.active { background:#fff; color:#1a5ad4; border-color:#1a5ad4; }
+.tab-btn:hover { background:#eef2f7; }
+.tab-content { display:none; }
+.tab-content.active { display:block; }
+/* === 树形列表（飞书表格库） === */
+.tree-list { border:1px solid #e0e0e0; border-radius:6px; max-height:420px; overflow-y:auto; background:#fff; }
+.tree-item { display:flex; align-items:center; padding:7px 12px; cursor:pointer; font-size:13px; border-bottom:1px solid #f0f0f0; gap:8px; }
+.tree-item:hover { background:#f7f9fc; }
+.tree-item.selected { background:#e8f0fe; color:#1a5ad4; font-weight:600; }
+.tree-item .indent { width:16px; flex-shrink:0; }
+.tree-cat { font-weight:700; font-size:12px; color:#1a5fa8; padding:6px 12px; background:#f0f5fd; border-bottom:1px solid #d0ddf0; cursor:default; }
+.tree-cat.alt { color:#7a3a9a; background:#f8f0ff; border-bottom-color:#e0d0f0; }
+.badge-sm { display:inline-block; padding:1px 8px; border-radius:8px; font-size:10px; font-weight:600; }
+.badge-green { background:#e8f5e9; color:#2a8a2a; }
+.badge-orange { background:#fff3e0; color:#e07000; }
+.badge-gray { background:#f0f0f0; color:#888; }
+.badge-blue { background:#e8f0fe; color:#2d6cdf; }
+/* === checkbox list === */
+.chk-list { display:flex; flex-wrap:wrap; gap:3px; max-height:160px; overflow-y:auto; padding:6px; border:1px solid #e0e0e0; border-radius:6px; }
+.chk-list label { display:inline-flex; align-items:center; gap:3px; padding:2px 8px; font-size:12px; cursor:pointer; border-radius:4px; white-space:nowrap; }
+.chk-list label:hover { background:#f0f2f5; }
+/* === 详情面板 === */
+.detail-panel { background:#fafbfc; border:1px solid #e0e0e0; border-radius:6px; padding:14px; font-size:13px; }
+.detail-panel h4 { font-size:14px; margin-bottom:8px; }
+/* === 概览卡片 === */
+.overview-grid { display:grid; grid-template-columns:1fr; gap:12px; animation:fadeIn .25s ease; }
+@keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+.overview-card { display:flex; align-items:flex-start; gap:18px; background:#fff; border-radius:12px; padding:20px 22px; box-shadow:0 1px 4px rgba(0,0,0,.06); cursor:pointer; transition:all .15s; border:1px solid transparent; }
+.overview-card:hover { box-shadow:0 4px 16px rgba(0,0,0,.1); border-color:#4a9eff; transform:translateY(-1px); }
+.overview-card .oc-icon { font-size:36px; width:44px; text-align:center; flex-shrink:0; margin-top:2px; }
+.overview-card .oc-body { flex:1; min-width:0; }
+.overview-card .oc-title { font-size:16px; font-weight:700; color:#1a3a5c; margin-bottom:6px; }
+.overview-card .oc-badge { display:inline-block; font-size:11px; font-weight:600; background:#e8f0fe; color:#1a5ad4; padding:1px 8px; border-radius:8px; vertical-align:middle; margin-left:6px; }
+.overview-card .oc-desc { font-size:13px; color:#666; line-height:1.6; }
+/* === 加载遮罩 === */
+.spinner { display:inline-block; animation:spin .8s linear infinite; }
+@keyframes spin { 100% { transform:rotate(360deg); } }
 </style>
 </head>
 <body>
 
-<div class="loading-mask" id="loadingMask">
-  <div class="loading-box">
-    <div class="spinner" style="width:28px;height:28px;border-width:3px;margin:0 auto 10px"></div>
-    <div id="loadingText">处理中，请稍候...</div>
+<!-- ===== 左侧导航 ===== -->
+<aside class="sidebar">
+  <div class="logo" onclick="showOverview()">🛠 BOM Tools<span class="sub">硬件设计辅助平台 v2</span></div>
+  <nav>
+    <a href="#" data-tool="bom"><span class="icon">📋</span>BOM 格式转换</a>
+    <a href="#" data-tool="feishu"><span class="icon">🔍</span>飞书优选库+关系库匹配</a>
+    <a href="#" data-tool="plm"><span class="icon">📤</span>转换为上传PLM系统格式</a>
+  </nav>
+</aside>
+
+<!-- ===== 主内容区 ===== -->
+<div class="main">
+  <div class="toolbar">
+    <h2 id="toolTitle">BOM Tools</h2>
+    <span class="badge" id="toolBadge">硬件设计辅助平台</span>
   </div>
+  <div class="content" id="contentArea"></div>
 </div>
 
-<nav class="navbar">
-  <h1>BOM 工具集 v2.0</h1>
-  <ul class="nav-tabs">
-    <li><a href="#" class="active" onclick="switchTab('bom',this);return false">BOM 转换</a></li>
-    <li><a href="#" onclick="switchTab('feishu',this);return false">飞书多表格匹配</a></li>
-    <li><a href="#" onclick="switchTab('plm',this);return false">PLM 上传</a></li>
-  </ul>
-</nav>
+<!-- ===== 隐藏模板 ===== -->
 
-<div class="container">
+<!-- ── BOM 工具 ── -->
+<script type="text/html" id="tpl-bom">
+<div class="section"><h3>第一步：选择文件</h3>
+  <div class="row"><label>文件路径：</label><input type="file" id="bomFile" accept=".xlsx,.xlsm,.xls" style="width:320px"><button class="btn btn-outline btn-sm" id="bomBrowse">浏览...</button></div>
+  <div class="row"><label>Sheet：</label><select id="bomSheet" style="width:180px"><option>先选择文件</option></select><label>表头行：</label><input type="number" id="bomHdr" value="1" min="1" style="width:60px"><button class="btn btn-sm btn-gray" id="bomRefresh">刷新预览</button></div>
+  <div id="bomPreview" class="table-wrap" style="margin-top:8px"></div>
+</div>
+<div class="section"><h3>第二步：列映射（自动识别，可手动调整）</h3>
+  <div class="row">
+    <label>格式：</label>
+    <select id="bomFmt">
+      <option value="A">格式A — 品牌型号合并列（|| 或空格分隔，如 MURATA:GRM188||SAMSUNG:CL10）</option>
+      <option value="B">格式B — 厂家/型号分开列，分号分隔（如 YAGEO;KOA / RC0805;RK73）</option>
+      <option value="C">格式C — 制造商含编号，冒号分隔（如 1630-大毅科技[全称]:0362-RALEC[全称]）</option>
+    </select>
+  </div>
+  <div class="row">
+    <label>物料名称列：</label><input type="text" id="bomColName" style="width:80px" placeholder="如 C">
+    <label>用量列：</label><input type="text" id="bomColQty" style="width:80px" placeholder="如 D">
+    <label>品牌/厂家列：</label><input type="text" id="bomColBrand" style="width:80px" placeholder="如 E">
+    <label>型号列：</label><input type="text" id="bomColModel" style="width:80px" placeholder="如 F">
+    <span class="hint">（填写列字母，格式A无需填型号列）</span>
+  </div>
+  <div id="bomDetected" style="font-size:12px;color:#555;background:#f7f9fc;padding:8px;border-radius:6px;margin-top:4px"></div>
+</div>
+<div class="section"><h3>第三步：输出设置</h3>
+  <div class="row">
+    <label>输出模式：</label>
+    <select id="bomOutputMode">
+      <option value="expand">原格式展开（保留原列，供应商拆多行，新增厂商/型号/是否独供列）</option>
+      <option value="hq">HQ 整机BOM配置表（绿色表头，含序号/HQ PN/厂商型号/主二供/用量）</option>
+    </select>
+  </div>
+  <div class="row" id="bomProjRow" style="display:none"><label>项目名称：</label><input type="text" id="bomProjName" style="width:240px" placeholder="写入BOM表头（可留空）"></div>
+  <button class="btn btn-primary" id="bomRun">⚡ 开始转换</button> <span id="bomStatus" style="font-size:13px;color:#888"></span>
+</div>
+<div class="result" id="bomResult"><span class="title">✅ 转换完成</span><br><span id="bomStats" style="display:inline-block;margin-top:6px"></span><br><a class="download" id="bomDl" href="#">📥 下载结果文件</a></div>
+<div class="error" id="bomError"></div>
+</script>
 
-<!-- ═══════════════════════════════════════════════════════
-     TAB 1: BOM 转换
-════════════════════════════════════════════════════════ -->
-<div id="tab-bom" class="tab-pane active">
+<!-- ── PLM 工具 ── -->
+<script type="text/html" id="tpl-plm">
+<div class="section"><h3>第一步：选择整机BOM配置表</h3>
+  <div class="row"><label>文件路径：</label><input type="file" id="plmFile" accept=".xlsx,.xlsm,.xls" style="width:320px"><button class="btn btn-outline btn-sm" id="plmBrowse">浏览...</button></div>
+  <div class="row"><label>Sheet：</label><select id="plmSheet" style="width:180px"><option>先选择文件</option></select><label>表头行：</label><input type="text" id="plmHdr" value="4" style="width:50px"><button class="btn btn-sm btn-gray" id="plmRefresh">加载 / 刷新</button></div>
+</div>
+<div class="section"><h3>第二步：列映射（自动识别，可手动填列字母覆盖）</h3>
+  <div id="plmDetectLog" style="font-size:12px;color:#555;background:#f7f9fc;padding:8px;border-radius:6px;margin-bottom:8px"></div>
+  <div id="plmColMap" class="table-wrap" style="margin-bottom:10px;max-height:200px"></div>
+  <div class="row">
+    <label>HQ PN 列：</label><input type="text" id="plmColHqpn" style="width:60px" placeholder="如 E">
+    <label>主二供列：</label><input type="text" id="plmColStype" style="width:60px" placeholder="如 I">
+    <label>用量列：</label><input type="text" id="plmColQty" style="width:60px" placeholder="如 K">
+  </div>
+</div>
+<div class="section"><h3>第三步：输出设置</h3>
+  <div class="row"><label>项目配置名：</label><input type="text" id="plmProjName" style="width:240px" placeholder="写入PLM文件头部（可留空）"></div>
+  <button class="btn btn-primary" id="plmRun">⚡ 开始转换</button> <span id="plmStatus" style="font-size:13px;color:#888"></span>
+</div>
+<div class="result" id="plmResult"><span class="title">✅ 转换完成</span><br><span id="plmStats" style="display:inline-block;margin-top:6px"></span><br><a class="download" id="plmDl" href="#">📥 下载 PLM 导入文件</a></div>
+<div class="error" id="plmError"></div>
+<div id="plmLogBox" style="display:none;margin-top:10px"><h4 style="margin:0 0 6px;font-size:13px">📋 处理日志</h4><pre id="plmLog" style="font-size:12px;background:#1a1a2e;color:#e0e0e0;padding:10px;border-radius:6px;max-height:200px;overflow:auto;white-space:pre-wrap;font-family:Consolas,'Courier New',monospace"></pre></div>
+</script>
 
-  <!-- Step 1: 文件上传 -->
-  <div class="card">
-    <div class="card-header"><span class="step-badge">1</span>选择客户 BOM 文件</div>
-    <div class="card-body">
-      <div class="form-row">
-        <label>Excel 文件：</label>
-        <div class="file-input-wrap">
-          <button class="file-btn" onclick="triggerFile('bomFile')">选择文件...</button>
-          <span class="file-name" id="bomFileName">未选择文件</span>
-          <input type="file" id="bomFile" accept=".xlsx,.xls" style="display:none" onchange="bomFileChanged()">
-        </div>
-      </div>
-      <div class="form-row" id="bomSheetRow" style="display:none">
-        <label>Sheet：</label>
-        <select id="bomSheet" onchange="bomRedetect()"></select>
-        <label style="min-width:60px">表头行：</label>
-        <input type="number" id="bomHdrRow" value="1" min="1" max="30" onchange="bomRedetect()">
-        <button class="btn btn-default btn-sm" onclick="bomRedetect()">重新扫描</button>
-      </div>
-      <div id="bomPreviewWrap" style="display:none">
-        <div class="hint" style="margin-bottom:4px">文件预览（前5行）</div>
-        <div class="preview-wrap"><table class="preview-table" id="bomPreviewTable"></table></div>
-      </div>
+<!-- ── 飞书工具 ── -->
+<script type="text/html" id="tpl-feishu">
+<div class="section"><h3>网关设置</h3>
+  <div class="row">
+    <label>网关地址：</label><input type="text" id="fsBaseUrl" value="https://mcenter.huaqin.com" style="width:260px">
+    <label>Origin：</label><input type="text" id="fsOrigin" value="cli_a96ac38049f8d0e5" style="width:200px">
+    <label>工号：</label><input type="text" id="fsUserId" value="" style="width:110px" placeholder="如 100448405">
+  </div>
+</div>
+<div class="section"><h3>本地 BOM 文件</h3>
+  <div class="row">
+    <label>文件路径：</label><input type="file" id="fsFile" accept=".xlsx,.xlsm,.xls" style="width:300px">
+    <label>Sheet：</label><select id="fsSheet" style="width:180px"><option>先选择文件</option></select>
+    <span class="hint">（一次只能匹配一个 Sheet）</span>
+    <label>表头行：</label><input type="number" id="fsHdr" value="1" min="1" style="width:60px">
+  </div>
+</div>
+<div class="section"><h3>表格库</h3>
+  <div class="row">
+    <button class="btn btn-sm btn-gray" id="fsReloadTables">⟳ 刷新表格列表</button>
+    <span id="fsReloadHint" class="hint"></span>
+    <button class="btn btn-sm btn-gray" id="fsBatchUpdate" style="margin-left:8px">⟳ 一键更新全部表格数据</button>
+    <span id="fsBatchHint" class="hint"></span>
+  </div>
+  <div style="display:flex;gap:12px">
+    <div style="width:240px;flex-shrink:0">
+      <div class="tree-list" id="fsTreeList"></div>
+    </div>
+    <div class="detail-panel" style="flex:1" id="fsDetail">
+      <span style="color:#888">← 点击左侧表格查看详情</span>
     </div>
   </div>
-
-  <!-- Step 2: 列映射 -->
-  <div class="card" id="bomStep2" style="display:none">
-    <div class="card-header"><span class="step-badge">2</span>列映射配置</div>
-    <div class="card-body">
-      <div class="form-row">
-        <label>品牌型号格式：</label>
-        <div class="radio-group">
-          <label><input type="radio" name="bomFmt" value="auto" checked onchange="bomFmtChanged()"> 自动识别</label>
-          <label><input type="radio" name="bomFmt" value="A" onchange="bomFmtChanged()"> 格式A（合并列：MURATA:GRM188||SAMSUNG:CL10）</label>
-          <label><input type="radio" name="bomFmt" value="B" onchange="bomFmtChanged()"> 格式B（分开列，分号：YAGEO;KOA / RC0805;RK73）</label>
-          <label><input type="radio" name="bomFmt" value="C" onchange="bomFmtChanged()"> 格式C（分开列，含编号：1630-大毅科技[全称]:0362-RALEC[全称]）</label>
-        </div>
-      </div>
-      <hr>
-      <div class="form-row">
-        <label>物料名称列：</label>
-        <input type="text" id="bomColName" placeholder="如 C" style="width:60px">
-        <span class="hint">物料品名/描述</span>
-      </div>
-      <div class="form-row">
-        <label>用量列：</label>
-        <input type="text" id="bomColQty" placeholder="如 D" style="width:60px">
-        <span class="hint">用量/数量</span>
-      </div>
-      <div class="form-row">
-        <label class="required">品牌/厂家列：</label>
-        <input type="text" id="bomColBrand" placeholder="如 E" style="width:60px">
-        <span class="hint" id="bomColBrandHint">格式A=品牌型号合并列；格式B=厂家列（分号）；格式C=制造商列（含编号）</span>
-      </div>
-      <div class="form-row" id="bomColModelRow">
-        <label>型号列：</label>
-        <input type="text" id="bomColModel" placeholder="如 F" style="width:60px">
-        <span class="hint">格式B/C 需填写；格式A 无需填写</span>
-      </div>
-      <hr>
-      <div class="hint" id="bomDetectInfo" style="background:#f0f7ff;border:1px solid #bde0ff;border-radius:4px;padding:8px;display:none"></div>
-    </div>
+</div>
+<div class="section"><h3>列映射</h3>
+  <div class="row"><label>配置表格：</label><select id="fsMapTable" style="width:220px"><option>请先在表格库加载数据</option></select><button class="btn btn-sm btn-gray" id="fsMapRefresh" style="margin-left:4px">刷新</button></div>
+  <div class="section" style="background:#fafbfc;margin-bottom:0"><h3>匹配键（AND 逻辑，第1对必填）</h3>
+    <div class="row"><label style="color:#c00000">第1对：</label>本地 <input type="text" id="fsLk1" style="width:160px" placeholder="本地列名"> ↔ 飞书 <input type="text" id="fsFk1" style="width:160px" placeholder="飞书列名"></div>
+    <div class="row"><label>第2对：</label>本地 <input type="text" id="fsLk2" style="width:160px" placeholder="可选"> ↔ 飞书 <input type="text" id="fsFk2" style="width:160px" placeholder="可选"> <button class="btn btn-sm btn-gray" id="fsClear2">清除</button></div>
+    <div class="row"><label>第3对：</label>本地 <input type="text" id="fsLk3" style="width:160px" placeholder="可选"> ↔ 飞书 <input type="text" id="fsFk3" style="width:160px" placeholder="可选"> <button class="btn btn-sm btn-gray" id="fsClear3">清除</button></div>
   </div>
-
-  <!-- Step 3: 输出设置 -->
-  <div class="card" id="bomStep3" style="display:none">
-    <div class="card-header"><span class="step-badge">3</span>输出设置</div>
-    <div class="card-body">
-      <div class="form-row">
-        <label>输出模式：</label>
-        <div class="radio-group">
-          <label><input type="radio" name="bomMode" value="expand" checked> 原格式展开（保留原列，供应商拆多行，新增厂商/型号/是否独供列）</label>
-          <label><input type="radio" name="bomMode" value="hq"> HQ 整机BOM配置表（绿色表头，含序号/HQ PN/厂商型号/主二供/用量）</label>
-        </div>
-      </div>
-      <div class="form-row" id="bomProjRow">
-        <label>项目名称：</label>
-        <input type="text" id="bomProjName" placeholder="如 华为Mate70" style="width:220px">
-        <span class="hint">（HQ格式时写入表头，展开格式可留空）</span>
-      </div>
-      <div style="margin-top:12px">
-        <button class="btn btn-success" id="bomRunBtn" onclick="bomConvert()">开始转换</button>
-        <span id="bomRunHint" class="hint" style="margin-left:10px"></span>
-      </div>
-      <div id="bomResult" style="display:none"></div>
-    </div>
-  </div>
-
-</div><!-- /tab-bom -->
-
-
-<!-- ═══════════════════════════════════════════════════════
-     TAB 2: 飞书多表格匹配
-════════════════════════════════════════════════════════ -->
-<div id="tab-feishu" class="tab-pane">
-
-  <!-- 网关设置 -->
-  <div class="card">
-    <div class="card-header">
-      <span class="collapsible-header open" id="gwColHdr" onclick="toggleCollapse('gwCol','gwColHdr')">
-        <span class="arrow">▶</span>网关设置
-      </span>
-    </div>
-    <div class="card-body collapsible-body open" id="gwCol">
-      <div class="form-row">
-        <label>网关地址：</label>
-        <input type="text" id="fsBaseUrl" value="https://mcenter.huaqin.com" style="width:260px">
-      </div>
-      <div class="form-row">
-        <label>Origin：</label>
-        <input type="text" id="fsOrigin" value="cli_a96ac38049f8d0e5" style="width:200px">
-        <label style="min-width:50px;margin-left:16px">工号：</label>
-        <input type="text" id="fsUserId" value="" style="width:120px" placeholder="请填写工号">
-      </div>
-      <div class="hint">工号为华勤内部员工编号（如 100448405），用于访问飞书内部 API 网关。</div>
-    </div>
-  </div>
-
-  <!-- 本地文件 -->
-  <div class="card">
-    <div class="card-header"><span class="step-badge">1</span>本地 Excel 文件（待匹配数据）</div>
-    <div class="card-body">
-      <div class="form-row">
-        <label>Excel 文件：</label>
-        <div class="file-input-wrap">
-          <button class="file-btn" onclick="triggerFile('fsLocalFile')">选择文件...</button>
-          <span class="file-name" id="fsLocalFileName">未选择文件</span>
-          <input type="file" id="fsLocalFile" accept=".xlsx,.xls" style="display:none" onchange="fsLocalFileChanged()">
-        </div>
-      </div>
-      <div class="form-row" id="fsSheetRow" style="display:none">
-        <label>Sheet：</label>
-        <select id="fsSheet" onchange="fsLocalSheetChanged()"></select>
-        <label style="min-width:60px">表头行：</label>
-        <input type="number" id="fsHdrRow" value="1" min="1" max="30" onchange="fsLocalSheetChanged()">
-      </div>
-      <div id="fsLocalPreviewWrap" style="display:none">
-        <div class="hint" style="margin-bottom:4px">表头预览</div>
-        <div id="fsLocalHeadersDisplay" style="margin-top:4px"></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- 表格库 -->
-  <div class="card">
-    <div class="card-header"><span class="step-badge">2</span>飞书表格库（启用参与匹配的表格并配置匹配键）</div>
-    <div class="card-body">
-      <div style="margin-bottom:8px;display:flex;gap:8px;align-items:center">
-        <button class="btn btn-default btn-sm" onclick="fsSelectAll(true)">全部启用</button>
-        <button class="btn btn-default btn-sm" onclick="fsSelectAll(false)">全部禁用</button>
-        <span class="hint">启用的表格将在匹配时依次尝试，第一个命中为准。</span>
-      </div>
-      <div class="table-list" id="fsTableList">
-        <!-- 由 JS 渲染 -->
-      </div>
-    </div>
-  </div>
-
-  <!-- 运行 -->
-  <div class="card">
-    <div class="card-header"><span class="step-badge">3</span>运行匹配</div>
-    <div class="card-body">
-      <p class="hint" style="margin-bottom:10px">匹配时将实时从飞书拉取数据，请确保已连接华勤内网。大表格可能需要1-2分钟。</p>
-      <button class="btn btn-success" id="fsRunBtn" onclick="fsRun()">开始匹配</button>
-      <span id="fsRunHint" class="hint" style="margin-left:10px"></span>
-      <div id="fsResult" style="display:none;margin-top:10px"></div>
-      <div id="fsLog" class="log-box" style="display:none;margin-top:10px"></div>
-    </div>
-  </div>
-
-</div><!-- /tab-feishu -->
-
-
-<!-- ═══════════════════════════════════════════════════════
-     TAB 3: PLM 上传
-════════════════════════════════════════════════════════ -->
-<div id="tab-plm" class="tab-pane">
-
-  <!-- Step 1: 文件上传 -->
-  <div class="card">
-    <div class="card-header"><span class="step-badge">1</span>选择整机 BOM 配置表</div>
-    <div class="card-body">
-      <div class="form-row">
-        <label>Excel 文件：</label>
-        <div class="file-input-wrap">
-          <button class="file-btn" onclick="triggerFile('plmFile')">选择文件...</button>
-          <span class="file-name" id="plmFileName">未选择文件</span>
-          <input type="file" id="plmFile" accept=".xlsx,.xls" style="display:none" onchange="plmFileChanged()">
-        </div>
-      </div>
-      <div class="form-row" id="plmSheetRow" style="display:none">
-        <label>Sheet：</label>
-        <select id="plmSheet" onchange="plmRedetect()"></select>
-        <label style="min-width:60px">表头行：</label>
-        <input type="number" id="plmHdrRow" value="4" min="1" max="30" onchange="plmRedetect()">
-        <button class="btn btn-default btn-sm" onclick="plmRedetect()">重新识别</button>
-      </div>
-      <div id="plmDetectLog" class="hint" style="margin-top:6px;display:none"></div>
-    </div>
-  </div>
-
-  <!-- Step 2: 列映射 -->
-  <div class="card" id="plmStep2" style="display:none">
-    <div class="card-header"><span class="step-badge">2</span>列映射（自动识别，可手动填写列字母覆盖）</div>
-    <div class="card-body">
-      <div class="hint" style="margin-bottom:8px" id="plmHeadersHint"></div>
-      <div class="form-row">
-        <label class="required">HQ PN 列：</label>
-        <input type="text" id="plmColHqpn" placeholder="如 E" style="width:60px">
-        <label style="min-width:70px;margin-left:16px" class="required">主二供列：</label>
-        <input type="text" id="plmColStype" placeholder="如 I" style="width:60px">
-        <label style="min-width:60px;margin-left:16px" class="required">用量列：</label>
-        <input type="text" id="plmColQty" placeholder="如 K" style="width:60px">
-      </div>
-    </div>
-  </div>
-
-  <!-- Step 3: 输出 -->
-  <div class="card" id="plmStep3" style="display:none">
-    <div class="card-header"><span class="step-badge">3</span>输出设置</div>
-    <div class="card-body">
-      <div class="form-row">
-        <label>项目配置名：</label>
-        <input type="text" id="plmProjName" placeholder="可留空" style="width:220px">
-        <span class="hint">（写入 PLM 文件头部第一行）</span>
-      </div>
-      <div style="margin-top:12px">
-        <button class="btn btn-success" id="plmRunBtn" onclick="plmConvert()">开始转换</button>
-        <span id="plmRunHint" class="hint" style="margin-left:10px"></span>
-      </div>
-      <div id="plmResult" style="display:none;margin-top:10px"></div>
-      <div id="plmLog" class="log-box" style="display:none;margin-top:8px"></div>
-    </div>
-  </div>
-
-</div><!-- /tab-plm -->
-
-</div><!-- /container -->
+  <div style="margin-top:10px"><b>要提取的列：</b> <button class="btn btn-sm btn-gray" id="fsSelAll">全选</button> <button class="btn btn-sm btn-gray" id="fsSelNone">全不选</button></div>
+  <div class="chk-list" id="fsChkList" style="margin-top:6px"></div>
+  <button class="btn btn-sm btn-primary" id="fsSaveMap" style="margin-top:8px">保存此表格列映射配置</button> <span id="fsSaveHint" class="hint"></span>
+  <div id="fsMapWarn" style="color:#c00000;font-size:12px;margin-top:4px"></div>
+</div>
+<div class="section"><h3>运行匹配</h3>
+  <div id="fsRunStatus" style="font-size:12px;color:#888;margin-bottom:8px"></div>
+  <button class="btn btn-primary" id="fsRun">⚡ 开始匹配</button>
+  <span id="fsRunStatus2" style="font-size:13px;color:#888;margin-left:8px"></span>
+</div>
+<div class="result" id="fsResult"><span class="title">✅ 匹配完成</span><br><span id="fsStats" style="display:inline-block;margin-top:6px"></span><br><a class="download" id="fsDl" href="#">📥 下载匹配结果</a></div>
+<div class="error" id="fsError"></div>
+<div id="fsLogBox" style="display:none;margin-top:10px"><h4 style="margin:0 0 6px;font-size:13px">📋 处理日志</h4><pre id="fsLog" style="font-size:12px;background:#1a1a2e;color:#e0e0e0;padding:10px;border-radius:6px;max-height:200px;overflow:auto;white-space:pre-wrap;font-family:Consolas,'Courier New',monospace"></pre></div>
+</script>
 
 <script>
-// ══════════════════════════════════════════════════════
-//  通用工具
-// ══════════════════════════════════════════════════════
-function $(id){return document.getElementById(id)}
-function switchTab(name,el){
-  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
-  document.querySelectorAll('.nav-tabs a').forEach(a=>a.classList.remove('active'));
-  $('tab-'+name).classList.add('active');
-  el.classList.add('active');
-}
-function triggerFile(id){$(id).value='';$(id).click()}
-function loading(show,text){
-  $('loadingMask').classList.toggle('show',show);
-  if(text)$('loadingText').textContent=text;
-}
-function toggleCollapse(bodyId,headId){
-  $('gwCol').classList.toggle('open');
-  $('gwColHdr').classList.toggle('open');
-}
-function buildPreviewTable(headers,rows){
-  let html='<thead><tr>'+headers.map(h=>`<th>${esc(h)}</th>`).join('')+'</tr></thead><tbody>';
-  rows.forEach(r=>{html+='<tr>'+r.map(v=>`<td>${esc(v)}</td>`).join('')+'</tr>';});
-  return html+'</tbody>';
-}
-function esc(s){
-  if(s==null)return'';
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-async function post(url,fd){
-  const r=await fetch(url,{method:'POST',body:fd});
-  return r.json();
-}
+// ═══════════════════ 通用函数 ═══════════════════
+function $(id){return document.getElementById(id);}
+function show(el){el.style.display='block';}
+function hide(el){el.style.display='none';}
 
-// ══════════════════════════════════════════════════════
-//  BOM 转换
-// ══════════════════════════════════════════════════════
-var _bomFile=null;
+// ═══════════════════ 左侧导航切换 ═══════════════════
+const TOOLS = {
+  bom:    {title:'BOM 格式转换',        badge:'v5.10', tpl:'tpl-bom',
+           desc:'将客户提供的多种格式 BOM 表自动识别列映射，支持品牌型号合并列/分开列（格式A/B/C），展开为多供应商独立行，或输出 HQ 标准整机BOM配置表。'},
+  feishu: {title:'飞书优选库+关系库匹配', badge:'v3.0',  tpl:'tpl-feishu',
+           desc:'连接飞书内部 API 网关，支持 15 个预置库（优选库 + 对应关系库），多键 AND 匹配（最多 3 对），批量提取字段，输出含来源表格的匹配结果。'},
+  plm:    {title:'转换为上传PLM系统格式', badge:'v1.6',  tpl:'tpl-plm',
+           desc:'将整机 BOM 配置表转换为 PLM 系统可导入的标准格式：序号、料号、单耗等25列，主供行填单耗，替代料自动标记主辅BOM标记。'},
+};
+let curTool = null;
 
-function bomFileChanged(){
-  const f=$('bomFile').files[0];
-  if(!f)return;
-  _bomFile=f;
-  $('bomFileName').textContent=f.name;
-  bomDetect();
-}
-
-async function bomDetect(){
-  if(!_bomFile)return;
-  loading(true,'读取文件中...');
-  const fd=new FormData();
-  fd.append('file',_bomFile);
-  fd.append('sheet_name',$('bomSheet').value||'');
-  fd.append('header_row',$('bomHdrRow').value||1);
-  const d=await post('/api/bom/detect',fd);
-  loading(false);
-  if(!d.success){alert('读取失败：'+d.error);return;}
-
-  // Sheets
-  const sel=$('bomSheet');
-  sel.innerHTML=d.sheets.map(s=>`<option${s===d.current_sheet?' selected':''}>${esc(s)}</option>`).join('');
-  $('bomSheetRow').style.display='flex';
-
-  // Preview
-  $('bomPreviewTable').innerHTML=buildPreviewTable(d.headers,d.preview);
-  $('bomPreviewWrap').style.display='block';
-
-  // Auto-detect columns
-  if(d.detected.name) $('bomColName').value=d.detected.name;
-  if(d.detected.qty)  $('bomColQty').value=d.detected.qty;
-  if(d.detected.brand)$('bomColBrand').value=d.detected.brand;
-  if(d.detected.model)$('bomColModel').value=d.detected.model;
-
-  // Format guess
-  const fmtGuess=d.fmt_guess||'A';
-  document.querySelectorAll('input[name=bomFmt]').forEach(r=>{
-    r.checked=(r.value===fmtGuess||(r.value==='auto'&&fmtGuess==='A'));
-  });
-
-  // Show detect info
-  const info=$('bomDetectInfo');
-  let lines=[];
-  if(d.detected.brand)lines.push(`品牌/厂家列：<b>${d.detected.brand}</b>`);
-  if(d.detected.model)lines.push(`型号列：<b>${d.detected.model}</b>`);
-  if(d.detected.qty)  lines.push(`用量列：<b>${d.detected.qty}</b>`);
-  if(d.detected.name) lines.push(`名称列：<b>${d.detected.name}</b>`);
-  lines.push(`推测格式：<b>${fmtGuess}</b>`);
-  info.innerHTML='自动识别结果：'+lines.join('　');
-  info.style.display='block';
-
-  $('bomStep2').style.display='block';
-  $('bomStep3').style.display='block';
-}
-
-function bomRedetect(){bomDetect();}
-
-function bomFmtChanged(){
-  const fmt=document.querySelector('input[name=bomFmt]:checked').value;
-  $('bomColBrandHint').textContent=
-    fmt==='B'?'格式B：厂家列（分号分隔，如 YAGEO;KOA）':
-    fmt==='C'?'格式C：制造商列（含编号，如 1630-大毅科技[全称]）':
-    '格式A：品牌型号合并列（如 MURATA:GRM188||SAMSUNG:CL10）';
-}
-
-async function bomConvert(){
-  if(!_bomFile){alert('请先选择文件');return;}
-  const colBrand=$('bomColBrand').value.trim();
-  if(!colBrand){alert('请填写品牌/厂家列');return;}
-
-  let fmt=document.querySelector('input[name=bomFmt]:checked').value;
-  if(fmt==='auto'){
-    // Determine from detected
-    const b=$('bomColBrand').value.trim();
-    const m=$('bomColModel').value.trim();
-    fmt=m?'B':'A';
+function showOverview(){
+  curTool = null;
+  document.querySelectorAll('.sidebar nav a').forEach(x=>x.classList.remove('active'));
+  $('toolTitle').textContent = 'BOM Tools';
+  $('toolBadge').textContent = '硬件设计辅助平台';
+  let html = '<div class="overview-grid">';
+  for(const [key, t] of Object.entries(TOOLS)){
+    const iconEl = document.querySelector('.sidebar nav a[data-tool="'+key+'"] .icon');
+    const icon = iconEl ? iconEl.textContent : '🛠';
+    html += '<div class="overview-card" onclick="switchTool(\''+key+'\')">' +
+      '<div class="oc-icon">'+icon+'</div>' +
+      '<div class="oc-body">' +
+        '<div class="oc-title">'+t.title+' <span class="oc-badge">'+t.badge+'</span></div>' +
+        '<div class="oc-desc">'+t.desc+'</div>' +
+      '</div></div>';
   }
-
-  loading(true,'转换中...');
-  const fd=new FormData();
-  fd.append('file',_bomFile);
-  fd.append('sheet',$('bomSheet').value||'');
-  fd.append('header_row',$('bomHdrRow').value||1);
-  fd.append('fmt',fmt);
-  fd.append('col_name',$('bomColName').value.trim());
-  fd.append('col_qty',$('bomColQty').value.trim());
-  fd.append('col_brand',colBrand);
-  fd.append('col_model',$('bomColModel').value.trim());
-  fd.append('output_mode',document.querySelector('input[name=bomMode]:checked').value);
-  fd.append('project_name',$('bomProjName').value.trim());
-
-  const d=await post('/api/bom/convert',fd);
-  loading(false);
-  const box=$('bomResult');
-  box.style.display='block';
-  if(!d.success){
-    box.innerHTML=`<div class="result-box err"><b>转换失败：</b>${esc(d.error)}</div>`;
-    return;
-  }
-  box.innerHTML=`<div class="result-box">
-    <b>转换完成！</b>共 ${d.total} 行${d.skipped!=null?'，跳过 '+d.skipped+' 行（用量为空）':''}。<br>
-    <a class="dl-link" href="${d.download}" download>点击下载结果文件</a>
-  </div>`;
+  html += '</div>';
+  $('contentArea').innerHTML = html;
 }
 
+function switchTool(key){
+  const a = document.querySelector('.sidebar nav a[data-tool="'+key+'"]');
+  if(a) a.click();
+}
 
-// ══════════════════════════════════════════════════════
-//  飞书多表格匹配
-// ══════════════════════════════════════════════════════
-
-// 初始化预置表格状态
-var fsTables = {{ preset_tables | tojson }}.map(function(t){
-  return Object.assign({
-    enabled: false,
-    active_sheet_ids: [],
-    local_key_names:  ['','',''],
-    feishu_key_names: ['','',''],
-    fetch_col_names:  [],
-    _sheets: [],
-    _headers: [],
-    _connected: false,
-  }, t);
+document.querySelectorAll('.sidebar nav a').forEach(a=>{
+  a.onclick=function(e){
+    e.preventDefault();
+    document.querySelectorAll('.sidebar nav a').forEach(x=>x.classList.remove('active'));
+    this.classList.add('active');
+    curTool = this.dataset.tool;
+    const t=TOOLS[curTool];
+    $('toolTitle').textContent=t.title;
+    $('toolBadge').textContent=t.badge;
+    $('contentArea').innerHTML=$(t.tpl).innerHTML;
+    initTool(curTool);
+  };
 });
-var _fsLocalFile = null;
-var _fsLocalHeaders = [];
 
-function fsRenderTableList(){
-  const wrap=$('fsTableList');
-  if(!fsTables.length){wrap.innerHTML='<div style="padding:12px;color:#888">无表格</div>';return;}
+function initTool(tool){
+  if(tool==='bom') initBom();
+  else if(tool==='feishu') initFeishu();
+  else if(tool==='plm') initPlm();
+}
 
-  // Group by category
-  const cats={};
-  fsTables.forEach((t,i)=>{
-    const c=t.category||'其他';
-    if(!cats[c])cats[c]=[];
-    cats[c].push({t,i});
+// ─── BOM ──────────────────────────────────────────────
+function updateBomPreview(headers, previewRows){
+  if(!headers||!headers.length){$('bomPreview').innerHTML='';return;}
+  let h='<table>';
+  // 列字母行
+  h+='<tr style="background:#e8f0fe">';
+  headers.forEach((_,ci)=>h+=`<th style="color:#1a5ad4;font-size:11px;font-weight:700;padding:2px 6px">${String.fromCharCode(65+ci)}</th>`);
+  h+='</tr>';
+  // 表头行
+  h+='<tr>';
+  headers.forEach(hd=>h+=`<th>${hd||''}</th>`);
+  h+='</tr>';
+  // 数据行
+  (previewRows||[]).forEach(r=>{
+    h+='<tr>';
+    r.forEach(c=>h+=`<td>${c||''}</td>`);
+    h+='</tr>';
   });
-  const catOrder=['优选库','对应关系库'];
-  const allCats=[...catOrder,...Object.keys(cats).filter(c=>!catOrder.includes(c))];
-
-  let html='';
-  allCats.forEach(cat=>{
-    if(!cats[cat])return;
-    html+=`<div style="background:#e8edf5;padding:4px 12px;font-size:11px;font-weight:600;color:#445;border-bottom:1px solid #ddd">${esc(cat)}</div>`;
-    cats[cat].forEach(({t,i})=>{
-      const en=t.enabled;
-      const conn=t._connected;
-      const keys=t.local_key_names.filter(k=>k).length;
-      const fetch=t.fetch_col_names.length;
-      html+=`<div class="table-row${en?' enabled':''}" id="fsRow_${i}">
-        <div class="table-row-head" onclick="fsToggleDetail(${i})">
-          <input type="checkbox" ${en?'checked':''} onclick="event.stopPropagation();fsToggleEnable(${i},this.checked)">
-          <span class="table-row-name">${esc(t.name)}</span>
-          ${conn?`<span class="tag-info tag-ok" style="font-size:10px">已连接</span>`:''}
-          ${keys?`<span class="tag-info" style="font-size:10px">键:${keys}</span>`:''}
-          ${fetch?`<span class="tag-info" style="font-size:10px">提取:${fetch}</span>`:''}
-          <span style="color:#aaa;font-size:10px;margin-left:auto">▼</span>
-        </div>
-        <div class="table-row-actions">
-          <button class="btn btn-default btn-sm" onclick="event.stopPropagation();fsGetSheets(${i})">获取列名</button>
-        </div>
-      </div>
-      <div class="table-detail" id="fsDetail_${i}">
-        ${fsBuildDetail(t,i)}
-      </div>`;
-    });
-  });
-  wrap.innerHTML=html;
+  h+='</table>';
+  $('bomPreview').innerHTML=h;
 }
 
-function fsBuildDetail(t,i){
-  const labelStyle='min-width:60px;font-size:11px;color:#555';
-  let html=`
-  <div style="display:flex;gap:16px;flex-wrap:wrap">
-    <div>
-      <div class="form-row" style="margin-bottom:6px">
-        <label style="${labelStyle}">Token：</label>
-        <input type="text" id="fsToken_${i}" value="${esc(t.token)}" style="width:240px" placeholder="shthq...">
-      </div>`;
-
-  if(t._connected && t._sheets.length){
-    html+=`<div style="margin-bottom:6px"><span style="${labelStyle};display:inline-block">选择 Sheet：</span>`;
-    t._sheets.forEach(s=>{
-      const chk=t.active_sheet_ids.includes(s.sheetId);
-      html+=`<label style="margin-right:8px;font-size:11px"><input type="checkbox" id="fsSheet_${i}_${s.sheetId}" ${chk?'checked':''} onchange="fsSaveSheetSel(${i})"> ${esc(s.title)}</label>`;
-    });
-    html+=`</div>`;
+function updateBomFromApi(d){
+  if(!d.success) return;
+  let opts='';
+  d.sheets.forEach(s=>opts+=`<option${s===d.current_sheet?' selected':''}>${s}</option>`);
+  $('bomSheet').innerHTML=opts;
+  if(d.detected){
+    if(d.detected.name)  $('bomColName').value=d.detected.name;
+    if(d.detected.qty)   $('bomColQty').value=d.detected.qty;
+    if(d.detected.brand) $('bomColBrand').value=d.detected.brand;
+    if(d.detected.model) $('bomColModel').value=d.detected.model;
   }
-
-  html+=`</div>
-    <div style="flex:1;min-width:280px">
-      <div style="font-size:11px;font-weight:600;margin-bottom:6px;color:#333">匹配键（AND 逻辑，第1对必填）</div>
-      <div style="font-size:10px;color:#888;margin-bottom:4px">本地列名 → 飞书列名</div>`;
-
-  for(let k=0;k<3;k++){
-    const localHeaders=_fsLocalHeaders.length?_fsLocalHeaders:[];
-    const fsHeaders=t._headers.length?t._headers:[];
-    const localOpts=localHeaders.map(h=>`<option${h===t.local_key_names[k]?' selected':''}>${esc(h)}</option>`).join('');
-    const fsOpts=fsHeaders.map(h=>`<option${h===t.feishu_key_names[k]?' selected':''}>${esc(h)}</option>`).join('');
-    const req=k===0;
-    html+=`<div class="key-pair-row">
-      <label style="${labelStyle}">第${k+1}对${req?'（必填）':''}：</label>
-      <select id="fsLKey_${i}_${k}" onchange="fsSaveKeys(${i})" style="width:140px;font-size:11px">
-        <option value="">-- 本地列 --</option>${localOpts}
-      </select>
-      <span style="color:#888;padding:0 4px">→</span>
-      <select id="fsFKey_${i}_${k}" onchange="fsSaveKeys(${i})" style="width:140px;font-size:11px">
-        <option value="">-- 飞书列 --</option>${fsOpts}
-      </select>
-      ${k>0?`<button class="btn btn-default btn-sm" onclick="fsClearKey(${i},${k})">清除</button>`:''}
-    </div>`;
-  }
-
-  html+=`</div>
-    <div style="flex:1;min-width:200px">
-      <div style="font-size:11px;font-weight:600;margin-bottom:6px;color:#333">要提取的列（从飞书）</div>`;
-
-  if(t._headers.length){
-    html+=`<div style="max-height:120px;overflow-y:auto;border:1px solid #ddd;border-radius:3px;padding:4px">`;
-    t._headers.forEach(h=>{
-      const chk=t.fetch_col_names.includes(h);
-      html+=`<label style="display:block;font-size:11px;padding:1px 4px"><input type="checkbox" ${chk?'checked':''} onchange="fsSaveFetchCols(${i})"> ${esc(h)}</label>`;
-    });
-    html+=`</div>
-    <div style="margin-top:4px">
-      <button class="btn btn-default btn-sm" onclick="fsCheckAllFetch(${i},true)">全选</button>
-      <button class="btn btn-default btn-sm" onclick="fsCheckAllFetch(${i},false)">全不选</button>
-    </div>`;
-  } else {
-    html+=`<div class="hint">请先点击「获取列名」</div>`;
-  }
-
-  html+=`</div></div>`;
-  return html;
-}
-
-function fsToggleDetail(i){
-  const d=$('fsDetail_'+i);
-  if(d)d.classList.toggle('open');
-}
-
-function fsToggleEnable(i,val){
-  fsTables[i].enabled=val;
-  fsRenderTableList();
-}
-
-function fsSelectAll(en){
-  fsTables.forEach(t=>t.enabled=en);
-  fsRenderTableList();
-}
-
-function fsSaveKeys(i){
-  for(let k=0;k<3;k++){
-    const lv=$('fsLKey_'+i+'_'+k);
-    const fv=$('fsFKey_'+i+'_'+k);
-    if(lv)fsTables[i].local_key_names[k]=lv.value;
-    if(fv)fsTables[i].feishu_key_names[k]=fv.value;
-  }
-}
-
-function fsClearKey(i,k){
-  fsTables[i].local_key_names[k]='';
-  fsTables[i].feishu_key_names[k]='';
-  fsRenderTableList();
-  // Re-open detail
-  const d=$('fsDetail_'+i);
-  if(d)d.classList.add('open');
-}
-
-function fsSaveSheetSel(i){
-  const t=fsTables[i];
-  const ids=[];
-  t._sheets.forEach(s=>{
-    const cb=$('fsSheet_'+i+'_'+s.sheetId);
-    if(cb&&cb.checked)ids.push(s.sheetId);
-  });
-  t.active_sheet_ids=ids;
-}
-
-function fsSaveFetchCols(i){
-  const t=fsTables[i];
-  t.fetch_col_names=t._headers.filter(h=>{
-    // Find checkbox
-    const detailEl=$('fsDetail_'+i);
-    if(!detailEl)return false;
-    const cbs=detailEl.querySelectorAll('input[type=checkbox]');
-    for(const cb of cbs){
-      if(cb.nextSibling&&cb.nextSibling.textContent&&cb.nextSibling.textContent.trim()===h){
-        return cb.checked;
-      }
+  // Format guess
+  if(d.fmt_guess){
+    const sel=$('bomFmt');
+    for(let i=0;i<sel.options.length;i++){
+      if(sel.options[i].value===d.fmt_guess){sel.selectedIndex=i;break;}
     }
-    return false;
-  });
-}
-
-function fsCheckAllFetch(i,val){
-  const t=fsTables[i];
-  const detailEl=$('fsDetail_'+i);
-  if(!detailEl)return;
-  // Find the fetch cols section checkboxes (those inside the 3rd flex child)
-  t.fetch_col_names=val?[...t._headers]:[];
-  fsRenderTableList();
-  const d=$('fsDetail_'+i);
-  if(d)d.classList.add('open');
-}
-
-async function fsGetSheets(i){
-  const t=fsTables[i];
-  // Save current token from input before fetch
-  const tokenInput=$('fsToken_'+i);
-  if(tokenInput)t.token=tokenInput.value.trim();
-  if(!t.token){alert('请先填写 Token');return;}
-
-  fsSaveKeys(i);
-
-  const gw=fsGetGw();
-  loading(true,'连接飞书表格...');
-  const d=await fetch('/api/feishu/sheets',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({...gw,token:t.token}),
-  }).then(r=>r.json());
-  loading(false);
-
-  if(!d.success){alert('['+t.name+'] 连接失败：'+d.error);return;}
-  t._sheets=d.sheets;
-  t._connected=true;
-
-  // Auto-select all sheets if none selected
-  if(!t.active_sheet_ids.length && d.sheets.length){
-    t.active_sheet_ids=d.sheets.map(s=>s.sheetId);
   }
-
-  // Get headers from first active sheet
-  const sid=t.active_sheet_ids[0]||d.sheets[0].sheetId;
-  const firstSheet=d.sheets.find(s=>s.sheetId===sid)||d.sheets[0];
-  loading(true,'读取列标题...');
-  const hd=await fetch('/api/feishu/headers',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({...gw,token:t.token,sheet_id:sid,col_count:firstSheet.columnCount||100}),
-  }).then(r=>r.json());
-  loading(false);
-
-  if(!hd.success){alert('['+t.name+'] 读取列标题失败：'+hd.error);return;}
-  t._headers=hd.headers.filter(h=>h);
-
-  fsRenderTableList();
-  // Auto-open detail
-  const d2=$('fsDetail_'+i);
-  if(d2)d2.classList.add('open');
+  $('bomDetected').textContent='自动识别：'+JSON.stringify(d.detected||{});
+  updateBomPreview(d.headers, d.preview);
 }
 
-function fsGetGw(){
-  return{
-    base_url:$('fsBaseUrl').value.trim()||'https://mcenter.huaqin.com',
-    origin:$('fsOrigin').value.trim(),
-    user_id:$('fsUserId').value.trim(),
+function initBom(){
+  $('bomBrowse').onclick=()=>$('bomFile').click();
+  $('bomOutputMode').onchange=function(){
+    $('bomProjRow').style.display=this.value==='hq'?'flex':'none';
+  };
+  $('bomSheet').onchange=function(){
+    const f=$('bomFile').files[0];if(!f)return;
+    hide($('bomResult'));hide($('bomError'));
+    const fd=new FormData();fd.append('file',f);fd.append('sheet_name',this.value);fd.append('header_row',$('bomHdr').value);
+    fetch('/api/bom/detect',{method:'POST',body:fd}).then(r=>r.json()).then(updateBomFromApi);
+  };
+  $('bomFile').onchange=function(){
+    const f=this.files[0];if(!f)return;
+    hide($('bomResult'));hide($('bomError'));
+    const fd=new FormData();fd.append('file',f);fd.append('header_row',$('bomHdr').value);
+    fetch('/api/bom/detect',{method:'POST',body:fd}).then(r=>r.json()).then(updateBomFromApi);
+  };
+  $('bomRefresh').onclick=function(){
+    const f=$('bomFile').files[0];if(!f)return;
+    const fd=new FormData();fd.append('file',f);fd.append('sheet_name',$('bomSheet').value);fd.append('header_row',$('bomHdr').value);
+    fetch('/api/bom/detect',{method:'POST',body:fd}).then(r=>r.json()).then(updateBomFromApi);
+  };
+  $('bomRun').onclick=async function(){
+    const f=$('bomFile').files[0];if(!f){alert('请选择文件');return;}
+    const btn=$('bomRun');btn.disabled=true;$('bomStatus').textContent='处理中...';
+    hide($('bomResult'));hide($('bomError'));
+    const fd=new FormData();fd.append('file',f);
+    fd.append('fmt',$('bomFmt').value);
+    fd.append('sheet',$('bomSheet').value);
+    fd.append('header_row',$('bomHdr').value);
+    fd.append('col_name',$('bomColName').value);
+    fd.append('col_qty',$('bomColQty').value);
+    fd.append('col_brand',$('bomColBrand').value);
+    fd.append('col_model',$('bomColModel').value);
+    fd.append('output_mode',$('bomOutputMode').value);
+    fd.append('project_name',$('bomProjName')?$('bomProjName').value:'');
+    try{
+      const r=await fetch('/api/bom/convert',{method:'POST',body:fd});
+      const d=await r.json();
+      if(d.success){
+        let stats=`共 <b>${d.total}</b> 行`;
+        if(d.skipped!=null) stats+=`，跳过空行 ${d.skipped} 行`;
+        $('bomStats').innerHTML=stats;
+        $('bomDl').href=d.download;
+        show($('bomResult'));$('bomStatus').textContent='完成！';
+      } else {
+        $('bomError').textContent=d.error||'转换失败';show($('bomError'));$('bomStatus').textContent='';
+      }
+    }catch(e){$('bomError').textContent=e.message;show($('bomError'));}
+    btn.disabled=false;
   };
 }
 
-var _fsLocalFileObj=null;
-
-function fsLocalFileChanged(){
-  const f=$('fsLocalFile').files[0];
-  if(!f)return;
-  _fsLocalFileObj=f;
-  $('fsLocalFileName').textContent=f.name;
-  fsLoadLocal();
-}
-
-async function fsLoadLocal(){
-  if(!_fsLocalFileObj)return;
-  loading(true,'读取本地文件...');
-  const fd=new FormData();
-  fd.append('file',_fsLocalFileObj);
-  fd.append('sheet_name',$('fsSheet').value||'');
-  fd.append('header_row',$('fsHdrRow').value||1);
-  const d=await post('/api/feishu/local_sheets',fd);
-  loading(false);
-  if(!d.success){alert('读取失败：'+d.error);return;}
-
-  const sel=$('fsSheet');
-  sel.innerHTML=d.sheets.map(s=>`<option${s===d.current_sheet?' selected':''}>${esc(s)}</option>`).join('');
-  $('fsSheetRow').style.display='flex';
-
-  _fsLocalHeaders=d.headers.filter(h=>h);
-  const wrap=$('fsLocalHeadersDisplay');
-  wrap.innerHTML='<span class="hint">表头（'+_fsLocalHeaders.length+'列）：</span>'+
-    _fsLocalHeaders.slice(0,20).map(h=>`<span class="tag-info" style="margin:2px">${esc(h)}</span>`).join('')+
-    (_fsLocalHeaders.length>20?`<span class="hint"> ...等${_fsLocalHeaders.length}列</span>`:'');
-  $('fsLocalPreviewWrap').style.display='block';
-
-  // Refresh table list to update dropdowns with local headers
-  fsRenderTableList();
-}
-
-function fsLocalSheetChanged(){fsLoadLocal();}
-
-async function fsRun(){
-  if(!_fsLocalFileObj){alert('请先选择本地文件');return;}
-  const userId=$('fsUserId').value.trim();
-  if(!userId){alert('请填写工号');return;}
-
-  // Save all current key/token values from inputs before building config
-  fsTables.forEach((t,i)=>{
-    const tok=$('fsToken_'+i);
-    if(tok)t.token=tok.value.trim();
-    fsSaveKeys(i);
-    fsSaveSheetSel(i);
-    // Also save fetch cols
-    const detailEl=$('fsDetail_'+i);
-    if(detailEl && t._headers.length){
-      const newFetch=[];
-      t._headers.forEach(h=>{
-        const cbs=detailEl.querySelectorAll('input[type=checkbox]');
-        for(const cb of cbs){
-          if(cb.nextSibling&&String(cb.nextSibling.textContent||'').trim()===h){
-            if(cb.checked)newFetch.push(h);
-            break;
-          }
-        }
-      });
-      if(newFetch.length)t.fetch_col_names=newFetch;
-    }
+// ─── PLM ──────────────────────────────────────────────
+function buildColMapTable(headers){
+  if(!headers||!headers.length){$('plmColMap').innerHTML='';return;}
+  let h='<table><tr style="background:#e8f0fe"><th style="width:50px">列</th><th>列名</th></tr>';
+  headers.forEach(e=>{
+    const m=e.match(/^([A-Z]+):(.+)/);
+    if(m) h+=`<tr><td style="font-weight:700;color:#1a5ad4">${m[1]}</td><td>${m[2]}</td></tr>`;
+    else  h+=`<tr><td></td><td>${e}</td></tr>`;
   });
+  h+='</table>';
+  $('plmColMap').innerHTML=h;
+}
 
-  const enabledTables=fsTables.filter(t=>t.enabled);
-  if(!enabledTables.length){alert('请至少启用一个表格');return;}
+function updatePlmFromApi(d){
+  if(!d.success) return;
+  let opts='';
+  d.sheets.forEach(s=>opts+=`<option${s===d.current_sheet?' selected':''}>${s}</option>`);
+  $('plmSheet').innerHTML=opts;
+  if(d.detected){
+    if(d.detected.hq_pn)       $('plmColHqpn').value=d.detected.hq_pn;
+    if(d.detected.supply_type) $('plmColStype').value=d.detected.supply_type;
+    if(d.detected.qty)         $('plmColQty').value=d.detected.qty;
+  }
+  $('plmDetectLog').textContent='自动识别：'+(d.headers||[]).join(' | ');
+  buildColMapTable(d.headers);
+}
 
-  const gw=fsGetGw();
+function initPlm(){
+  $('plmBrowse').onclick=()=>$('plmFile').click();
+  $('plmFile').onchange=function(){
+    const f=this.files[0];if(!f)return;
+    const fd=new FormData();fd.append('file',f);fd.append('header_row',$('plmHdr').value||4);
+    fetch('/api/plm/detect',{method:'POST',body:fd}).then(r=>r.json()).then(updatePlmFromApi);
+  };
+  $('plmSheet').onchange=function(){
+    const f=$('plmFile').files[0];if(!f)return;
+    const fd=new FormData();fd.append('file',f);fd.append('sheet_name',this.value);fd.append('header_row',$('plmHdr').value||4);
+    fetch('/api/plm/detect',{method:'POST',body:fd}).then(r=>r.json()).then(updatePlmFromApi);
+  };
+  $('plmRefresh').onclick=function(){
+    const f=$('plmFile').files[0];if(!f)return;
+    const fd=new FormData();fd.append('file',f);fd.append('sheet_name',$('plmSheet').value);fd.append('header_row',$('plmHdr').value||4);
+    fetch('/api/plm/detect',{method:'POST',body:fd}).then(r=>r.json()).then(updatePlmFromApi);
+  };
+  $('plmRun').onclick=async function(){
+    const f=$('plmFile').files[0];if(!f){alert('请选择文件');return;}
+    const btn=$('plmRun');btn.disabled=true;$('plmStatus').textContent='处理中...';
+    hide($('plmResult'));hide($('plmError'));hide($('plmLogBox'));
+    const fd=new FormData();fd.append('file',f);
+    fd.append('sheet',$('plmSheet').value);
+    fd.append('header_row',$('plmHdr').value);
+    fd.append('col_hqpn',$('plmColHqpn').value);
+    fd.append('col_stype',$('plmColStype').value);
+    fd.append('col_qty',$('plmColQty').value);
+    fd.append('project_name',$('plmProjName').value);
+    try{
+      const r=await fetch('/api/plm/convert',{method:'POST',body:fd});
+      const d=await r.json();
+      if(d.success){
+        $('plmStats').innerHTML=`写入 <b>${d.total}</b> 行${d.skipped?`，跳过 ${d.skipped} 行（用量为空）`:''}`;
+        $('plmDl').href=d.download;
+        show($('plmResult'));$('plmStatus').textContent='完成！';
+        if(d.skip_logs&&d.skip_logs.length){$('plmLog').textContent=d.skip_logs.join('\n');show($('plmLogBox'));}else hide($('plmLogBox'));
+      } else {
+        $('plmError').textContent=d.error||'转换失败';show($('plmError'));$('plmStatus').textContent='';
+      }
+    }catch(e){$('plmError').textContent=e.message;show($('plmError'));}
+    btn.disabled=false;
+  };
+}
+
+// ─── 飞书匹配 ─────────────────────────────────────────
+const FS_TABLES = {{ preset_tables | tojson }};
+let fsTables = FS_TABLES.map((t,i)=>({
+  ...t, idx:i,
+  _sheets:[], _headers:[], _connected:false, _loaded:false,
+  enabled:false, active_sheet_ids:[],
+  local_key_names:['','',''], feishu_key_names:['','',''], fetch_col_names:[],
+}));
+let fsCurIdx = null;
+
+function initFeishu(){
+  renderFsTrees();
+  $('fsReloadTables').onclick=renderFsTrees;
+  $('fsBatchUpdate').onclick=fsBatchUpdate;
+  $('fsRun').onclick=fsRunMatch;
+  $('fsMapRefresh').onclick=renderFsMapTable;
+  $('fsMapTable').onchange=fsOnMapTableChange;
+  $('fsSelAll').onclick=()=>document.querySelectorAll('.fs-chk-col').forEach(cb=>cb.checked=true);
+  $('fsSelNone').onclick=()=>document.querySelectorAll('.fs-chk-col').forEach(cb=>cb.checked=false);
+  $('fsSaveMap').onclick=fsSaveMapping;
+  $('fsClear2').onclick=()=>{$('fsLk2').value='';$('fsFk2').value='';};
+  $('fsClear3').onclick=()=>{$('fsLk3').value='';$('fsFk3').value='';};
+  $('fsFile').onchange=function(){
+    const f=this.files[0];if(!f)return;
+    const fd=new FormData();fd.append('file',f);fd.append('header_row',$('fsHdr').value||1);
+    fetch('/api/feishu/local_sheets',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{
+      if(!d.success)return;
+      window._fsLocalHeaders=d.headers||[];
+      const sel=$('fsSheet');sel.innerHTML='';
+      (d.sheets||[]).forEach(s=>{
+        const o=document.createElement('option');o.value=s;o.textContent=s;sel.appendChild(o);
+      });
+      // update datalists for local key inputs
+      let dl='';
+      (d.headers||[]).forEach(h=>{if(h)dl+=`<option value="${h}">`});
+      ['fsLk1','fsLk2','fsLk3'].forEach(id=>{
+        let el=document.getElementById(id+'_list');
+        if(!el){el=document.createElement('datalist');el.id=id+'_list';document.body.appendChild(el);}
+        el.innerHTML=dl;$(id).setAttribute('list',id+'_list');
+      });
+    });
+  };
+}
+
+function renderFsTrees(){
+  const cats={'优选库':[],'对应关系库':[]};
+  fsTables.forEach(t=>{const c=t.category||'优选库';(cats[c]=cats[c]||[]).push(t);});
+  let h='';
+  for(const [cat,ts] of Object.entries(cats)){
+    if(!ts.length)continue;
+    h+=`<div class="tree-cat${cat==='对应关系库'?' alt':''}">▸ ${cat}</div>`;
+    ts.forEach(t=>{
+      const ld=t._loaded?'✓':t._connected?'◎':'—';
+      const mt=t.enabled&&t._loaded?'●':t.enabled?'！':'○';
+      const ldCls=t._loaded?'badge-green':t._connected?'badge-blue':'badge-gray';
+      const mtCls=t.enabled&&t._loaded?'badge-green':t.enabled?'badge-orange':'badge-gray';
+      h+=`<div class="tree-item" data-idx="${t.idx}" onclick="fsSelectTable(${t.idx})">
+        <span class="indent"></span><span style="flex:1">${t.name}</span>
+        <span class="badge-sm ${ldCls}">${ld}</span>
+        <span class="badge-sm ${mtCls}">${mt}</span>
+      </div>`;
+    });
+  }
+  $('fsTreeList').innerHTML=h;
+  renderFsMapTable();
+}
+
+function fsSelectTable(idx){
+  fsCurIdx=idx;
+  const t=fsTables[idx];
+  document.querySelectorAll('#fsTreeList .tree-item').forEach(el=>el.classList.toggle('selected',parseInt(el.dataset.idx)===idx));
+  let h=`<h4>${t.name} <span style="font-size:11px;color:#888;font-weight:400">(${t.category||'优选库'})</span></h4>`;
+  h+=`<div class="row"><label>名称：</label><input type="text" id="fsDetName" value="${t.name}" style="width:160px">
+    <label>Token：</label><input type="text" id="fsDetToken" value="${t.token||''}" style="width:260px">
+    <label>启用：</label><input type="checkbox" id="fsDetEnable" ${t.enabled?'checked':''} onchange="fsTables[${idx}].enabled=this.checked;renderFsTrees()"></div>`;
+  h+=`<div class="row">
+    <button class="btn btn-sm btn-primary" onclick="fsConnectTable(${idx})">连接并获取 Sheet 列表</button>
+    <button class="btn btn-sm btn-gray"    onclick="fsLoadTable(${idx})">读取选中 Sheet 数据</button>
+    <button class="btn btn-sm btn-outline" onclick="fsUpdateTable(${idx})">⟳ 更新本地数据</button>
+  </div>`;
+  if(t._sheets.length){
+    h+=`<div style="margin-top:8px"><b>Sheet 选择（可多选）：</b></div><div class="chk-list" style="max-height:200px">`;
+    t._sheets.forEach(s=>{
+      const ckd=t.active_sheet_ids.includes(s.sheetId)?'checked':'';
+      h+=`<label><input type="checkbox" value="${s.sheetId}" ${ckd} onchange="fsToggleSheet(${idx},'${s.sheetId}',this.checked)"> ${s.title}</label>`;
+    });
+    h+='</div>';
+  }
+  h+=`<div style="margin-top:6px;font-size:12px">${
+    t._loaded?`<span style="color:#2a8a2a">✓ 已加载 ${t._headers.length} 列（列标题已获取）</span>`:
+    t._connected?'<span style="color:#2d6cdf">已连接，请读取 Sheet 数据</span>':
+    '<span style="color:#999">未连接</span>'
+  }</div>`;
+  $('fsDetail').innerHTML=h;
+}
+
+function fsToggleSheet(idx,sid,val){
+  const t=fsTables[idx];
+  if(val){if(!t.active_sheet_ids.includes(sid))t.active_sheet_ids.push(sid);}
+  else t.active_sheet_ids=t.active_sheet_ids.filter(x=>x!==sid);
+}
+
+async function fsConnectTable(idx){
+  const t=fsTables[idx];
+  const tokenEl=$('fsDetToken');
+  if(tokenEl)t.token=tokenEl.value.trim();
+  if(!t.token){alert('请先填写 Token');return;}
+  const btns=$('fsDetail').querySelectorAll('button');btns.forEach(b=>b.disabled=true);
+  try{
+    const r=await fetch('/api/feishu/sheets',{method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({base_url:$('fsBaseUrl').value,origin:$('fsOrigin').value,user_id:$('fsUserId').value,token:t.token})});
+    const d=await r.json();
+    if(d.success){
+      t._sheets=d.sheets;t._connected=true;
+      if(!t.active_sheet_ids.length)t.active_sheet_ids=d.sheets.map(s=>s.sheetId);
+      fsSelectTable(idx);renderFsTrees();
+    } else alert(d.error);
+  }catch(e){alert(e.message);}
+  btns.forEach(b=>b.disabled=false);
+}
+
+async function fsLoadTable(idx){
+  const t=fsTables[idx];
+  if(!t._connected){alert('请先连接');return;}
+  if(!t.active_sheet_ids.length){alert('请至少选择一个 Sheet');return;}
+  const btns=$('fsDetail').querySelectorAll('button');btns.forEach(b=>b.disabled=true);
+  try{
+    // Get headers from first active sheet
+    const firstSheet=t._sheets.find(s=>t.active_sheet_ids.includes(s.sheetId));
+    if(!firstSheet){alert('找不到选中的 Sheet');btns.forEach(b=>b.disabled=false);return;}
+    const r=await fetch('/api/feishu/headers',{method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({base_url:$('fsBaseUrl').value,origin:$('fsOrigin').value,user_id:$('fsUserId').value,token:t.token,sheet_id:firstSheet.sheetId,col_count:firstSheet.columnCount||100})});
+    const d=await r.json();
+    if(d.success){
+      t._headers=d.headers.filter(h=>h);
+      t._loaded=true;
+      fsSelectTable(idx);renderFsTrees();renderFsMapTable();
+      // Update feishu key datalists
+      let dl='';t._headers.forEach(h=>dl+=`<option value="${h}">`);
+      ['fsFk1','fsFk2','fsFk3'].forEach(id=>{
+        let el=document.getElementById(id+'_flist');
+        if(!el){el=document.createElement('datalist');el.id=id+'_flist';document.body.appendChild(el);}
+        el.innerHTML=dl;$(id).setAttribute('list',id+'_flist');
+      });
+    } else alert(d.error);
+  }catch(e){alert(e.message);}
+  btns.forEach(b=>b.disabled=false);
+}
+
+async function fsUpdateTable(idx){
+  await fsConnectTable(idx);
+  if(fsTables[idx]._connected) await fsLoadTable(idx);
+}
+
+async function fsBatchUpdate(){
+  $('fsBatchUpdate').disabled=true;$('fsBatchHint').textContent='更新中...';
+  let count=0;
+  for(let i=0;i<fsTables.length;i++){
+    const t=fsTables[i];
+    if(!t.token)continue;
+    $('fsBatchHint').textContent=`更新中 (${count+1})：${t.name}`;
+    try{await fsConnectTable(i);if(t._connected)await fsLoadTable(i);count++;}catch(e){console.error(e);}
+  }
+  $('fsBatchUpdate').disabled=false;$('fsBatchHint').textContent=`✓ 完成 ${count} 个`;
+  renderFsTrees();
+}
+
+function renderFsMapTable(){
+  const loaded=fsTables.filter(t=>t._loaded);
+  let opts='<option value="">请选择已加载表格</option>';
+  loaded.forEach(t=>opts+=`<option value="${t.idx}">${t.name}（${t._headers.length} 列）</option>`);
+  $('fsMapTable').innerHTML=opts;
+}
+
+function fsOnMapTableChange(){
+  const idx=parseInt($('fsMapTable').value);if(isNaN(idx))return;
+  const t=fsTables[idx];
+  $('fsLk1').value=t.local_key_names[0]||'';$('fsFk1').value=t.feishu_key_names[0]||'';
+  $('fsLk2').value=t.local_key_names[1]||'';$('fsFk2').value=t.feishu_key_names[1]||'';
+  $('fsLk3').value=t.local_key_names[2]||'';$('fsFk3').value=t.feishu_key_names[2]||'';
+  let h='';
+  (t._headers||[]).forEach(col=>{
+    if(!col)return;
+    const ckd=t.fetch_col_names.includes(col)?'checked':'';
+    h+=`<label><input type="checkbox" value="${col}" ${ckd} class="fs-chk-col"> ${col}</label>`;
+  });
+  $('fsChkList').innerHTML=h;
+  // Update feishu key datalists
+  let dl='';(t._headers||[]).forEach(h=>dl+=`<option value="${h}">`);
+  ['fsFk1','fsFk2','fsFk3'].forEach(id=>{
+    let el=document.getElementById(id+'_flist');
+    if(!el){el=document.createElement('datalist');el.id=id+'_flist';document.body.appendChild(el);}
+    el.innerHTML=dl;$(id).setAttribute('list',id+'_flist');
+  });
+}
+
+function fsSaveMapping(){
+  const idx=parseInt($('fsMapTable').value);if(isNaN(idx)){alert('请先选择表格');return;}
+  const t=fsTables[idx];
+  t.local_key_names=[$('fsLk1').value,$('fsLk2').value,$('fsLk3').value];
+  t.feishu_key_names=[$('fsFk1').value,$('fsFk2').value,$('fsFk3').value];
+  t.fetch_col_names=[];
+  document.querySelectorAll('.fs-chk-col:checked').forEach(cb=>t.fetch_col_names.push(cb.value));
+  $('fsSaveHint').textContent='✓ 已保存';setTimeout(()=>$('fsSaveHint').textContent='',2000);
+}
+
+async function fsRunMatch(){
+  const f=$('fsFile').files[0];if(!f){alert('请先上传 BOM 文件');return;}
+  const enabled=fsTables.filter(t=>t.enabled&&t.token);
+  if(!enabled.length){alert('请先在表格库中启用至少一个表格');return;}
+
+  $('fsRun').disabled=true;$('fsBatchUpdate').disabled=true;
+  $('fsRunStatus2').textContent='匹配中...';
+  hide($('fsResult'));hide($('fsError'));hide($('fsLogBox'));
+
   const config={
-    ...gw,
-    sheet_name:$('fsSheet').value||'',
-    header_row:parseInt($('fsHdrRow').value)||1,
-    tables:enabledTables.map(t=>({
-      name:t.name,
-      token:t.token,
-      enabled:true,
+    base_url:$('fsBaseUrl').value,
+    origin:$('fsOrigin').value,
+    user_id:$('fsUserId').value,
+    sheet_name:$('fsSheet').value,
+    header_row:parseInt($('fsHdr').value)||1,
+    tables:enabled.map(t=>({
+      name:t.name,token:t.token,enabled:true,
       active_sheet_ids:t.active_sheet_ids,
       local_key_names:t.local_key_names.filter(k=>k),
       feishu_key_names:t.feishu_key_names.filter(k=>k),
       fetch_col_names:t.fetch_col_names,
     })),
   };
-
-  loading(true,'正在匹配（大表格需1-2分钟，请耐心等待）...');
-  $('fsRunHint').textContent='匹配中...';
-  $('fsResult').style.display='none';
-  $('fsLog').style.display='none';
-
-  const fd=new FormData();
-  fd.append('file',_fsLocalFileObj);
-  fd.append('config',JSON.stringify(config));
-
-  let d;
+  const fd=new FormData();fd.append('file',f);fd.append('config',JSON.stringify(config));
   try{
     const r=await fetch('/api/feishu/match',{method:'POST',body:fd});
-    d=await r.json();
-  }catch(e){
-    loading(false);
-    $('fsRunHint').textContent='';
-    alert('网络错误：'+e.message);
-    return;
-  }
-  loading(false);
-  $('fsRunHint').textContent='';
-
-  const logBox=$('fsLog');
-  logBox.style.display='block';
-  logBox.textContent=(d.logs||[]).join('\n');
-  logBox.scrollTop=logBox.scrollHeight;
-
-  const box=$('fsResult');
-  box.style.display='block';
-  if(!d.success){
-    box.innerHTML=`<div class="result-box err"><b>匹配失败：</b>${esc(d.error)}</div>`;
-    return;
-  }
-  box.innerHTML=`<div class="result-box">
-    <b>匹配完成！</b>共 ${d.total} 行，匹配成功 ${d.matched}，未匹配 ${d.unmatched}。<br>
-    <a class="dl-link" href="${d.download}" download>点击下载结果文件</a>
-  </div>`;
+    const d=await r.json();
+    if(d.logs&&d.logs.length){$('fsLog').textContent=d.logs.join('\n');show($('fsLogBox'));}
+    if(d.success){
+      $('fsStats').innerHTML=`共 <b>${d.total}</b> 行 | 命中 <b>${d.matched}</b> | 未匹配 <b>${d.unmatched}</b>`;
+      $('fsDl').href=d.download;show($('fsResult'));$('fsRunStatus2').textContent='完成！';
+    } else {
+      $('fsError').textContent=d.error||'匹配失败';show($('fsError'));$('fsRunStatus2').textContent='';
+    }
+  }catch(e){$('fsError').textContent=e.message;show($('fsError'));}
+  $('fsRun').disabled=false;$('fsBatchUpdate').disabled=false;
 }
 
-// Init table list on page load
-fsRenderTableList();
-
-
-// ══════════════════════════════════════════════════════
-//  PLM 上传
-// ══════════════════════════════════════════════════════
-var _plmFile=null;
-
-function plmFileChanged(){
-  const f=$('plmFile').files[0];
-  if(!f)return;
-  _plmFile=f;
-  $('plmFileName').textContent=f.name;
-  plmDetect();
-}
-
-async function plmDetect(){
-  if(!_plmFile)return;
-  loading(true,'识别列...');
-  const fd=new FormData();
-  fd.append('file',_plmFile);
-  fd.append('sheet_name',$('plmSheet').value||'');
-  fd.append('header_row',$('plmHdrRow').value||4);
-  const d=await post('/api/plm/detect',fd);
-  loading(false);
-  if(!d.success){alert('读取失败：'+d.error);return;}
-
-  const sel=$('plmSheet');
-  sel.innerHTML=d.sheets.map(s=>`<option${s===d.current_sheet?' selected':''}>${esc(s)}</option>`).join('');
-  $('plmSheetRow').style.display='flex';
-
-  if(d.detected.hq_pn)  $('plmColHqpn').value=d.detected.hq_pn;
-  if(d.detected.supply_type)$('plmColStype').value=d.detected.supply_type;
-  if(d.detected.qty)    $('plmColQty').value=d.detected.qty;
-
-  const logEl=$('plmDetectLog');
-  logEl.style.display='block';
-  logEl.innerHTML='自动识别：<b>HQ PN</b>→'+esc(d.detected.hq_pn||'未识别')+
-    '　<b>主二供</b>→'+esc(d.detected.supply_type||'未识别')+
-    '　<b>用量</b>→'+esc(d.detected.qty||'未识别')+
-    '　<br>表头行 '+($('plmHdrRow').value)+' 识别到 '+d.headers.length+' 列：'+
-    d.headers.slice(0,12).map(h=>`<span class="tag-info">${esc(h)}</span>`).join(' ');
-
-  $('plmStep2').style.display='block';
-  $('plmStep3').style.display='block';
-}
-
-function plmRedetect(){plmDetect();}
-
-async function plmConvert(){
-  if(!_plmFile){alert('请先选择文件');return;}
-  const colHqpn=$('plmColHqpn').value.trim();
-  const colStype=$('plmColStype').value.trim();
-  const colQty=$('plmColQty').value.trim();
-  if(!colHqpn||!colStype||!colQty){alert('请填写 HQ PN 列、主二供列、用量列');return;}
-
-  loading(true,'转换中...');
-  const fd=new FormData();
-  fd.append('file',_plmFile);
-  fd.append('sheet',$('plmSheet').value||'');
-  fd.append('header_row',$('plmHdrRow').value||4);
-  fd.append('col_hqpn',colHqpn);
-  fd.append('col_stype',colStype);
-  fd.append('col_qty',colQty);
-  fd.append('project_name',$('plmProjName').value.trim());
-  const d=await post('/api/plm/convert',fd);
-  loading(false);
-
-  const box=$('plmResult');
-  box.style.display='block';
-  if(!d.success){
-    box.innerHTML=`<div class="result-box err"><b>转换失败：</b>${esc(d.error)}</div>`;
-    return;
-  }
-
-  const logBox=$('plmLog');
-  if(d.skip_logs&&d.skip_logs.length){
-    logBox.style.display='block';
-    logBox.textContent=d.skip_logs.join('\n');
-  }
-  box.innerHTML=`<div class="result-box">
-    <b>转换完成！</b>写入 ${d.total} 行，跳过 ${d.skipped} 行（用量为空）。<br>
-    <a class="dl-link" href="${d.download}" download>点击下载 PLM 导入文件</a>
-  </div>`;
-}
+// ═══════════════════ 页面加载 ═══════════════════
+showOverview();
 </script>
 </body>
 </html>
