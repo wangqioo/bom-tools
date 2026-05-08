@@ -287,8 +287,17 @@ def api_feishu_match():
         try:
             logs.append(f"[{name}] 正在连接...")
             sheets_meta = _hq_get_sheets(base_url, origin, user_id, token)
+            live_ids = {s["sheetId"] for s in sheets_meta}
             if not active_sheet_ids:
-                active_sheet_ids = [s["sheetId"] for s in sheets_meta]
+                active_sheet_ids = list(live_ids)
+            else:
+                stale = [sid for sid in active_sheet_ids if sid not in live_ids]
+                if stale:
+                    logs.append(f"[{name}] 警告：以下 Sheet ID 已失效并忽略：{stale}")
+                active_sheet_ids = [sid for sid in active_sheet_ids if sid in live_ids]
+                if not active_sheet_ids:
+                    logs.append(f"[{name}] 跳过：所有已选 Sheet ID 均已失效，请重新配置")
+                    continue
             logs.append(f"[{name}] 正在读取数据...")
             rows = _hq_read_table(base_url, origin, user_id, token, sheets_meta, active_sheet_ids)
             if not rows:

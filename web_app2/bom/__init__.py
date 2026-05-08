@@ -188,6 +188,7 @@ def _write_review_bom(rows, output_file, project_name):
     ws.row_dimensions[1].height = 30
     ws.merge_cells("A3:I3"); ws["A3"] = "SW节点HQ SN"
     S(ws["A3"], bold=True, bg="FFFF00", color="FF0000", size=12)
+    ws["K3"] = ""; S(ws["K3"], bg="FFC000", color="FF0000")
     ws.row_dimensions[3].height = 20
 
     headers = ["序号", "组件子类", "虚拟层/物料", "物料类型", "HQ PN", "物料名称", "厂商型号", "厂商", "主二供", "", "用量"]
@@ -425,14 +426,16 @@ def api_bom_convert():
 
         rows = []
         seq = 0
+        skipped = 0
         for ri in range(header_row + 1, ws.max_row + 1):
             row_vals = {ci: ws.cell(row=ri, column=ci).value for ci in range(1, ws.max_column + 1)}
-            if not any(v is not None and str(v).strip() for v in row_vals.values()):
-                continue
             bv = row_vals.get(col_brand)
+            nv = str(row_vals.get(col_name) or "").strip() if col_name else ""
+            if not nv and not bv:
+                skipped += 1
+                continue
             mv = row_vals.get(col_model) if col_model else None
             qv = row_vals.get(col_qty)
-            nv = str(row_vals.get(col_name) or "").strip() if col_name else ""
             suppliers = _parse_suppliers(bv, mv, fmt)
             if not suppliers:
                 suppliers = [("", "")]
@@ -452,4 +455,5 @@ def api_bom_convert():
             'success': True,
             'download': f'/download/{out_name}',
             'total': total,
+            'skipped': skipped,
         })
