@@ -480,6 +480,7 @@ let fsTables = FS_TABLES.map((t,i)=>({
   enabled:false, active_sheet_ids:[],
   local_key_names:['','',''], feishu_key_names:['','',''], fetch_col_names:[],
   cache_key:'', cache_row_count:0, cache_fetched_at:0,
+  _cache_sheet_counts:{}, _cache_stale:false,
 }));
 let fsCurIdx = null;
 
@@ -503,6 +504,7 @@ function fsSaveConfig(){
       _connected:!!t._connected, _loaded:!!t._loaded,
       cache_key:t.cache_key||'', cache_row_count:t.cache_row_count||0,
       cache_fetched_at:t.cache_fetched_at||0,
+      _cache_sheet_counts:t._cache_sheet_counts||{},
     })),
   };
   try{ localStorage.setItem(_FS_KEY, JSON.stringify(cfg)); window._fsSavedCfg=cfg; }catch(e){}
@@ -544,9 +546,11 @@ function fsClearConfig(){
         t._headers        = st._headers || [];
         t._connected      = !!st._connected;
         t._loaded         = !!st._loaded;
-        t.cache_key       = st.cache_key       || '';
-        t.cache_row_count = st.cache_row_count || 0;
-        t.cache_fetched_at= st.cache_fetched_at|| 0;
+        t.cache_key          = st.cache_key          || '';
+        t.cache_row_count    = st.cache_row_count    || 0;
+        t.cache_fetched_at   = st.cache_fetched_at   || 0;
+        t._cache_sheet_counts= st._cache_sheet_counts|| {};
+        t._cache_stale       = false;  // re-evaluated on next connect
       });
     }
   }catch(e){}
@@ -613,10 +617,10 @@ function renderFsTrees(){
     if(!ts.length)continue;
     h+=`<div class="tree-cat${cat==='对应关系库'?' alt':''}">▸ ${cat}</div>`;
     ts.forEach(t=>{
-      // 加载状态：✓=已缓存数据  ◎=已获取列名  —=未连接
-      const ld = t.cache_key?'✓':t._loaded?'◎':t._connected?'◎':'—';
+      // 加载状态：✓=已缓存且最新  ⚠=已缓存但线上数据已变  ◎=仅获取列名  —=未连接
+      const ld = t.cache_key ? (t._cache_stale?'⚠':'✓') : (t._connected||t._loaded?'◎':'—');
       const mt = t.enabled&&t.cache_key?'●':t.enabled?'！':'○';
-      const ldCls = t.cache_key?'badge-green':t._connected||t._loaded?'badge-blue':'badge-gray';
+      const ldCls = t.cache_key ? (t._cache_stale?'badge-orange':'badge-green') : (t._connected||t._loaded?'badge-blue':'badge-gray');
       const mtCls = t.enabled&&t.cache_key?'badge-green':t.enabled?'badge-orange':'badge-gray';
       const cacheHint = t.cache_key&&t.cache_row_count ? ` <span style="font-size:10px;color:#888">${t.cache_row_count}行</span>` : '';
       h+=`<div class="tree-item" data-idx="${t.idx}" onclick="fsSelectTable(${t.idx})">
@@ -652,7 +656,9 @@ function fsSelectTable(idx){
     h+='</div>';
   }
   const cacheInfo = t.cache_key
-    ? `<span style="color:#2a8a2a">✓ 已缓存 ${t.cache_row_count} 行数据（${_fmtTime(t.cache_fetched_at)}）</span>`
+    ? (t._cache_stale
+        ? `<span style="color:#c07000">⚠ 线上行数已变化，缓存可能过期（${_fmtTime(t.cache_fetched_at)}，${t.cache_row_count} 行）——建议重新缓存</span>`
+        : `<span style="color:#2a8a2a">✓ 已缓存 ${t.cache_row_count} 行数据（${_fmtTime(t.cache_fetched_at)}）</span>`)
     : '<span style="color:#e07000">无服务端缓存，匹配时将实时拉取（较慢）</span>';
   const connInfo = t._loaded
     ? `已获取列标题（${t._headers.length} 列）`
@@ -682,6 +688,15 @@ async function fsConnectTable(idx){
     if(d.success){
       t._sheets=d.sheets;t._connected=true;
       if(!t.active_sheet_ids.length)t.active_sheet_ids=d.sheets.map(s=>s.sheetId);
+      // 检测缓存是否与线上一致（行数比对）
+      if(t.cache_key && Object.keys(t._cache_sheet_counts||{}).length>0){
+        const live={};d.sheets.forEach(s=>live[s.sheetId]=s.rowCount||0);
+        t._cache_stale=Object.entries(t._cache_sheet_counts).some(
+          ([sid,cnt])=>t.active_sheet_ids.includes(sid)&&live[sid]!==undefined&&live[sid]!==cnt
+        );
+      } else {
+        t._cache_stale=false;
+      }
       fsSelectTable(idx);renderFsTrees();fsSaveConfig();
     } else alert(d.error);
   }catch(e){alert(e.message);}
@@ -731,10 +746,11 @@ async function fsCacheTable(idx){
         token:t.token,active_sheet_ids:t.active_sheet_ids})});
     const d=await r.json();
     if(d.success){
-      t.cache_key       = d.cache_key;
-      t.cache_row_count = d.row_count;
-      t.cache_fetched_at= d.fetched_at;
-      // Also update headers from cache result
+      t.cache_key            = d.cache_key;
+      t.cache_row_count      = d.row_count;
+      t.cache_fetched_at     = d.fetched_at;
+      t._cache_sheet_counts  = d.sheet_counts || {};
+      t._cache_stale         = false;  // 刚缓存，肯定最新
       if(d.headers&&d.headers.length){ t._headers=d.headers.filter(h=>h); t._loaded=true; }
       fsSelectTable(idx);renderFsTrees();renderFsMapTable();fsSaveConfig();
     } else { alert('缓存失败：'+d.error); fsSelectTable(idx); }

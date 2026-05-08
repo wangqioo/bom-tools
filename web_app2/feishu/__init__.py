@@ -25,12 +25,13 @@ def _cache_path(key):
     return os.path.join(CACHE_DIR, f"feishu_{key}.json")
 
 
-def _write_cache(token, active_sheet_ids, rows):
+def _write_cache(token, active_sheet_ids, rows, sheet_counts=None):
     key = _mk_cache_key(token, active_sheet_ids)
     payload = {
         "token": token,
         "active_sheet_ids": active_sheet_ids,
         "fetched_at": time.time(),
+        "sheet_counts": sheet_counts or {},
         "rows": rows,
     }
     with open(_cache_path(key), "w", encoding="utf-8") as f:
@@ -234,13 +235,17 @@ def api_feishu_load():
         rows = _hq_read_table(base_url, origin, user_id, token, sheets_meta, active_sheet_ids)
         if not rows:
             return jsonify({'success': False, 'error': '读取到 0 行数据'})
-        key, row_count, headers = _write_cache(token, active_sheet_ids, rows)
+        active_set = set(active_sheet_ids)
+        sheet_counts = {s["sheetId"]: s.get("rowCount", 0)
+                        for s in sheets_meta if s["sheetId"] in active_set}
+        key, row_count, headers = _write_cache(token, active_sheet_ids, rows, sheet_counts)
         return jsonify({
             'success': True,
             'cache_key': key,
             'row_count': row_count,
             'headers': headers,
             'fetched_at': time.time(),
+            'sheet_counts': sheet_counts,
         })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
