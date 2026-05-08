@@ -80,6 +80,7 @@ def _do_plm_convert(in_file, sheet_name, header_row, col_hqpn, col_stype, col_qt
         c.font = Font(bold=True, color='FF0000', size=9)
         c.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
         c.border = bdr
+        ws_out.column_dimensions[get_column_letter(offset + 1)].width = 14
     ws_out.column_dimensions['B'].width = 22
     ws_out.row_dimensions[3].height = 60
 
@@ -87,6 +88,7 @@ def _do_plm_convert(in_file, sheet_name, header_row, col_hqpn, col_stype, col_qt
     seq = 0
     total = 0
     skipped = 0
+    skip_logs = []
     for rv in data_rows:
         hqpn = str(rv.get(col_hqpn) or '').strip()
         if not hqpn:
@@ -95,6 +97,7 @@ def _do_plm_convert(in_file, sheet_name, header_row, col_hqpn, col_stype, col_qt
         qty_raw = rv.get(col_qty)
         if qty_raw is None or str(qty_raw).strip() == '':
             skipped += 1
+            skip_logs.append(f"  跳过（用量为空）: {hqpn}")
             continue
         try:
             qty = float(qty_raw)
@@ -102,6 +105,7 @@ def _do_plm_convert(in_file, sheet_name, header_row, col_hqpn, col_stype, col_qt
             qty = None
         if qty is None:
             skipped += 1
+            skip_logs.append(f"  跳过（用量为空）: {hqpn}")
             continue
 
         stype = str(rv.get(col_stype) or '').strip()
@@ -122,7 +126,7 @@ def _do_plm_convert(in_file, sheet_name, header_row, col_hqpn, col_stype, col_qt
         total += 1
 
     wb_out.save(out_file)
-    return total, skipped
+    return total, skipped, skip_logs
 
 
 # ── 路由 ─────────────────────────────────────────────────────
@@ -201,10 +205,10 @@ def tool_plm():
                 'success': False, 'error': '请指定有效的 HQ PN列、主二供列、用量列',
                 'detected': detected, 'headers': raw_headers,
             })
-        total, skipped = _do_plm_convert(
+        total, skipped, skip_logs = _do_plm_convert(
             in_path, sheet_name, header_row, col_hqpn, col_stype, col_qty, project_name, out_path)
         return jsonify({
-            'success': True, 'total': total, 'skipped': skipped,
+            'success': True, 'total': total, 'skipped': skipped, 'skip_logs': skip_logs,
             'download': f'/download/PLM导入BOM_{uid}.xlsx',
             'sheets': sheets, 'detected': detected, 'headers': raw_headers,
         })

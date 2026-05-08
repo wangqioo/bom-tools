@@ -93,10 +93,14 @@ th{background:#f1f3f4;font-weight:600;position:sticky;top:0}
 <div class="card" id="step2" style="display:none">
 <h3>列映射配置</h3>
 <div id="fileInfo" class="status-bar" style="display:none">
-<span><span class="key">文件:</span> <span id="fileName"></span></span>
-<span><span class="key">Sheet:</span>
-<select id="sheetSelect" onchange="reloadSheet()"></select>
-</span>
+  <span><span class="key">文件:</span> <span id="fileName"></span></span>
+  <span><span class="key">Sheet:</span>
+    <select id="sheetSelect" onchange="onSheetChange()"></select>
+  </span>
+  <span><span class="key">表头行:</span>
+    <input type="number" id="headerRowInput" value="1" min="1" max="20" style="width:50px" onchange="onHeaderRowChange()">
+  </span>
+  <button class="btn" style="padding:2px 10px;font-size:0.75rem" onclick="doRescan()">⟳ 重新扫描</button>
 </div>
 
 <div id="scanResult" style="display:none">
@@ -186,7 +190,8 @@ let bomState = {
   detected: {},
   colResults: {},
   preview: [],
-  fileName: ''
+  fileName: '',
+  file_id: ''
 };
 
 function showStep(n) {
@@ -213,6 +218,7 @@ document.getElementById('uploadForm').onsubmit = async function(e) {
     const data = await resp.json();
     if (!data.success) { alert('扫描失败: ' + data.error); return; }
 
+    bomState.file_id = data.file_id || '';
     bomState.sheets = data.sheets;
     bomState.currentSheet = data.current_sheet;
     bomState.headers = data.headers;
@@ -232,14 +238,51 @@ document.getElementById('uploadForm').onsubmit = async function(e) {
   }
 };
 
-async function reloadSheet() {
+function onSheetChange() {
+  const sheet = document.getElementById('sheetSelect').value;
+  if (sheet !== bomState.currentSheet) doRescan();
+}
+
+function onHeaderRowChange() {
+  doRescan();
+}
+
+async function doRescan() {
+  if (!bomState.file_id) { alert('请先上传文件'); return; }
+  const sheet_name = document.getElementById('sheetSelect').value || bomState.currentSheet;
+  const header_row = parseInt(document.getElementById('headerRowInput').value) || 1;
+
+  document.getElementById('loadingSpinner').style.display = 'block';
+
   const fd = new FormData();
-  fd.append('sheet_name', document.getElementById('sheetSelect').value);
-  // We need to re-fetch with the same file... but the file is already uploaded.
-  // Use the sheet_name parameter - the server still has the cached file from the first upload.
-  // Actually the server saves to a temp file on each upload. We'll re-upload.
-  // For now, just update from client-side state
-  alert('请重新上传文件选择不同的 Sheet');
+  fd.append('file_id', bomState.file_id);
+  fd.append('sheet_name', sheet_name);
+  fd.append('header_row', header_row);
+
+  try {
+    const resp = await fetch('/api/bom/rescan', { method: 'POST', body: fd });
+    const data = await resp.json();
+    if (!data.success) { alert('重新扫描失败: ' + data.error); return; }
+
+    bomState.currentSheet = data.current_sheet;
+    bomState.headers = data.headers;
+    bomState.detected = data.detected || {};
+    bomState.colResults = data.col_results || {};
+    bomState.preview = data.preview || [];
+
+    const sel = document.getElementById('sheetSelect');
+    sel.innerHTML = (data.sheets || []).map(s =>
+      `<option value="${s}" ${s === data.current_sheet ? 'selected' : ''}>${s}</option>`
+    ).join('');
+
+    showScanResult();
+    populateColumnSelects();
+    renderPreview();
+  } catch (err) {
+    alert('网络错误: ' + err.message);
+  } finally {
+    document.getElementById('loadingSpinner').style.display = 'none';
+  }
 }
 
 function showScanResult() {
@@ -303,16 +346,22 @@ function getColLetter(i) {
 }
 
 function updateFormat() {
-  const brand = document.getElementById('colBrand').value;
-  const model = document.getElementById('colModel').value;
+  const fmtSelect = document.getElementById('fmtSelect');
   const fmtDisplay = document.getElementById('currentFmtDisplay');
-  if (!model) {
+  const fmt = bomState.detected.fmt || '';
+  if (fmt === 'A') {
     fmtDisplay.textContent = '格式A (合并列 || 分隔)';
-    document.getElementById('fmtSelect').value = 'A';
+    fmtSelect.value = 'A';
+  } else if (fmt === 'B') {
+    fmtDisplay.textContent = '格式B (分列 ; 分隔)';
+    fmtSelect.value = 'B';
+  } else if (fmt === 'C') {
+    fmtDisplay.textContent = '格式C (制造商编号 : 分隔)';
+    fmtSelect.value = 'C';
   } else {
-    // Check if C format by looking at first data sample
-    fmtDisplay.textContent = '格式B/C (分列 ; 或 : 分隔)';
-    document.getElementById('fmtSelect').value = 'auto';
+    const model = document.getElementById('colModel').value;
+    fmtDisplay.textContent = model ? '自动检测 (B/C)' : '格式A (合并列)';
+    fmtSelect.value = model ? 'auto' : 'A';
   }
 }
 
@@ -366,7 +415,7 @@ async function doConvert() {
   fd.append('fmt', document.getElementById('fmtSelect').value);
   fd.append('mode', document.getElementById('modeSelect').value === 'hq' ? 'hq' : 'expand');
   fd.append('sheet', bomState.currentSheet);
-  fd.append('header_row', '1');
+  fd.append('header_row', parseInt(document.getElementById('headerRowInput').value) || 1);
   fd.append('project_name', document.getElementById('projectName').value || '');
   fd.append('col_brand', document.getElementById('colBrand').value);
   fd.append('col_model', document.getElementById('colModel').value);
@@ -408,7 +457,7 @@ function resetAll() {
   document.getElementById('step2').style.display = 'none';
   document.getElementById('step3').style.display = 'none';
   document.getElementById('step4').style.display = 'none';
-  bomState = { sheets: [], currentSheet: '', headers: [], detected: {}, colResults: {}, preview: [], fileName: '' };
+  bomState = { sheets: [], currentSheet: '', headers: [], detected: {}, colResults: {}, preview: [], fileName: '', file_id: '' };
 }
 </script>
 </body>

@@ -314,28 +314,19 @@ def write_expanded_bom(ws_in, header_row, col_brand, col_model, col_qty, fmt, ou
     return total, skipped
 
 
-# ── 路由 ─────────────────────────────────────────────────────
+# ── 扫描助手 ────────────────────────────────────────────────
 
-@bom_bp.route('/api/bom/sheets', methods=['POST'])
-def api_bom_sheets():
-    file = request.files.get('file')
-    if not file:
-        return jsonify({'success': False, 'error': '请上传文件'})
-    uid = str(uuid.uuid4())[:8]
-    in_path = os.path.join(UPLOAD_DIR, f"bom_pre_{uid}.xlsx")
-    file.save(in_path)
-
+def _scan_file_result(in_path, sheet_name, header_row):
+    """加载已上传的 Excel 文件，扫描列结构，返回完整结果字典"""
     wb = openpyxl.load_workbook(in_path, read_only=True, data_only=True)
     sheets = wb.sheetnames
     wb.close()
 
-    sheet_name = request.form.get('sheet_name', '') or sheets[0] if sheets else ''
-    if sheet_name not in sheets:
+    if not sheet_name or sheet_name not in sheets:
         sheet_name = sheets[0] if sheets else ''
 
     wb2 = openpyxl.load_workbook(in_path, data_only=True)
     ws = wb2[sheet_name] if sheet_name else wb2[wb2.sheetnames[0]]
-    header_row = int(request.form.get('header_row', 1))
     all_cols, best = detect_columns(ws, header_row)
 
     role_label = {
@@ -385,15 +376,48 @@ def api_bom_sheets():
                for ci in range(1, max(ws.max_column, 1) + 1)]
     wb2.close()
 
-    return jsonify({
-        'success': True,
+    return {
         'sheets': sheets,
         'current_sheet': sheet_name,
         'detected': detected_letters,
         'col_results': col_results,
         'headers': headers,
         'preview': preview,
-    })
+    }
+
+
+# ── 路由 ─────────────────────────────────────────────────────
+
+@bom_bp.route('/api/bom/sheets', methods=['POST'])
+def api_bom_sheets():
+    file = request.files.get('file')
+    if not file:
+        return jsonify({'success': False, 'error': '请上传文件'})
+    uid = str(uuid.uuid4())[:8]
+    in_path = os.path.join(UPLOAD_DIR, f"bom_pre_{uid}.xlsx")
+    file.save(in_path)
+
+    sheet_name = request.form.get('sheet_name', '')
+    header_row = int(request.form.get('header_row', 1))
+    result = _scan_file_result(in_path, sheet_name, header_row)
+
+    return jsonify({'success': True, 'file_id': uid, **result})
+
+
+@bom_bp.route('/api/bom/rescan', methods=['POST'])
+def api_bom_rescan():
+    file_id = request.form.get('file_id', '')
+    if not file_id:
+        return jsonify({'success': False, 'error': '缺少文件ID'})
+    in_path = os.path.join(UPLOAD_DIR, f"bom_pre_{file_id}.xlsx")
+    if not os.path.exists(in_path):
+        return jsonify({'success': False, 'error': '文件已过期，请重新上传'})
+
+    sheet_name = request.form.get('sheet_name', '')
+    header_row = int(request.form.get('header_row', 1))
+    result = _scan_file_result(in_path, sheet_name, header_row)
+
+    return jsonify({'success': True, 'file_id': file_id, **result})
 
 
 @bom_bp.route('/bom', methods=['GET', 'POST'])

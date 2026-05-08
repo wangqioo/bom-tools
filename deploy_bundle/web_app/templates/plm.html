@@ -49,6 +49,11 @@
   </div>
 
   <div class="error-msg" id="error"></div>
+
+  <div class="log-box" id="logBox" style="display:none">
+    <h4>📋 处理日志</h4>
+    <pre id="logContent" style="background:#1a1a2e;color:#e0e0e0;padding:10px;border-radius:6px;max-height:200px;overflow:auto;white-space:pre-wrap;font-family:Consolas,'Courier New',monospace"></pre>
+  </div>
 </div>
 
 <script>
@@ -69,6 +74,13 @@ document.getElementById('plmForm').onsubmit = async function(e) {
       document.getElementById('downloadLink').href = d.download;
       document.getElementById('result').classList.add('show');
       document.getElementById('status').textContent = '完成！';
+      const logBox = document.getElementById('logBox');
+      if (d.skip_logs && d.skip_logs.length) {
+        document.getElementById('logContent').textContent = d.skip_logs.join('\n');
+        logBox.style.display = 'block';
+      } else {
+        logBox.style.display = 'none';
+      }
     } else {
       document.getElementById('error').textContent = d.error || '转换失败';
       document.getElementById('error').classList.add('show');

@@ -55,8 +55,8 @@ input[type="file"] { font-size:13px; }
 .stat-item .lbl { font-size:11px; color:#888; margin-top:2px; }
 /* === 表格 === */
 table { width:100%; border-collapse:collapse; font-size:12px; margin-top:8px; }
-th { background:#f0f2f5; padding:8px 6px; text-align:left; font-weight:600; border-bottom:2px solid #d0d5dd; position:sticky; top:0; }
-td { padding:7px 6px; border-bottom:1px solid #e8eaed; }
+th { background:#f0f2f5; padding:8px 6px; text-align:left; font-weight:600; border-bottom:2px solid #d0d5dd; position:sticky; top:0; white-space:nowrap; }
+td { padding:7px 6px; border-bottom:1px solid #e8eaed; white-space:nowrap; }
 tr:hover td { background:#f7f9fc; }
 .table-wrap { max-height:320px; overflow:auto; border:1px solid #e0e0e0; border-radius:6px; }
 /* === Tab 切换 === */
@@ -79,6 +79,16 @@ tr:hover td { background:#f7f9fc; }
 .badge-orange { background:#fff3e0; color:#e07000; }
 .badge-gray { background:#f0f0f0; color:#888; }
 .badge-blue { background:#e8f0fe; color:#2d6cdf; }
+/* === 首页概览卡片 === */
+.overview-grid { display:grid; grid-template-columns:1fr; gap:12px; animation:fadeIn .25s ease; }
+@keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+.overview-card { display:flex; align-items:flex-start; gap:18px; background:#fff; border-radius:12px; padding:20px 22px; box-shadow:0 1px 4px rgba(0,0,0,.06); cursor:pointer; transition:all .15s; border:1px solid transparent; }
+.overview-card:hover { box-shadow:0 4px 16px rgba(0,0,0,.1); border-color:#4a9eff; transform:translateY(-1px); }
+.overview-card .oc-icon { font-size:36px; width:44px; text-align:center; flex-shrink:0; margin-top:2px; }
+.overview-card .oc-body { flex:1; min-width:0; }
+.overview-card .oc-title { font-size:16px; font-weight:700; color:#1a3a5c; margin-bottom:6px; }
+.overview-card .oc-badge { display:inline-block; font-size:11px; font-weight:600; background:#e8f0fe; color:#1a5ad4; padding:1px 8px; border-radius:8px; vertical-align:middle; margin-left:6px; }
+.overview-card .oc-desc { font-size:13px; color:#666; line-height:1.6; }
 /* === 详情面板（飞书表格） === */
 .detail-panel { background:#fafbfc; border:1px solid #e0e0e0; border-radius:6px; padding:14px; font-size:13px; }
 .detail-panel h4 { font-size:14px; margin-bottom:8px; }
@@ -96,9 +106,9 @@ tr:hover td { background:#f7f9fc; }
 
 <!-- ===== 左侧导航 ===== -->
 <aside class="sidebar">
-  <div class="logo">🛠 BOM Tools<span class="sub">硬件设计辅助平台</span></div>
+  <div class="logo" onclick="showOverview()" style="cursor:pointer">🛠 BOM Tools<span class="sub">硬件设计辅助平台</span></div>
   <nav>
-    <a href="#" class="active" data-tool="bom"><span class="icon">📋</span>BOM 格式转换</a>
+    <a href="#" data-tool="bom"><span class="icon">📋</span>BOM 格式转换</a>
     <a href="#" data-tool="plm"><span class="icon">📤</span>PLM 上传转换</a>
     <a href="#" data-tool="feishu"><span class="icon">🔍</span>飞书多库匹配</a>
     <a href="#" data-tool="pstx"><span class="icon">📊</span>原理图分析</a>
@@ -126,19 +136,19 @@ tr:hover td { background:#f7f9fc; }
 </div>
 <div class="section"><h3>第二步：列映射（自动识别，可手动调整）</h3>
   <div class="row">
-    <label>物料名称列：</label><input type="text" id="bomColName" style="width:80px" placeholder="如 C">
-    <label>用量列：</label><input type="text" id="bomColQty" style="width:80px" placeholder="如 D">
-    <label>品牌/厂家列：</label><input type="text" id="bomColBrand" style="width:80px" placeholder="如 E">
-    <label>型号列：</label><input type="text" id="bomColModel" style="width:80px" placeholder="如 F">
-    <span class="hint">（填写列字母）</span>
-  </div>
-  <div class="row">
     <label>格式：</label>
     <select id="bomFmt">
       <option value="A">格式A — 品牌型号合并列（|| 或空格分隔）</option>
       <option value="B">格式B — 厂家/型号分开列，分号分隔</option>
       <option value="C">格式C — 制造商含编号，冒号分隔</option>
     </select>
+  </div>
+  <div class="row">
+    <label>物料名称列：</label><input type="text" id="bomColName" style="width:80px" placeholder="如 C">
+    <label>用量列：</label><input type="text" id="bomColQty" style="width:80px" placeholder="如 D">
+    <label>品牌/厂家列：</label><input type="text" id="bomColBrand" style="width:80px" placeholder="如 E">
+    <label>型号列：</label><input type="text" id="bomColModel" style="width:80px" placeholder="如 F">
+    <span class="hint">（填写列字母）</span>
   </div>
   <div id="bomDetected" class="hint" style="margin-top:4px"></div>
 </div>
@@ -165,6 +175,7 @@ tr:hover td { background:#f7f9fc; }
 </div>
 <div class="section"><h3>第二步：列映射（自动识别，可手动填列字母覆盖）</h3>
   <div id="plmDetectLog" style="font-size:12px;color:#555;background:#f7f9fc;padding:8px;border-radius:6px;margin-bottom:8px"></div>
+  <div id="plmColMap" class="table-wrap" style="margin-bottom:10px;max-height:200px"></div>
   <div class="row">
     <label>HQ PN 列：</label><input type="text" id="plmColHqpn" style="width:60px" placeholder="如 B">
     <label>主二供列：</label><input type="text" id="plmColStype" style="width:60px" placeholder="如 C">
@@ -177,6 +188,7 @@ tr:hover td { background:#f7f9fc; }
 </div>
 <div class="result" id="plmResult"><span class="title">✅ 转换完成</span><br><span id="plmStats"></span><br><a class="download" id="plmDl" href="#">📥 下载 PLM 导入文件</a></div>
 <div class="error" id="plmError"></div>
+<div class="log-box" id="plmLogBox" style="display:none;margin-top:10px"><h4 style="margin:0 0 6px;font-size:13px">📋 处理日志</h4><pre id="plmLog" style="font-size:12px;background:#1a1a2e;color:#e0e0e0;padding:10px;border-radius:6px;max-height:200px;overflow:auto;white-space:pre-wrap;font-family:Consolas,'Courier New',monospace"></pre></div>
 </script>
 
 <!-- ── 飞书工具 ── -->
@@ -276,14 +288,46 @@ function render(el,html){el.innerHTML=html;}
 
 // ═══════════════════ 左侧导航切换 ═══════════════════
 const TOOLS = {
-  bom:  {title:'BOM 格式转换',badge:'v5.10',tpl:'tpl-bom'},
-  plm:  {title:'PLM 上传转换',badge:'v1.6', tpl:'tpl-plm'},
-  feishu:{title:'飞书多库匹配',badge:'v3.0',tpl:'tpl-feishu'},
-  pstx: {title:'原理图分析',  badge:'v1.3',tpl:'tpl-pstx'},
-  csa:  {title:'CSA 几何检查',badge:'v1.0',tpl:'tpl-csa'},
+  bom:  {title:'BOM 格式转换',badge:'v5.10',tpl:'tpl-bom',
+         desc:'将客户提供的多种格式 BOM 表（Excel）自动识别列映射，支持品牌型号合并列/分开列，展开为多供应商独立行，输出标准格式供内部评审或 PLM 导入。'},
+  plm:  {title:'PLM 上传转换',badge:'v1.6', tpl:'tpl-plm',
+         desc:'将整机 BOM 配置表转换为 PLM 系统可导入的标准格式，自动识别列映射关系，支持用量校验和项目信息写入。'},
+  feishu:{title:'飞书多库匹配',badge:'v3.0',tpl:'tpl-feishu',
+          desc:'连接飞书多维表格，支持 14 个预置库（优选库 + 对应关系库），多键 AND 匹配（最多 3 对），批量提取字段，一键更新表格数据。'},
+  pstx: {title:'原理图分析',  badge:'v1.3',tpl:'tpl-pstx',
+         desc:'解析 Cadence 原理图 pstxprt.dat / pstxnet.dat 文件，生成 BOM 清单、DRC 检查、降额分析、元件查询和层次化页码报告。'},
+  csa:  {title:'CSA 几何检查',badge:'v1.0',tpl:'tpl-csa',
+         desc:'分析 CSA 几何规范文件，检测 DOT 四向十字偏差、画圈对象等高/重叠/间距异常，输出 CSV 报告。'},
 };
-let curTool = 'bom';
+let curTool = null;
 
+// 展示首页概览（工具卡片介绍）
+function showOverview(){
+  curTool = null;
+  document.querySelectorAll('.sidebar nav a').forEach(x=>x.classList.remove('active'));
+  $('toolTitle').textContent = 'BOM Tools';
+  $('toolBadge').textContent = '硬件设计辅助平台';
+  let html = '<div class="overview-grid">';
+  for(const [key, t] of Object.entries(TOOLS)){
+    const iconEl = document.querySelector('.sidebar nav a[data-tool="' + key + '"] .icon');
+    const icon = iconEl ? iconEl.textContent : '🛠';
+    html += '<div class="overview-card" onclick="switchTool(\'' + key + '\')">' +
+      '<div class="oc-icon">' + icon + '</div>' +
+      '<div class="oc-body">' +
+        '<div class="oc-title">' + t.title + ' <span class="oc-badge">' + t.badge + '</span></div>' +
+        '<div class="oc-desc">' + t.desc + '</div>' +
+      '</div></div>';
+  }
+  html += '</div>';
+  $('contentArea').innerHTML = html;
+}
+
+function switchTool(key){
+  const a = document.querySelector(`.sidebar nav a[data-tool='${key}']`);
+  if(a) a.click();
+}
+
+// 导航点击
 document.querySelectorAll('.sidebar nav a').forEach(a=>{
   a.onclick=function(e){
     e.preventDefault();
@@ -327,11 +371,13 @@ function initBom(){
   $('bomMode').onchange=()=>{$('bomProjRow').style.display=$('bomMode').value==='internal'?'flex':'none';};
   $('bomSheet').onchange=function(){
     const f=$('bomFile').files[0];if(!f)return;
+    hide($('bomResult'));hide($('bomError'));
     let fd=new FormData();fd.append('file',f);fd.append('sheet_name',this.value);
     fetch('/api/bom/sheets',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{updateBomFromApi(d);});
   };
   $('bomFile').onchange=function(){
     const f=this.files[0];if(!f)return;
+    hide($('bomResult'));hide($('bomError'));
     let fd=new FormData();fd.append('file',f);fd.append('sheet_name',$('bomSheet').value);
     fetch('/api/bom/sheets',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{updateBomFromApi(d);});
   };
@@ -358,7 +404,15 @@ function initBom(){
 
 function updateBomPreview(rows){
   if(!rows||!rows.length){$('bomPreview').innerHTML='';return;}
-  let h='<table>';rows.slice(0,6).forEach((r,i)=>{
+  let h='<table>';
+  // 第一行：列字母 A B C ...
+  if(rows.length && rows[0].length){
+    h+='<tr style="background:#e8f0fe">';
+    rows[0].forEach((_,ci)=>h+=`<th style="color:#1a5ad4;font-size:11px;font-weight:700;padding:2px 6px">${String.fromCharCode(65+ci)}</th>`);
+    h+='</tr>';
+  }
+  // 数据行
+  rows.slice(0,6).forEach((r,i)=>{
     h+='<tr>';
     r.forEach(c=>h+=(i===0?'<th>':'<td>')+(c||'')+(i===0?'</th>':'</td>'));
     h+='</tr>';
@@ -377,6 +431,19 @@ function updatePlmFromApi(d){
     if(d.detected.qty)$('plmColQty').value=d.detected.qty;
   }
   $('plmDetectLog').textContent='自动识别：'+(d.headers||[]).join(' | ');
+  // 列字母对照表
+  if(d.headers&&d.headers.length){
+    let h='<table><tr style="background:#e8f0fe"><th>列</th><th>列名</th></tr>';
+    d.headers.forEach(e=>{
+      const m=e.match(/^([A-Z]+):(.+)/);
+      if(m) h+=`<tr><td style="font-weight:700;color:#1a5ad4;width:50px">${m[1]}</td><td>${m[2]}</td></tr>`;
+      else h+=`<tr><td></td><td>${e}</td></tr>`;
+    });
+    h+='</table>';
+    $('plmColMap').innerHTML=h;
+  } else {
+    $('plmColMap').innerHTML='';
+  }
 }
 function initPlm(){
   $('plmBrowse').onclick=()=>$('plmFile').click();
@@ -404,7 +471,7 @@ function initPlm(){
     try{
       const r=await fetch('/plm',{method:'POST',body:fd});
       const d=await r.json();
-      if(d.success){$('plmStats').innerHTML='写入 <b>'+d.total+'</b> 行，跳过 <b>'+d.skipped+'</b> 行（用量为空不导入）';$('plmDl').href=d.download;show($('plmResult'));$('plmStatus').textContent='完成！';}
+      if(d.success){$('plmStats').innerHTML='写入 <b>'+d.total+'</b> 行，跳过 <b>'+d.skipped+'</b> 行（用量为空不导入）';$('plmDl').href=d.download;show($('plmResult'));$('plmStatus').textContent='完成！';if(d.skip_logs&&d.skip_logs.length){$('plmLog').textContent=d.skip_logs.join('\n');show($('plmLogBox'));}else hide($('plmLogBox'));}
       else {$('plmError').textContent=d.error||'转换失败';show($('plmError'));$('plmStatus').textContent='';}
     }catch(e){$('plmError').textContent=e.message;show($('plmError'));}
     btn.disabled=false;
@@ -771,7 +838,7 @@ function csaExportCSV(d){
 }
 
 // ═══════════════════ 页面加载 ═══════════════════
-initTool('bom');
+showOverview();
 </script>
 </body>
 </html>
