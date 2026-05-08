@@ -1,15 +1,53 @@
 # -*- coding: utf-8 -*-
 """飞书多表格匹配 — Blueprint"""
 
-import os, uuid, json
+import os, uuid, json, hashlib, time
 from flask import Blueprint
 from shared import (
     requests as _requests,
     openpyxl, Workbook, Font, PatternFill, Alignment, Border, Side,
     get_column_letter,
     request, jsonify,
-    UPLOAD_DIR, OUTPUT_DIR, _cell_str,
+    UPLOAD_DIR, OUTPUT_DIR, CACHE_DIR, _cell_str,
 )
+
+os.makedirs(CACHE_DIR, exist_ok=True)
+
+
+# ── 服务端数据缓存 ────────────────────────────────────────
+
+def _mk_cache_key(token, active_sheet_ids):
+    raw = f"{token}:{','.join(sorted(active_sheet_ids))}"
+    return hashlib.md5(raw.encode()).hexdigest()[:16]
+
+
+def _cache_path(key):
+    return os.path.join(CACHE_DIR, f"feishu_{key}.json")
+
+
+def _write_cache(token, active_sheet_ids, rows):
+    key = _mk_cache_key(token, active_sheet_ids)
+    payload = {
+        "token": token,
+        "active_sheet_ids": active_sheet_ids,
+        "fetched_at": time.time(),
+        "rows": rows,
+    }
+    with open(_cache_path(key), "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False)
+    headers = [_cell_str(v) for v in (rows[0] if rows else [])]
+    return key, max(0, len(rows) - 1), headers
+
+
+def _read_cache(key):
+    path = _cache_path(key)
+    if not os.path.exists(path):
+        return None
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return None
 
 feishu_bp = Blueprint('feishu', __name__)
 
@@ -173,6 +211,41 @@ def _do_match_multi(local_ws, local_header_row, prepared_tables, all_fetch_cols,
 
 # ── 路由 ─────────────────────────────────────────────────────
 
+@feishu_bp.route('/api/feishu/load', methods=['POST'])
+def api_feishu_load():
+    """拉取飞书表格全部数据并缓存到服务端"""
+    data = request.get_json(silent=True) or {}
+    base_url = data.get('base_url', 'https://mcenter.huaqin.com')
+    origin   = data.get('origin', '')
+    user_id  = data.get('user_id', '')
+    token    = data.get('token', '').strip()
+    active_sheet_ids = data.get('active_sheet_ids', [])
+    if not token:
+        return jsonify({'success': False, 'error': '请填写 Token'})
+    try:
+        sheets_meta = _hq_get_sheets(base_url, origin, user_id, token)
+        live_ids = {s["sheetId"] for s in sheets_meta}
+        if not active_sheet_ids:
+            active_sheet_ids = list(live_ids)
+        else:
+            active_sheet_ids = [sid for sid in active_sheet_ids if sid in live_ids]
+            if not active_sheet_ids:
+                return jsonify({'success': False, 'error': '所有选中的 Sheet 均已失效，请重新配置'})
+        rows = _hq_read_table(base_url, origin, user_id, token, sheets_meta, active_sheet_ids)
+        if not rows:
+            return jsonify({'success': False, 'error': '读取到 0 行数据'})
+        key, row_count, headers = _write_cache(token, active_sheet_ids, rows)
+        return jsonify({
+            'success': True,
+            'cache_key': key,
+            'row_count': row_count,
+            'headers': headers,
+            'fetched_at': time.time(),
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
 @feishu_bp.route('/api/feishu/sheets', methods=['POST'])
 def api_feishu_sheets():
     """获取飞书表格的 Sheet 列表"""
@@ -283,31 +356,43 @@ def api_feishu_match():
         if not local_key_cols:
             continue
 
-        # Fetch feishu data
-        try:
-            logs.append(f"[{name}] 正在连接...")
-            sheets_meta = _hq_get_sheets(base_url, origin, user_id, token)
-            live_ids = {s["sheetId"] for s in sheets_meta}
-            if not active_sheet_ids:
-                active_sheet_ids = list(live_ids)
+        # Fetch feishu data — prefer server-side cache if available
+        cache_key = tcfg.get('cache_key', '')
+        rows = None
+        if cache_key:
+            cached = _read_cache(cache_key)
+            if cached:
+                rows = cached['rows']
+                logs.append(f"[{name}] 使用缓存数据（{len(rows)-1} 行，缓存于 "
+                            f"{time.strftime('%Y-%m-%d %H:%M', time.localtime(cached['fetched_at']))}）")
             else:
-                stale = [sid for sid in active_sheet_ids if sid not in live_ids]
-                if stale:
-                    logs.append(f"[{name}] 警告：以下 Sheet ID 已失效并忽略：{stale}")
-                active_sheet_ids = [sid for sid in active_sheet_ids if sid in live_ids]
+                logs.append(f"[{name}] 缓存已失效，重新从 API 获取...")
+        if rows is None:
+            try:
+                logs.append(f"[{name}] 正在连接...")
+                sheets_meta = _hq_get_sheets(base_url, origin, user_id, token)
+                live_ids = {s["sheetId"] for s in sheets_meta}
                 if not active_sheet_ids:
-                    logs.append(f"[{name}] 跳过：所有已选 Sheet ID 均已失效，请重新配置")
+                    active_sheet_ids = list(live_ids)
+                else:
+                    stale = [sid for sid in active_sheet_ids if sid not in live_ids]
+                    if stale:
+                        logs.append(f"[{name}] 警告：以下 Sheet ID 已失效并忽略：{stale}")
+                    active_sheet_ids = [sid for sid in active_sheet_ids if sid in live_ids]
+                    if not active_sheet_ids:
+                        logs.append(f"[{name}] 跳过：所有已选 Sheet ID 均已失效，请重新配置")
+                        continue
+                logs.append(f"[{name}] 正在读取数据...")
+                rows = _hq_read_table(base_url, origin, user_id, token, sheets_meta, active_sheet_ids)
+                if not rows:
+                    logs.append(f"[{name}] 读取到 0 行，跳过")
                     continue
-            logs.append(f"[{name}] 正在读取数据...")
-            rows = _hq_read_table(base_url, origin, user_id, token, sheets_meta, active_sheet_ids)
-            if not rows:
-                logs.append(f"[{name}] 读取到 0 行，跳过")
+                logs.append(f"[{name}] 读取 {len(rows)-1} 行")
+            except Exception as e:
+                logs.append(f"[{name}] 读取失败：{e}")
                 continue
-            fs_headers = [_cell_str(v) for v in rows[0]]
-            logs.append(f"[{name}] 读取 {len(rows)-1} 行，{len(fs_headers)} 列")
-        except Exception as e:
-            logs.append(f"[{name}] 读取失败：{e}")
-            continue
+        fs_headers = [_cell_str(v) for v in rows[0]]
+        logs.append(f"[{name}] 共 {len(fs_headers)} 列")
 
         # Verify feishu key columns exist
         bad_keys = [k for k in feishu_key_names if k not in fs_headers]

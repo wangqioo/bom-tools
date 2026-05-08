@@ -193,6 +193,7 @@ tr:hover td { background:#f7f9fc; }
     <label>Origin：</label><input type="text" id="fsOrigin" value="cli_a96ac38049f8d0e5" style="width:200px">
     <label>工号：</label><input type="text" id="fsUserId" value="" style="width:110px" placeholder="如 100448405">
   </div>
+  <div style="font-size:11px;color:#888" id="fsCfgStatus"></div>
 </div>
 <div class="section"><h3>本地 BOM 文件</h3>
   <div class="row">
@@ -206,8 +207,9 @@ tr:hover td { background:#f7f9fc; }
   <div class="row">
     <button class="btn btn-sm btn-gray" id="fsReloadTables">⟳ 刷新表格列表</button>
     <span id="fsReloadHint" class="hint"></span>
-    <button class="btn btn-sm btn-gray" id="fsBatchUpdate" style="margin-left:8px">⟳ 一键更新全部表格数据</button>
+    <button class="btn btn-sm btn-gray" id="fsBatchUpdate" style="margin-left:8px">⟳ 一键缓存全部启用表格</button>
     <span id="fsBatchHint" class="hint"></span>
+    <button class="btn btn-sm btn-gray" id="fsClearConfig" style="margin-left:8px;color:#c00000">🗑 清除本地配置</button>
   </div>
   <div style="display:flex;gap:12px">
     <div style="width:240px;flex-shrink:0">
@@ -477,13 +479,96 @@ let fsTables = FS_TABLES.map((t,i)=>({
   _sheets:[], _headers:[], _connected:false, _loaded:false,
   enabled:false, active_sheet_ids:[],
   local_key_names:['','',''], feishu_key_names:['','',''], fetch_col_names:[],
+  cache_key:'', cache_row_count:0, cache_fetched_at:0,
 }));
 let fsCurIdx = null;
 
+// ─── localStorage 持久化 ──────────────────────────────
+const _FS_KEY = 'bom-tools-feishu-v1';
+
+function fsSaveConfig(){
+  const bu=$('fsBaseUrl'), or_=$('fsOrigin'), ui=$('fsUserId');
+  const prev = window._fsSavedCfg || {};
+  const cfg = {
+    base_url: bu ? bu.value : prev.base_url||'',
+    origin:  or_ ? or_.value : prev.origin||'',
+    user_id:  ui ? ui.value  : prev.user_id||'',
+    tables: fsTables.map(t=>({
+      idx:t.idx, token:t.token||'', enabled:t.enabled,
+      active_sheet_ids:t.active_sheet_ids||[],
+      local_key_names:t.local_key_names||['','',''],
+      feishu_key_names:t.feishu_key_names||['','',''],
+      fetch_col_names:t.fetch_col_names||[],
+      _sheets:t._sheets||[], _headers:t._headers||[],
+      _connected:!!t._connected, _loaded:!!t._loaded,
+      cache_key:t.cache_key||'', cache_row_count:t.cache_row_count||0,
+      cache_fetched_at:t.cache_fetched_at||0,
+    })),
+  };
+  try{ localStorage.setItem(_FS_KEY, JSON.stringify(cfg)); window._fsSavedCfg=cfg; }catch(e){}
+}
+
+function fsClearConfig(){
+  if(!confirm('确认清除所有飞书本地配置？（含 Token、列映射、缓存记录）')) return;
+  try{ localStorage.removeItem(_FS_KEY); }catch(e){}
+  window._fsSavedCfg = null;
+  // reset fsTables
+  fsTables = FS_TABLES.map((t,i)=>({
+    ...t, idx:i,
+    _sheets:[], _headers:[], _connected:false, _loaded:false,
+    enabled:false, active_sheet_ids:[],
+    local_key_names:['','',''], feishu_key_names:['','',''], fetch_col_names:[],
+    cache_key:'', cache_row_count:0, cache_fetched_at:0,
+  }));
+  renderFsTrees();
+  $('fsCfgStatus').textContent='配置已清除';
+}
+
+// 页面加载时预读配置并合并到 fsTables
+(function(){
+  try{
+    const raw = localStorage.getItem(_FS_KEY);
+    if(!raw) return;
+    const cfg = JSON.parse(raw);
+    window._fsSavedCfg = cfg;
+    if(cfg.tables){
+      cfg.tables.forEach(st=>{
+        const t = fsTables[st.idx]; if(!t) return;
+        t.token           = st.token || t.token || '';
+        t.enabled         = !!st.enabled;
+        t.active_sheet_ids= st.active_sheet_ids || [];
+        t.local_key_names = st.local_key_names  || ['','',''];
+        t.feishu_key_names= st.feishu_key_names || ['','',''];
+        t.fetch_col_names = st.fetch_col_names  || [];
+        t._sheets         = st._sheets  || [];
+        t._headers        = st._headers || [];
+        t._connected      = !!st._connected;
+        t._loaded         = !!st._loaded;
+        t.cache_key       = st.cache_key       || '';
+        t.cache_row_count = st.cache_row_count || 0;
+        t.cache_fetched_at= st.cache_fetched_at|| 0;
+      });
+    }
+  }catch(e){}
+}());
+
 function initFeishu(){
+  // 恢复网关配置
+  const saved = window._fsSavedCfg;
+  if(saved){
+    if(saved.base_url) $('fsBaseUrl').value = saved.base_url;
+    if(saved.origin)   $('fsOrigin').value  = saved.origin;
+    if(saved.user_id)  $('fsUserId').value  = saved.user_id;
+    $('fsCfgStatus').textContent = '已从本地存储恢复配置';
+  }
+  // 网关字段变化时自动保存
+  ['fsBaseUrl','fsOrigin','fsUserId'].forEach(id=>{
+    const el=$(id); if(el) el.oninput = fsSaveConfig;
+  });
   renderFsTrees();
   $('fsReloadTables').onclick=renderFsTrees;
   $('fsBatchUpdate').onclick=fsBatchUpdate;
+  $('fsClearConfig').onclick=fsClearConfig;
   $('fsRun').onclick=fsRunMatch;
   $('fsMapRefresh').onclick=renderFsMapTable;
   $('fsMapTable').onchange=fsOnMapTableChange;
@@ -514,6 +599,12 @@ function initFeishu(){
   };
 }
 
+function _fmtTime(ts){
+  if(!ts) return '';
+  const d=new Date(ts*1000);
+  return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
 function renderFsTrees(){
   const cats={'优选库':[],'对应关系库':[]};
   fsTables.forEach(t=>{const c=t.category||'优选库';(cats[c]=cats[c]||[]).push(t);});
@@ -522,12 +613,14 @@ function renderFsTrees(){
     if(!ts.length)continue;
     h+=`<div class="tree-cat${cat==='对应关系库'?' alt':''}">▸ ${cat}</div>`;
     ts.forEach(t=>{
-      const ld=t._loaded?'✓':t._connected?'◎':'—';
-      const mt=t.enabled&&t._loaded?'●':t.enabled?'！':'○';
-      const ldCls=t._loaded?'badge-green':t._connected?'badge-blue':'badge-gray';
-      const mtCls=t.enabled&&t._loaded?'badge-green':t.enabled?'badge-orange':'badge-gray';
+      // 加载状态：✓=已缓存数据  ◎=已获取列名  —=未连接
+      const ld = t.cache_key?'✓':t._loaded?'◎':t._connected?'◎':'—';
+      const mt = t.enabled&&t.cache_key?'●':t.enabled?'！':'○';
+      const ldCls = t.cache_key?'badge-green':t._connected||t._loaded?'badge-blue':'badge-gray';
+      const mtCls = t.enabled&&t.cache_key?'badge-green':t.enabled?'badge-orange':'badge-gray';
+      const cacheHint = t.cache_key&&t.cache_row_count ? ` <span style="font-size:10px;color:#888">${t.cache_row_count}行</span>` : '';
       h+=`<div class="tree-item" data-idx="${t.idx}" onclick="fsSelectTable(${t.idx})">
-        <span class="indent"></span><span style="flex:1">${t.name}</span>
+        <span class="indent"></span><span style="flex:1">${t.name}${cacheHint}</span>
         <span class="badge-sm ${ldCls}">${ld}</span>
         <span class="badge-sm ${mtCls}">${mt}</span>
       </div>`;
@@ -544,11 +637,11 @@ function fsSelectTable(idx){
   let h=`<h4>${t.name} <span style="font-size:11px;color:#888;font-weight:400">(${t.category||'优选库'})</span></h4>`;
   h+=`<div class="row"><label>名称：</label><input type="text" id="fsDetName" value="${t.name}" style="width:160px">
     <label>Token：</label><input type="text" id="fsDetToken" value="${t.token||''}" style="width:260px">
-    <label>启用：</label><input type="checkbox" id="fsDetEnable" ${t.enabled?'checked':''} onchange="fsTables[${idx}].enabled=this.checked;renderFsTrees()"></div>`;
+    <label>启用：</label><input type="checkbox" id="fsDetEnable" ${t.enabled?'checked':''} onchange="fsTables[${idx}].enabled=this.checked;renderFsTrees();fsSaveConfig()"></div>`;
   h+=`<div class="row">
     <button class="btn btn-sm btn-primary" onclick="fsConnectTable(${idx})">连接并获取 Sheet 列表</button>
-    <button class="btn btn-sm btn-gray"    onclick="fsLoadTable(${idx})">读取选中 Sheet 数据</button>
-    <button class="btn btn-sm btn-outline" onclick="fsUpdateTable(${idx})">⟳ 更新本地数据</button>
+    <button class="btn btn-sm btn-gray"    onclick="fsLoadHeaders(${idx})">获取列标题（配置用）</button>
+    <button class="btn btn-sm btn-green"   onclick="fsCacheTable(${idx})">⬇ 加载并缓存全部数据</button>
   </div>`;
   if(t._sheets.length){
     h+=`<div style="margin-top:8px"><b>Sheet 选择（可多选）：</b></div><div class="chk-list" style="max-height:200px">`;
@@ -558,11 +651,13 @@ function fsSelectTable(idx){
     });
     h+='</div>';
   }
-  h+=`<div style="margin-top:6px;font-size:12px">${
-    t._loaded?`<span style="color:#2a8a2a">✓ 已加载 ${t._headers.length} 列（列标题已获取）</span>`:
-    t._connected?'<span style="color:#2d6cdf">已连接，请读取 Sheet 数据</span>':
-    '<span style="color:#999">未连接</span>'
-  }</div>`;
+  const cacheInfo = t.cache_key
+    ? `<span style="color:#2a8a2a">✓ 已缓存 ${t.cache_row_count} 行数据（${_fmtTime(t.cache_fetched_at)}）</span>`
+    : '<span style="color:#e07000">无服务端缓存，匹配时将实时拉取（较慢）</span>';
+  const connInfo = t._loaded
+    ? `已获取列标题（${t._headers.length} 列）`
+    : t._connected ? '已连接，可获取列标题' : '未连接';
+  h+=`<div style="margin-top:6px;font-size:12px">${cacheInfo}<br><span style="color:#888">${connInfo}</span></div>`;
   $('fsDetail').innerHTML=h;
 }
 
@@ -570,6 +665,7 @@ function fsToggleSheet(idx,sid,val){
   const t=fsTables[idx];
   if(val){if(!t.active_sheet_ids.includes(sid))t.active_sheet_ids.push(sid);}
   else t.active_sheet_ids=t.active_sheet_ids.filter(x=>x!==sid);
+  fsSaveConfig();
 }
 
 async function fsConnectTable(idx){
@@ -586,30 +682,30 @@ async function fsConnectTable(idx){
     if(d.success){
       t._sheets=d.sheets;t._connected=true;
       if(!t.active_sheet_ids.length)t.active_sheet_ids=d.sheets.map(s=>s.sheetId);
-      fsSelectTable(idx);renderFsTrees();
+      fsSelectTable(idx);renderFsTrees();fsSaveConfig();
     } else alert(d.error);
   }catch(e){alert(e.message);}
   btns.forEach(b=>b.disabled=false);
 }
 
-async function fsLoadTable(idx){
+// 获取列标题（快速，仅读前2行，用于配置列映射）
+async function fsLoadHeaders(idx){
   const t=fsTables[idx];
   if(!t._connected){alert('请先连接');return;}
   if(!t.active_sheet_ids.length){alert('请至少选择一个 Sheet');return;}
   const btns=$('fsDetail').querySelectorAll('button');btns.forEach(b=>b.disabled=true);
   try{
-    // Get headers from first active sheet
     const firstSheet=t._sheets.find(s=>t.active_sheet_ids.includes(s.sheetId));
     if(!firstSheet){alert('找不到选中的 Sheet');btns.forEach(b=>b.disabled=false);return;}
     const r=await fetch('/api/feishu/headers',{method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({base_url:$('fsBaseUrl').value,origin:$('fsOrigin').value,user_id:$('fsUserId').value,token:t.token,sheet_id:firstSheet.sheetId,col_count:firstSheet.columnCount||100})});
+      body:JSON.stringify({base_url:$('fsBaseUrl').value,origin:$('fsOrigin').value,user_id:$('fsUserId').value,
+        token:t.token,sheet_id:firstSheet.sheetId,col_count:firstSheet.columnCount||100})});
     const d=await r.json();
     if(d.success){
       t._headers=d.headers.filter(h=>h);
       t._loaded=true;
-      fsSelectTable(idx);renderFsTrees();renderFsMapTable();
-      // Update feishu key datalists
+      fsSelectTable(idx);renderFsTrees();renderFsMapTable();fsSaveConfig();
       let dl='';t._headers.forEach(h=>dl+=`<option value="${h}">`);
       ['fsFk1','fsFk2','fsFk3'].forEach(id=>{
         let el=document.getElementById(id+'_flist');
@@ -621,19 +717,44 @@ async function fsLoadTable(idx){
   btns.forEach(b=>b.disabled=false);
 }
 
-async function fsUpdateTable(idx){
-  await fsConnectTable(idx);
-  if(fsTables[idx]._connected) await fsLoadTable(idx);
+// 加载并缓存全部数据到服务端（用于匹配）
+async function fsCacheTable(idx){
+  const t=fsTables[idx];
+  if(!t.token){alert('请先填写并连接 Token');return;}
+  const btns=$('fsDetail').querySelectorAll('button');btns.forEach(b=>b.disabled=true);
+  const statusEl=$('fsDetail').querySelector('div[style*="margin-top:6px"]');
+  if(statusEl) statusEl.innerHTML='<span style="color:#888">⏳ 正在拉取全部数据，请稍候...</span>';
+  try{
+    const r=await fetch('/api/feishu/load',{method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({base_url:$('fsBaseUrl').value,origin:$('fsOrigin').value,user_id:$('fsUserId').value,
+        token:t.token,active_sheet_ids:t.active_sheet_ids})});
+    const d=await r.json();
+    if(d.success){
+      t.cache_key       = d.cache_key;
+      t.cache_row_count = d.row_count;
+      t.cache_fetched_at= d.fetched_at;
+      // Also update headers from cache result
+      if(d.headers&&d.headers.length){ t._headers=d.headers.filter(h=>h); t._loaded=true; }
+      fsSelectTable(idx);renderFsTrees();renderFsMapTable();fsSaveConfig();
+    } else { alert('缓存失败：'+d.error); fsSelectTable(idx); }
+  }catch(e){alert(e.message);fsSelectTable(idx);}
+  btns.forEach(b=>b.disabled=false);
 }
 
+// 一键缓存所有启用的表格
 async function fsBatchUpdate(){
-  $('fsBatchUpdate').disabled=true;$('fsBatchHint').textContent='更新中...';
+  $('fsBatchUpdate').disabled=true;$('fsBatchHint').textContent='缓存中...';
   let count=0;
   for(let i=0;i<fsTables.length;i++){
     const t=fsTables[i];
-    if(!t.token)continue;
-    $('fsBatchHint').textContent=`更新中 (${count+1})：${t.name}`;
-    try{await fsConnectTable(i);if(t._connected)await fsLoadTable(i);count++;}catch(e){console.error(e);}
+    if(!t.enabled||!t.token)continue;
+    $('fsBatchHint').textContent=`缓存中 (${count+1})：${t.name}`;
+    try{
+      if(!t._connected) await fsConnectTable(i);
+      await fsCacheTable(i);
+      count++;
+    }catch(e){console.error(e);}
   }
   $('fsBatchUpdate').disabled=false;$('fsBatchHint').textContent=`✓ 完成 ${count} 个`;
   renderFsTrees();
@@ -675,6 +796,7 @@ function fsSaveMapping(){
   t.feishu_key_names=[$('fsFk1').value,$('fsFk2').value,$('fsFk3').value];
   t.fetch_col_names=[];
   document.querySelectorAll('.fs-chk-col:checked').forEach(cb=>t.fetch_col_names.push(cb.value));
+  fsSaveConfig();
   $('fsSaveHint').textContent='✓ 已保存';setTimeout(()=>$('fsSaveHint').textContent='',2000);
 }
 
@@ -699,6 +821,7 @@ async function fsRunMatch(){
       local_key_names:t.local_key_names.filter(k=>k),
       feishu_key_names:t.feishu_key_names.filter(k=>k),
       fetch_col_names:t.fetch_col_names,
+      cache_key:t.cache_key||'',
     })),
   };
   const fd=new FormData();fd.append('file',f);fd.append('config',JSON.stringify(config));

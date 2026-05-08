@@ -31,6 +31,7 @@ from flask import request, jsonify, send_file
 
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads")
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "outputs")
+CACHE_DIR  = os.path.join(os.path.dirname(__file__), "cache")
 
 FEISHU_PRESET_TABLES = [
     {"name": "MLCC",               "token": "shthq7d9W17DSo7cwuFhtIg7KPf", "category": "优选库"},

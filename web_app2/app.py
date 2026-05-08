@@ -3,7 +3,7 @@
 
 import os, threading, time
 from flask import Flask, render_template, send_file
-from shared import UPLOAD_DIR, OUTPUT_DIR, FEISHU_PRESET_TABLES, _cleanup_old_files
+from shared import UPLOAD_DIR, OUTPUT_DIR, CACHE_DIR, FEISHU_PRESET_TABLES, _cleanup_old_files
 
 from bom import bom_bp
 from feishu import feishu_bp
@@ -15,6 +15,7 @@ app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
+os.makedirs(CACHE_DIR,  exist_ok=True)
 
 app.register_blueprint(bom_bp)
 app.register_blueprint(feishu_bp)
@@ -39,6 +40,7 @@ def _cleanup_job():
         time.sleep(600)
         _cleanup_old_files(UPLOAD_DIR, 30)
         _cleanup_old_files(OUTPUT_DIR, 30)
+        _cleanup_old_files(CACHE_DIR, 7 * 24 * 60)  # 缓存保留 7 天
 
 
 threading.Thread(target=_cleanup_job, daemon=True).start()
