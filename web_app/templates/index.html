@@ -211,7 +211,7 @@ tr:hover td { background:#f7f9fc; }
   </div>
 </div>
 <div class="section"><h3>本地 BOM 文件</h3>
-  <div class="row"><label>文件路径：</label><input type="file" id="fsFile" accept=".xlsx,.xlsm,.xls" style="width:300px"><label>Sheet：</label><select id="fsSheet" style="width:180px"><option>先选择文件</option></select><label>表头行：</label><input type="number" id="fsHdr" value="1" min="1" style="width:60px"></div>
+  <div class="row"><label>文件路径：</label><input type="file" id="fsFile" accept=".xlsx,.xlsm,.xls" style="width:300px"><label>Sheet：</label><select id="fsSheet" style="width:180px"><option>先选择文件</option></select><span class="hint">（一次只能匹配一个 Sheet）</span><label>表头行：</label><input type="number" id="fsHdr" value="1" min="1" style="width:60px"></div>
 </div>
 <div class="section"><h3>表格库</h3>
   <div class="row"><button class="btn btn-sm btn-gray" id="fsReloadTables">⟳ 刷新表格列表</button> <span id="fsReloadHint" class="hint"></span></div>
