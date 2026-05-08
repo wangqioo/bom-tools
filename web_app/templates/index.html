@@ -696,7 +696,7 @@ async function fsConnectTable(idx){
   $('fsDetail').querySelector('button').disabled=true;
   try{
     const fd=new FormData();
-    fd.append('action','sheets');fd.append('token',t.token);
+    fd.append('action','load_sheets');fd.append('token',t.token);
     fd.append('base_url',$('fsBaseUrl').value);fd.append('origin',$('fsOrigin').value);fd.append('user_id',$('fsUserId').value);
     const r=await fetch('/feishu',{method:'POST',body:fd});
     const d=await r.json();
@@ -712,7 +712,7 @@ async function fsLoadTable(idx){
   const t=fsTables[idx];
   if(!t._connected){alert('请先连接');return;}
   if(!t.active_sheet_ids.length){alert('请至少选择一个 Sheet');return;}
-  const fd=new FormData();fd.append('action','load');fd.append('token',t.token);
+  const fd=new FormData();fd.append('action','load_data');fd.append('token',t.token);
   fd.append('base_url',$('fsBaseUrl').value);fd.append('origin',$('fsOrigin').value);fd.append('user_id',$('fsUserId').value);
   fd.append('sheet_ids',JSON.stringify(t.active_sheet_ids));
   try{
