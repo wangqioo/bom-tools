@@ -8,8 +8,6 @@ from shared import UPLOAD_DIR, OUTPUT_DIR, FEISHU_PRESET_TABLES, _cleanup_old_fi
 from bom import bom_bp
 from plm import plm_bp
 from feishu import feishu_bp
-from pstx import pstx_bp
-from csa import csa_bp
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
@@ -20,8 +18,6 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 app.register_blueprint(bom_bp)
 app.register_blueprint(plm_bp)
 app.register_blueprint(feishu_bp)
-app.register_blueprint(pstx_bp)
-app.register_blueprint(csa_bp)
 
 
 @app.route('/')

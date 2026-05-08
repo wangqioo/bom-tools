@@ -119,8 +119,6 @@ tr:hover td { background:#f7f9fc; }
     <a href="#" data-tool="feishu"><span class="icon">🔍</span>飞书优选库+关系库匹配</a>
     <a href="#" data-tool="prefrate"><span class="icon">📈</span>BOM优选率计算</a>
     <a href="#" data-tool="plm"><span class="icon">📤</span>转换为上传PLM系统格式</a>
-    <a href="#" data-tool="pstx"><span class="icon">📊</span>原理图分析</a>
-    <a href="#" data-tool="csa"><span class="icon">📐</span>CSA 几何检查</a>
   </nav>
 </aside>
 
@@ -277,47 +275,6 @@ tr:hover td { background:#f7f9fc; }
 <div class="error" id="fsError"></div>
 </script>
 
-<!-- ── PSTX 工具 ── -->
-<script type="text/html" id="tpl-pstx">
-<div class="section"><h3>文件加载</h3>
-  <div class="row"><label>pstxprt.dat：</label><input type="file" id="pxPrt" accept=".dat" style="width:280px"><span class="hint">【必须】元件属性</span></div>
-  <div class="row"><label>pstxnet.dat：</label><input type="file" id="pxNet" accept=".dat" style="width:280px"><span class="hint">【必须】网络连接</span></div>
-  <div class="row"><label>降额百分比：</label><input type="number" id="pxPct" value="70" min="50" max="100" style="width:60px"><span class="hint">% （默认70%）</span></div>
-  <button class="btn btn-primary" id="pxRun">⚡ 开始解析</button> <span id="pxStatus" style="font-size:13px;color:#888"></span>
-</div>
-<div id="pxOverview" class="section" style="display:none"><h3>解析概览</h3><div id="pxOview"></div></div>
-<div class="section" id="pxTabs" style="display:none">
-  <div class="tabs" id="pxTabBtns"></div>
-  <div id="pxTabContent"></div>
-</div>
-<div class="section" style="display:none" id="pxExportSec">
-  <button class="btn btn-green" id="pxExport">📥 导出 Excel 报告</button> <span id="pxExportHint" class="hint"></span>
-</div>
-<div class="error" id="pxError"></div>
-</script>
-
-<!-- ── CSA 工具 ── -->
-<script type="text/html" id="tpl-csa">
-<div class="section"><h3>项目选择</h3>
-  <div class="row"><label>项目根目录：</label><input type="file" id="csaFiles" accept=".csa" multiple style="width:320px"><span class="hint">可多选 page*.csa（Ctrl+多选）</span></div>
-  <button class="btn btn-primary" id="csaRun">⚡ 开始分析</button> <span id="csaStatus" style="font-size:13px;color:#888"></span>
-</div>
-<div id="csaResultBox" style="display:none">
-  <div class="section"><h3>概要</h3><div id="csaSummary"></div></div>
-  <div class="section"><h3>结果</h3>
-    <div class="tabs">
-      <button class="tab-btn active" data-tab="csa-sum">概要</button>
-      <button class="tab-btn" data-tab="csa-cross">DOT四向十字</button>
-      <button class="tab-btn" data-tab="csa-circle">画圈对象</button>
-    </div>
-    <div class="tab-content active" id="csa-sum"></div>
-    <div class="tab-content" id="csa-cross"></div>
-    <div class="tab-content" id="csa-circle"></div>
-  </div>
-  <button class="btn btn-green" id="csaExport" style="margin-top:8px">📥 导出 CSV</button>
-</div>
-<div class="error" id="csaError"></div>
-</script>
 
 <script>
 // ═══════════════════ 通用函数 ═══════════════════
@@ -336,10 +293,6 @@ const TOOLS = {
           desc:'计算整机 BOM 的元器件优选率，对比标准优选库（如 HQ PN 优选、厂家优选），输出达标/未达标明细及统计报告。'},
   plm:  {title:'转换为上传PLM系统格式',badge:'v2.0',tpl:'tpl-plm',
          desc:'将整机 BOM 配置表转换为 PLM 系统可导入的标准格式，支持多项目用量列，一次勾选多个用量列并分别指定项目名称，按项目导出多份 PLM 导入文件。'},
-  pstx: {title:'原理图分析',  badge:'v1.3',tpl:'tpl-pstx',
-         desc:'解析 Cadence 原理图 pstxprt.dat / pstxnet.dat 文件，生成 BOM 清单、DRC 检查、降额分析、元件查询和层次化页码报告。'},
-  csa:  {title:'CSA 几何检查',badge:'v1.0',tpl:'tpl-csa',
-         desc:'分析 CSA 几何规范文件，检测 DOT 四向十字偏差、画圈对象等高/重叠/间距异常，输出 CSV 报告。'},
 };
 let curTool = null;
 
@@ -390,8 +343,6 @@ function initTool(tool){
   else if(tool==='feishu') initFeishu();
   else if(tool==='prefrate') initPrefrate();
   else if(tool==='plm'){ initPlm(); initPlm2(); }
-  else if(tool==='pstx') initPstx();
-  else if(tool==='csa') initCsa();
 }
 
 // ─── BOM优选率计算（预留）─────────────────────
@@ -589,10 +540,8 @@ function updatePlm2FromApi(d){
   if(d.detected){
     if(d.detected.hq_pn)$('p2ColHqpn').value=d.detected.hq_pn;
     if(d.detected.supply_type)$('p2ColStype').value=d.detected.supply_type;
-    if(d.detected.qty_col && d.detected.qty_col.length){
-      $('p2ColQty').value=d.detected.qty_col[0];
-    }
-    if(d.detected.refdes_col)$('p2ColRefdes').value=d.detected.refdes_col;
+    if(d.detected.qty)$('p2ColQty').value=d.detected.qty;
+    if(d.detected.refdes)$('p2ColRefdes').value=d.detected.refdes;
   }
   $('p2DetectLog').textContent='自动识别：'+(d.headers||[]).join(' | ');
   // 列字母对照表
@@ -859,161 +808,6 @@ async function fsRunMatch(){
     else{$('fsError').textContent=d.error;show($('fsError'));$('fsRunStatus2').textContent='';}
   }catch(e){$('fsError').textContent=e.message;show($('fsError'));}
   $('fsRun').disabled=false;$('fsBatchUpdate').disabled=false;
-}
-
-// ─── PSTX 原理图分析 ───────────────────────────────────────
-function initPstx(){
-  $('pxRun').onclick=async function(){
-    const prt=$('pxPrt').files[0],net=$('pxNet').files[0];
-    if(!prt||!net){alert('请上传 pstxprt.dat 和 pstxnet.dat');return;}
-    const btn=$('pxRun');btn.disabled=true;$('pxStatus').textContent='解析中...';
-    let fd=new FormData();fd.append('prt_file',prt);fd.append('net_file',net);
-    fd.append('pct',$('pxPct').value);
-    try{
-      const r=await fetch('/pstx',{method:'POST',body:fd});
-      const d=await r.json();
-      if(d.success){
-        show($('pxOverview'));
-        $('pxOview').innerHTML=`<div class="stat-grid">
-          <div class="stat-item"><div class="num">${d.components}</div><div class="lbl">元件数</div></div>
-          <div class="stat-item"><div class="num">${d.nets}</div><div class="lbl">网络数</div></div>
-          <div class="stat-item"><div class="num">${d.bom_normal}</div><div class="lbl">贴装种类</div></div>
-          <div class="stat-item"><div class="num">${d.bom_depop}</div><div class="lbl">DEPOP种类</div></div>
-          <div class="stat-item"><div class="num">${d.drc_total}</div><div class="lbl">DRC问题</div></div>
-          <div class="stat-item"><div class="num">${d.derating_fail}</div><div class="lbl">降额不合格</div></div>
-        </div>`;
-        show($('pxTabs'));
-        // Build tabs
-        const tabs=[
-          {name:'BOM 管理',html:pxBuildTable(d.bom_detail||[],['位号','料号','值','封装','类型','页面'])},
-          {name:'网络分析',html:pxBuildNetworkTabs(d)},
-          {name:'设计检查',html:pxBuildDRCTabs(d)},
-          {name:'电阻检查',html:pxBuildResTabs(d)},
-          {name:'电容降额',html:pxBuildTable(d.derating||[],['位号','值','封装','额定电压','推断工作电压(V)','降额比','状态','页面'])},
-        ];
-        let tb='',tc='';
-        tabs.forEach((t,i)=>{
-          const act=i===0?' active':'';
-          tb+=`<button class="tab-btn${act}" onclick="pxSwitchTab(event,'pxTab${i}')">${t.name}</button>`;
-          tc+=`<div class="tab-content${act}" id="pxTab${i}">${t.html}</div>`;
-        });
-        $('pxTabBtns').innerHTML=tb;$('pxTabContent').innerHTML=tc;
-        show($('pxExportSec'));
-        $('pxExport').onclick=function(){window.open(d.download,'_blank');};
-        $('pxStatus').textContent='✅ 解析完成';
-      }else{$('pxError').textContent=d.error;show($('pxError'));}
-    }catch(e){$('pxError').textContent=e.message;show($('pxError'));}
-    btn.disabled=false;
-  };
-}
-function pxSwitchTab(e,tabId){
-  e.target.parentElement.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
-  e.target.classList.add('active');
-  e.target.parentElement.parentElement.querySelectorAll('.tab-content').forEach(t=>t.classList.toggle('active',t.id===tabId));
-}
-function pxBuildTable(rows,cols){
-  if(!rows||!rows.length)return '<p>（无数据）</p>';
-  let h=`<div class="table-wrap"><table><tr>`;
-  cols.forEach(c=>h+=`<th>${c}</th>`);h+='</tr>';
-  rows.slice(0,200).forEach(r=>{
-    h+='<tr>';
-    cols.forEach(c=>h+=`<td>${r[c]||''}</td>`);
-    h+='</tr>';
-  });
-  h+=`</table></div><p style="font-size:11px;color:#888">共 ${rows.length} 行</p>`;
-  return h;
-}
-function pxBuildNetworkTabs(d){
-  const na=d.net_analysis||{};
-  let h='<div style="margin-bottom:8px;font-size:13px">网络总数：<b>'+na.total+'</b> | 电源：<b>'+(na.power_nets?Object.keys(na.power_nets).length:0)+'</b> | GND：<b>'+(na.gnd_nets?Object.keys(na.gnd_nets).length:0)+'</b> | 差分对：<b>'+(na.diff_pairs?Object.keys(na.diff_pairs).length:0)+'</b> | 单端（疑似漏连）：<b>'+(na.single_node?Object.keys(na.single_node).length:0)+'</b></div>';
-  return h;
-}
-function pxBuildDRCTabs(d){
-  const drc=d.drc||{};
-  let h='';
-  const sections=[
-    ['缺少料号','missing_hq_code'],['缺少 VALUE','missing_value'],['缺少封装','missing_package'],
-    ['TBD 属性','tbd_attrs'],['单端网络','single_pin_nets'],['未命名网络','unnamed_nets'],
-    ['BOM_OPTION','bom_option_components']
-  ];
-  sections.forEach(([title,key])=>{
-    const rows=drc[key]||[];
-    if(!rows.length)return;
-    h+=`<p style="font-weight:600;margin:10px 0 4px">${title}（${rows.length}项）</p>`;
-    h+=pxBuildTable(rows,Object.keys(rows[0]));
-  });
-  return h||'<p>未发现问题</p>';
-}
-function pxBuildResTabs(d){
-  const res=d.resistor_analysis||{};
-  let h='';
-  const sections=[['串阻分压风险','divider_risks'],['重复上拉','dup_pullups'],['重复下拉','dup_pulldowns']];
-  sections.forEach(([title,key])=>{
-    const rows=res[key]||[];
-    if(!rows.length)return;
-    h+=`<p style="font-weight:600;margin:10px 0 4px">${title}（${rows.length}项）</p>`;
-    h+=pxBuildTable(rows,Object.keys(rows[0]));
-  });
-  return h||'<p>未发现问题</p>';
-}
-
-// ─── CSA 几何检查 ───────────────────────────────────────
-function initCsa(){
-  $('csaRun').onclick=async function(){
-    const files=$('csaFiles').files;
-    if(!files.length){alert('请上传 page*.csa 文件');return;}
-    const btn=$('csaRun');btn.disabled=true;$('csaStatus').textContent='分析中...';
-    let fd=new FormData();
-    for(const f of files)fd.append('files',f);
-    try{
-      const r=await fetch('/csa',{method:'POST',body:fd});
-      const d=await r.json();
-      if(d.success){
-        show($('csaResultBox'));
-        $('csaSummary').innerHTML=`<div class="stat-grid">
-          <div class="stat-item"><div class="num">${d.pages}</div><div class="lbl">页面数</div></div>
-          <div class="stat-item"><div class="num">${d.total_crosses}</div><div class="lbl">四向十字</div></div>
-          <div class="stat-item"><div class="num">${d.total_errors}</div><div class="lbl">异常页面</div></div>
-        </div>`;
-        // 概要表
-        let sumHtml='<div class="table-wrap"><table><tr><th>页面</th><th>文件</th><th>WIRE数</th><th>DOT数</th><th>四向十字</th><th>状态</th></tr>';
-        d.results.forEach(r=>{
-          const cls=r.crosses>0?'color:#e07000':'color:#2a8a2a';
-          sumHtml+=`<tr><td>${r.page}</td><td>${r.file}</td><td>${r.wires}</td><td>${r.dots}</td><td style="${cls}">${r.crosses}</td><td>${r.error?'⚠ '+r.error:r.crosses>0?'⚠ 发现十字':'✅ 正常'}</td></tr>`;
-        });
-        sumHtml+='</table></div>';
-        $('csa-sum').innerHTML=sumHtml;
-        // 十字表
-        let crossHtml='<div class="table-wrap"><table><tr><th>页面</th><th>坐标</th><th>DOT行号</th><th>WIRE数</th></tr>';
-        d.results.forEach(r=>{r.findings&&r.findings.forEach(f=>crossHtml+=`<tr><td>${r.page}</td><td>(${f.x},${f.y})</td><td>${f.dot_line}</td><td>${f.wires}</td></tr>`)});
-        crossHtml+='</table></div>';
-        $('csa-cross').innerHTML=crossHtml;
-        $('csa-circle').innerHTML='<p>画圈检测结果</p>';
-        $('csaExport').onclick=()=>csaExportCSV(d);
-        $('csaStatus').textContent='✅ 分析完成';
-      }else{$('csaError').textContent=d.error;show($('csaError'));}
-    }catch(e){$('csaError').textContent=e.message;show($('csaError'));}
-    btn.disabled=false;
-  };
-  // Tab切换 — 绑定到内容区（不是模板）
-  setTimeout(()=>{
-    document.querySelectorAll('#contentArea .tab-btn').forEach(btn=>{
-      btn.onclick=function(){
-        const tabGroup=this.closest('.tabs');
-        if(tabGroup) tabGroup.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
-        this.classList.add('active');
-        const target=this.dataset.tab;
-        const section=this.closest('.section');
-        if(section) section.querySelectorAll('.tab-content').forEach(t=>t.classList.toggle('active',t.id===target));
-      };
-    });
-  }, 10);
-}
-function csaExportCSV(d){
-  let csv='页面,文件,WIRE数,DOT数,四向十字,状态\n';
-  d.results.forEach(r=>csv+=`${r.page},${r.file},${r.wires},${r.dots},${r.crosses},${r.error||(r.crosses>0?'发现十字':'正常')}\n`);
-  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='csa_分析结果.csv';a.click();
 }
 
 // ═══════════════════ 页面加载 ═══════════════════
