@@ -617,17 +617,17 @@ function fsRenderGFMSection(){
   h+=`<button class="btn btn-sm btn-gray" onclick="fsAddGFMRow()" style="padding:3px 10px;font-size:12px">+ 添加列</button>`;
   h+='</div>';
   el.innerHTML=h;
-  fsRenderMappingTable();
+  
 }
 
 function fsAddGFMRow(){
   _fsGlobalFetchMap.push({std_name:'',default_alias:''});
-  fsRenderGFMSection(); fsRenderMappingTable(); fsSaveConfig();
+  fsRenderGFMSection();  fsSaveConfig();
 }
 
 function fsRemoveGFMRow(i){
   _fsGlobalFetchMap.splice(i,1);
-  fsRenderGFMSection(); fsRenderMappingTable(); fsSaveConfig();
+  fsRenderGFMSection();  fsSaveConfig();
   if(fsCurIdx!==null) fsSelectTable(fsCurIdx);
 }
 
@@ -635,65 +635,12 @@ function fsUpdateGFMRow(i){
   const s=$(`gfm_std_${i}`);
   if(s){
     _fsGlobalFetchMap[i].std_name=s.value;
-    _fsGlobalFetchMap[i].default_alias=s.value;  // alias defaults to std_name
+    _fsGlobalFetchMap[i].default_alias=s.value;
   }
-  fsSaveConfig(); fsRenderMappingTable();
-}
-
-function fsRenderMappingTable(){
-  const el=$('fsMappingSection'); if(!el) return;
-  const validGFM=_fsGlobalFetchMap.filter(r=>r.std_name);
-  if(!validGFM.length){el.innerHTML='';return;}
-  // Collect all sheets that have headers loaded
-  const sheetRows=[];
-  fsTables.forEach(t=>{
-    (t._sheets||[]).forEach(s=>{
-      const sc=t.sheet_configs[s.sheetId];
-      if(!sc||!sc._headers||!sc._headers.length) return;
-      sheetRows.push({tIdx:t.idx, sid:s.sheetId, label:`${t.name} / ${s.title}`, sc, headers:sc._headers});
-    });
-  });
-  if(!sheetRows.length){
-    el.innerHTML='<div style="color:#aaa;font-size:12px;margin-top:10px">列映射总览：请先连接表格获取 Sheet 列表（含表头）</div>';
-    return;
-  }
-  let h='<div style="margin-top:14px">';
-  h+='<div style="font-size:12px;font-weight:600;color:#333;margin-bottom:6px">列映射总览 <span style="font-size:11px;font-weight:400;color:#888">（为每个 Sheet 选择对应列名，选"默认"则用默认别名）</span></div>';
-  h+='<div style="overflow-x:auto"><table style="font-size:12px;border-collapse:collapse">';
-  // Header
-  h+='<tr style="background:#e8f0fe"><th style="padding:5px 10px;text-align:left;border:1px solid #b8cef0;white-space:nowrap;font-weight:600">Sheet</th>';
-  validGFM.forEach(gm=>{
-    h+=`<th style="padding:5px 10px;text-align:center;border:1px solid #b8cef0;white-space:nowrap;font-weight:600">${_escH(gm.std_name)}<br><span style="font-size:10px;font-weight:400;color:#888">默认：${_escH(gm.default_alias||gm.std_name)}</span></th>`;
-  });
-  h+='</tr>';
-  // Rows
-  sheetRows.forEach((row,ri)=>{
-    const bg=ri%2===0?'#fff':'#f9f9fb';
-    h+=`<tr style="background:${bg}"><td style="padding:4px 10px;border:1px solid #dde;white-space:nowrap;color:#333;font-size:11px">${_escH(row.label)}</td>`;
-    validGFM.forEach((gm,gi)=>{
-      const cur=(row.sc.fetch_col_aliases||{})[gm.std_name]||'';
-      const def=gm.default_alias||gm.std_name;
-      let opts=`<option value="">— 默认：${_escH(def)} —</option>`;
-      row.headers.forEach(hdr=>{if(hdr) opts+=`<option value="${_escH(hdr)}"${hdr===cur?' selected':''}>${_escH(hdr)}</option>`;});
-      h+=`<td style="padding:2px 5px;border:1px solid #dde"><select style="width:150px;font-size:11px" onchange="fsMTChange(${row.tIdx},'${row.sid}',${gi},this.value)">${opts}</select></td>`;
-    });
-    h+='</tr>';
-  });
-  h+='</table></div></div>';
-  el.innerHTML=h;
-}
-
-function fsMTChange(tIdx, sid, gi, val){
-  const t=fsTables[tIdx];
-  if(!t.sheet_configs[sid]) t.sheet_configs[sid]=_mkSheetCfg();
-  const sc=t.sheet_configs[sid];
-  if(!sc.fetch_col_aliases) sc.fetch_col_aliases={};
-  const gm=_fsGlobalFetchMap.filter(r=>r.std_name)[gi];
-  if(!gm) return;
-  if(val) sc.fetch_col_aliases[gm.std_name]=val;
-  else delete sc.fetch_col_aliases[gm.std_name];
   fsSaveConfig();
+  if(fsCurIdx!==null) fsSelectTable(fsCurIdx);
 }
+
 
 function initFeishu(){
   const saved = window._fsSavedCfg;
@@ -711,7 +658,7 @@ function initFeishu(){
   ['fsBaseUrl','fsOrigin','fsUserId','fsGLk1','fsGLk2','fsGLk3'].forEach(id=>{
     const el=$(id); if(el) el.oninput = fsSaveConfig;
   });
-  fsRenderGFMSection(); fsRenderMappingTable();
+  fsRenderGFMSection(); 
   // 上传文件后更新本地键 datalist
   const _updateLkList=()=>{
     let dl='';(window._fsLocalHeaders||[]).forEach(h=>{if(h)dl+=`<option value="${_escH(h)}">`});
@@ -836,12 +783,14 @@ function fsSelectTable(idx){
         h+=`<div style="flex:0 0 auto;min-width:260px">`;
         h+=`<div style="font-size:12px;font-weight:600;margin-bottom:6px;color:#333">匹配键（飞书侧）</div>`;
         [0,1,2].forEach(ki=>{
-          const fv=_escH(sc.feishu_key_names[ki]||'');
+          const fv=sc.feishu_key_names[ki]||'';
           const lkLabel=glk[ki]?`<span style="color:#888;font-size:11px"> ← 本地"${_escH(glk[ki])}"</span>`:'';
-          const req=ki===0?'style="color:#c00000"':'style="color:#555"';
+          const req=ki===0?'color:#c00000':'color:#555';
+          let opts=`<option value="">${ki===0?'— 选择列 —':'（不使用）'}</option>`;
+          headers.forEach(h2=>{if(h2) opts+=`<option value="${_escH(h2)}"${h2===fv?' selected':''}>${_escH(h2)}</option>`;});
           h+=`<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
-            <label ${req} style="min-width:18px;font-size:12px">${ki+1}</label>
-            <input type="text" id="fsfk_${idx}_${sid}_${ki}" value="${fv}" list="${fkDl}" style="width:170px;font-size:12px" placeholder="${ki===0?'必填':'可选'}">
+            <label style="min-width:18px;font-size:12px;${req}">${ki+1}</label>
+            <select id="fsfk_${idx}_${sid}_${ki}" style="width:190px;font-size:12px">${opts}</select>
             ${lkLabel}
           </div>`;
         });
@@ -950,7 +899,7 @@ async function fsConnectTable(idx){
           sc._cache_stale = (s.rowCount||0) !== sc.row_count_at_cache;
         }
       });
-      fsSelectTable(idx);renderFsTrees();fsRenderMappingTable();fsSaveConfig();
+      fsSelectTable(idx);renderFsTrees();fsSaveConfig();
     } else { if(hint)hint.textContent=''; alert(d.error); }
   }catch(e){ if(hint)hint.textContent=''; alert(e.message); }
   btns.forEach(b=>b.disabled=false);
@@ -1033,7 +982,7 @@ async function fsBatchUpdate(){
     }
   }
   $('fsBatchUpdate').disabled=false;$('fsBatchHint').textContent=`✓ 完成 ${count} 个 Sheet`;
-  renderFsTrees();fsRenderMappingTable();fsSaveConfig();
+  renderFsTrees();fsSaveConfig();
   if(fsCurIdx!==null)fsSelectTable(fsCurIdx);
 }
 
