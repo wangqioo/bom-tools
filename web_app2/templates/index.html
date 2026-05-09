@@ -106,6 +106,7 @@ tr:hover td { background:#f7f9fc; }
   <nav>
     <a href="#" data-tool="bom"><span class="icon">📋</span>BOM 格式转换</a>
     <a href="#" data-tool="feishu"><span class="icon">🔍</span>飞书优选库+关系库匹配</a>
+    <a href="#" data-tool="pref-rate"><span class="icon">📊</span>查询BOM优选率</a>
     <a href="#" data-tool="plm"><span class="icon">📤</span>转换为上传PLM系统格式</a>
   </nav>
 </aside>
@@ -185,6 +186,29 @@ tr:hover td { background:#f7f9fc; }
 <div id="plmLogBox" style="display:none;margin-top:10px"><h4 style="margin:0 0 6px;font-size:13px">📋 处理日志</h4><pre id="plmLog" style="font-size:12px;background:#1a1a2e;color:#e0e0e0;padding:10px;border-radius:6px;max-height:200px;overflow:auto;white-space:pre-wrap;font-family:Consolas,'Courier New',monospace"></pre></div>
 </script>
 
+<!-- ── 查询BOM优选率 ── -->
+<script type="text/html" id="tpl-pref-rate">
+<div class="section"><h3>第一步：上传BOM文件</h3>
+  <div class="row"><label>文件路径：</label><input type="file" id="prFile" accept=".xlsx,.xlsm,.xls" style="width:320px"></div>
+  <div class="row"><label>Sheet：</label><select id="prSheet" style="width:200px"><option>先选择文件</option></select>
+    <label style="margin-left:16px">表头行：</label><input type="number" id="prHdr" value="1" min="1" style="width:55px">
+    <button class="btn btn-sm btn-gray" id="prRefresh" style="margin-left:8px">刷新列表</button>
+  </div>
+  <div class="row"><label>HQ料号列：</label><select id="prKeyCol" style="width:200px"><option>先刷新列表</option></select></div>
+</div>
+<div class="section"><h3>第二步：查询</h3>
+  <p style="font-size:12px;color:#666;margin:0 0 10px">将从所有已缓存的<b>优选库</b> sheet 中按 HQ料号 查找对应的优选等级。请确保已在「飞书优选库+关系库匹配」中完成缓存。</p>
+  <button class="btn btn-primary" id="prRun">⚡ 开始查询</button>
+  <span id="prStatus" style="font-size:13px;margin-left:10px"></span>
+</div>
+<div class="result" id="prResult">
+  <span class="title">✅ 查询完成</span>
+  <div id="prStats" style="margin-top:8px;font-size:14px;line-height:2"></div>
+  <a class="download" id="prDl" href="#">📥 下载查询结果</a>
+</div>
+<div class="error" id="prError"></div>
+</script>
+
 <!-- ── 飞书工具 ── -->
 <script type="text/html" id="tpl-feishu">
 <div class="section"><h3>网关设置</h3>
@@ -253,6 +277,8 @@ const TOOLS = {
            desc:'将客户提供的多种格式 BOM 表自动识别列映射，支持品牌型号合并列/分开列（格式A/B/C），展开为多供应商独立行，或输出 HQ 标准整机BOM配置表。'},
   feishu: {title:'飞书优选库+关系库匹配', badge:'v3.0',  tpl:'tpl-feishu',
            desc:'连接飞书内部 API 网关，支持 15 个预置库（优选库 + 对应关系库），多键 AND 匹配（最多 3 对），批量提取字段，输出含来源表格的匹配结果。'},
+  'pref-rate': {title:'查询BOM优选率', badge:'v1.0', tpl:'tpl-pref-rate',
+               desc:'按 HQ料号 在所有优选库缓存中查找优选等级，输出含优选率统计的 Excel 结果文件。'},
   plm:    {title:'转换为上传PLM系统格式', badge:'v1.6',  tpl:'tpl-plm',
            desc:'将整机 BOM 配置表转换为 PLM 系统可导入的标准格式：序号、料号、单耗等25列，主供行填单耗，替代料自动标记主辅BOM标记。'},
 };
@@ -301,6 +327,7 @@ function initTool(tool){
   if(tool==='bom') initBom();
   else if(tool==='feishu') initFeishu();
   else if(tool==='plm') initPlm();
+  else if(window._toolInits&&window._toolInits[tool]) window._toolInits[tool]();
 }
 
 // ─── BOM ──────────────────────────────────────────────
@@ -1138,6 +1165,106 @@ async function fsRunMatch(){
   }catch(e){$('fsError').textContent=e.message;show($('fsError'));}
   $('fsRun').disabled=false;$('fsBatchUpdate').disabled=false;
 }
+
+// ═══════════════════ 查询BOM优选率 ═══════════════════
+(function(){
+  // 工具初始化（每次切换到此工具时调用）
+  function prInit(){
+    $('prFile').onchange = prLoadFile;
+    $('prRefresh').onclick = ()=>{ if($('prFile').files[0]) prLoadFile(); };
+    $('prRun').onclick = prRun;
+    hide($('prResult')); hide($('prError'));
+  }
+
+  async function prLoadFile(){
+    const f = $('prFile').files[0]; if(!f) return;
+    const hdr = parseInt($('prHdr').value)||1;
+    const fd = new FormData();
+    fd.append('file', f);
+    fd.append('header_row', hdr);
+    const cur = $('prSheet').value;
+    if(cur && cur !== '先选择文件') fd.append('sheet_name', cur);
+    try{
+      const r = await fetch('/api/feishu/local_sheets', {method:'POST', body:fd});
+      const d = await r.json();
+      if(!d.success){$('prStatus').textContent='加载失败：'+d.error;return;}
+      // populate sheet selector
+      const ss = $('prSheet');
+      ss.innerHTML = d.sheets.map(s=>`<option${s===d.current_sheet?' selected':''}>${_escH(s)}</option>`).join('');
+      ss.onchange = prLoadFile;
+      // populate key col selector
+      const kc = $('prKeyCol');
+      kc.innerHTML = d.headers.map(h=>`<option value="${_escH(h)}">${_escH(h)}</option>`).join('');
+      // auto-select HQ料号 if present
+      const auto = d.headers.find(h=>h.includes('HQ料号')||h==='HQ料号');
+      if(auto) kc.value = auto;
+      $('prStatus').textContent = `已加载 ${d.headers.length} 列`;
+    }catch(e){$('prStatus').textContent='错误：'+e.message;}
+  }
+
+  async function prRun(){
+    const f=$('prFile').files[0];
+    if(!f){alert('请先上传BOM文件');return;}
+    const keyCol=$('prKeyCol').value;
+    if(!keyCol||keyCol==='先刷新列表'){alert('请先刷新列表并选择HQ料号列');return;}
+
+    // Build tables config: 优选库 only, enabled sheets with cache
+    const tables=[];
+    fsTables.forEach(t=>{
+      // filter by category from FS_TABLES (preset)
+      const preset=FS_TABLES.find(p=>p.token===t.token);
+      if(!preset||preset.category!=='优选库') return;
+      const sheets=[];
+      Object.entries(t.sheet_configs).forEach(([sid,sc])=>{
+        if(!sc.enabled||!sc.cache_key) return;
+        sheets.push({sid, name:(t._sheets||[]).find(s=>s.sheetId===sid)?.title||sid,
+                     cache_key:sc.cache_key, fetch_col_aliases:sc.fetch_col_aliases||{}});
+      });
+      if(sheets.length) tables.push({name:t.name, token:t.token, sheets});
+    });
+
+    if(!tables.length){
+      alert('没有找到已缓存的优选库 sheet。请先在「飞书优选库+关系库匹配」中缓存相关 sheet。');
+      return;
+    }
+
+    $('prRun').disabled=true; $('prStatus').style.color='#1a8a1a';
+    $('prStatus').textContent='查询中...';
+    hide($('prResult')); hide($('prError'));
+
+    const cfg={
+      header_row: parseInt($('prHdr').value)||1,
+      sheet_name: $('prSheet').value,
+      local_key_col: keyCol,
+      tables,
+    };
+    const fd=new FormData();
+    fd.append('file',f);
+    fd.append('config',JSON.stringify(cfg));
+    try{
+      const r=await fetch('/api/feishu/pref_rate',{method:'POST',body:fd});
+      const d=await r.json();
+      if(d.success){
+        $('prStats').innerHTML=
+          `共 <b>${d.total}</b> 行 &nbsp;|&nbsp; 匹配 <b style="color:#2a8a2a">${d.matched}</b> 行 &nbsp;|&nbsp; `+
+          `未匹配 <b style="color:#c00000">${d.unmatched}</b> 行 &nbsp;|&nbsp; `+
+          `优选率 <b style="font-size:18px;color:#1a5ad4">${d.rate}</b>`;
+        $('prDl').href=d.download;
+        $('prStatus').textContent='';
+        show($('prResult'));
+      } else {
+        $('prError').textContent='错误：'+d.error;
+        show($('prError'));
+        $('prStatus').textContent='';
+      }
+    }catch(e){$('prError').textContent=e.message;show($('prError'));$('prStatus').textContent='';}
+    $('prRun').disabled=false;
+  }
+
+  // Register init hook
+  window._toolInits = window._toolInits||{};
+  window._toolInits['pref-rate'] = prInit;
+})();
 
 // ═══════════════════ 页面加载 ═══════════════════
 showOverview();

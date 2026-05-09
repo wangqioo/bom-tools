@@ -461,3 +461,120 @@ def api_feishu_local_sheets():
 
     return jsonify({'success': True, 'sheets': sheets, 'current_sheet': sheet_name,
                     'headers': headers, 'uid': uid})
+
+@feishu_bp.route('/api/feishu/pref_rate', methods=['POST'])
+def api_pref_rate():
+    """查询BOM优选率：按 HQ料号 在所有优选库缓存中查找优选等级"""
+    local_file = request.files.get('file')
+    if not local_file:
+        return jsonify({'success': False, 'error': '未上传文件'})
+
+    config_str = request.form.get('config', '{}')
+    try:
+        config = json.loads(config_str)
+    except Exception:
+        return jsonify({'success': False, 'error': 'config 参数格式错误'})
+
+    header_row   = int(config.get('header_row', 1))
+    sheet_name   = config.get('sheet_name', '')
+    local_key_col = config.get('local_key_col', '')
+    tables_cfg   = config.get('tables', [])   # [{name, sheets:[{sid,name,cache_key,fetch_col_aliases}]}]
+
+    uid = str(uuid.uuid4())[:8]
+    local_path = os.path.join(UPLOAD_DIR, f"pref_{uid}.xlsx")
+    local_file.save(local_path)
+
+    try:
+        wb = openpyxl.load_workbook(local_path, data_only=True)
+        sheets = wb.sheetnames
+        if not sheet_name or sheet_name not in sheets:
+            sheet_name = sheets[0]
+        ws = wb[sheet_name]
+
+        headers = [_cell_str(ws.cell(row=header_row, column=ci).value)
+                   for ci in range(1, ws.max_column + 1)]
+        if local_key_col not in headers:
+            return jsonify({'success': False,
+                            'error': f'列 "{local_key_col}" 不存在，请检查表头行设置'})
+        key_col_idx = headers.index(local_key_col)
+
+        # Build combined lookup: hq_no → {pref, source}
+        combined = {}
+        for tcfg in tables_cfg:
+            tname = tcfg.get('name', '')
+            for scfg in tcfg.get('sheets', []):
+                cache_key = scfg.get('cache_key', '')
+                aliases   = scfg.get('fetch_col_aliases', {})
+                if not cache_key:
+                    continue
+                cached = _read_cache(cache_key)
+                if not cached or not cached.get('rows'):
+                    continue
+                rows = cached['rows']
+                fs_hdrs = [_cell_str(v) for v in rows[0]]
+                hq_col   = aliases.get('HQ料号', 'HQ料号')
+                pref_col = aliases.get('优选等级', '优选等级')
+                if hq_col not in fs_hdrs or pref_col not in fs_hdrs:
+                    continue
+                hi = fs_hdrs.index(hq_col)
+                pi = fs_hdrs.index(pref_col)
+                for row in rows[1:]:
+                    padded = list(row) + [''] * max(0, max(hi, pi) + 1 - len(row))
+                    hv = _cell_str(padded[hi]) if hi < len(padded) else ''
+                    pv = _cell_str(padded[pi]) if pi < len(padded) else ''
+                    if hv and hv not in combined:
+                        combined[hv] = {'pref': pv, 'source': tname}
+
+        # Write output
+        from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
+        green_fill = PatternFill('solid', fgColor='E8F5E9')
+        red_fill   = PatternFill('solid', fgColor='FFEBEE')
+        hdr_font   = Font(bold=True)
+        bdr = Border(
+            left=Side(style='thin'), right=Side(style='thin'),
+            top=Side(style='thin'),  bottom=Side(style='thin'))
+        center = Alignment(horizontal='center', vertical='center')
+        left   = Alignment(horizontal='left',   vertical='center')
+
+        wb_out = openpyxl.Workbook()
+        ws_out = wb_out.active
+        ws_out.title = '优选率查询'
+
+        out_headers = headers + ['优选等级', '来源']
+        for ci, h in enumerate(out_headers, 1):
+            c = ws_out.cell(row=1, column=ci, value=h)
+            c.font = hdr_font; c.border = bdr; c.alignment = center
+
+        total = matched = dr = 0
+        for ri in range(header_row + 1, ws.max_row + 1):
+            row_vals = [ws.cell(row=ri, column=ci).value
+                        for ci in range(1, ws.max_column + 1)]
+            if not any(v is not None and str(v).strip() for v in row_vals):
+                continue
+            total += 1
+            dr += 1
+            kv = _cell_str(row_vals[key_col_idx]) if key_col_idx < len(row_vals) else ''
+            m  = combined.get(kv) if kv else None
+            fill = green_fill if m else red_fill
+            out_row = list(row_vals) + [m['pref'] if m else '', m['source'] if m else '']
+            if m:
+                matched += 1
+            for ci, v in enumerate(out_row, 1):
+                c = ws_out.cell(row=dr + 1, column=ci, value=v)
+                c.fill = fill; c.border = bdr
+                c.alignment = center if ci > len(headers) else left
+
+        wb.close()
+        out_name = f'pref_rate_{uid}.xlsx'
+        wb_out.save(os.path.join(OUTPUT_DIR, out_name))
+
+        return jsonify({
+            'success': True,
+            'download': f'/download/{out_name}',
+            'total': total,
+            'matched': matched,
+            'unmatched': total - matched,
+            'rate': f'{matched / total * 100:.1f}%' if total else '0%',
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
