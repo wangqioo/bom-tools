@@ -212,11 +212,6 @@ tr:hover td { background:#f7f9fc; }
     <span class="hint" style="margin-left:8px">所有飞书表格共用这组本地列名</span>
   </div>
 </div>
-<div class="section"><h3>全局输出列映射 <span style="font-size:11px;font-weight:400;color:#888">（可选）</span></h3>
-  <div style="font-size:12px;color:#666;margin-bottom:8px">① 添加标准名+默认别名后，② 连接表格获取 Sheet 列表，③ 在下方总览表中为每个 Sheet 逐列选择对应的列名。</div>
-  <div id="fsGFMSection"></div>
-  <div id="fsMappingSection"></div>
-</div>
 <div class="section"><h3>表格库</h3>
   <div class="row">
     <button class="btn btn-sm btn-gray" id="fsBatchUpdate">⟳ 一键刷新已缓存数据</button>
@@ -232,6 +227,11 @@ tr:hover td { background:#f7f9fc; }
       <span style="color:#888">← 点击左侧表格查看详情</span>
     </div>
   </div>
+</div>
+<div class="section"><h3>提取列映射</h3>
+  <div style="font-size:12px;color:#666;margin-bottom:10px">定义要从飞书 Sheet 中提取的标准列名，连接表格后在下方总览中为每个 Sheet 选择对应的列。</div>
+  <div id="fsGFMSection"></div>
+  <div id="fsMappingSection"></div>
 </div>
 <div class="section"><h3>运行匹配</h3>
   <div id="fsRunStatus" style="font-size:12px;color:#888;margin-bottom:8px"></div>
@@ -489,7 +489,12 @@ let fsTables = FS_TABLES.map((t,i)=>({
   sheet_configs:{},
 }));
 let fsCurIdx = null;
-let _fsGlobalFetchMap = [];  // [{std_name, default_alias}]
+let _fsGlobalFetchMap = [  // [{std_name, default_alias}]  pre-populated defaults
+  {std_name:'HQ料号',  default_alias:'HQ料号'},
+  {std_name:'规格型号', default_alias:'规格型号'},
+  {std_name:'厂商名称', default_alias:'厂商名称'},
+  {std_name:'优选等级', default_alias:'优选等级'},
+];
 
 // ─── localStorage 持久化 ──────────────────────────────
 const _FS_KEY = 'bom-tools-feishu-v2';  // v2: per-sheet config
@@ -582,7 +587,7 @@ function fsClearConfig(){
     if(!raw) return;
     const cfg = JSON.parse(raw);
     window._fsSavedCfg = cfg;
-    if(cfg.global_fetch_map) _fsGlobalFetchMap = cfg.global_fetch_map;
+    if(cfg.global_fetch_map && cfg.global_fetch_map.length) _fsGlobalFetchMap = cfg.global_fetch_map;
     if(cfg.tables){
       cfg.tables.forEach(st=>{
         const t = fsTables[st.idx]; if(!t) return;
@@ -601,24 +606,17 @@ function fsClearConfig(){
 // ─── 全局输出列映射管理 ────────────────────────────────
 function fsRenderGFMSection(){
   const el=$('fsGFMSection'); if(!el) return;
-  let h='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">';
-  h+='<button class="btn btn-sm btn-gray" onclick="fsAddGFMRow()" style="padding:2px 9px;font-size:12px">+ 添加映射列</button>';
-  h+='</div>';
-  if(!_fsGlobalFetchMap.length){
-    h+='<span style="color:#aaa;font-size:12px">暂无，点击"添加"可定义标准输出列名与默认别名</span>';
-    el.innerHTML=h; return;
-  }
-  h+='<table style="font-size:12px;border-collapse:collapse;width:auto">';
-  h+='<tr style="background:#f4f6f9"><th style="padding:4px 8px;text-align:left;font-weight:600">标准输出列名</th><th style="padding:4px 8px;text-align:left;font-weight:600">默认别名（飞书表头名）</th><th></th></tr>';
+  let h='<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px">';
   _fsGlobalFetchMap.forEach((r,i)=>{
-    h+=`<tr>
-      <td style="padding:2px 4px"><input type="text" id="gfm_std_${i}" value="${_escH(r.std_name)}" style="width:140px" placeholder="如：HQ料号" oninput="fsUpdateGFMRow(${i})"></td>
-      <td style="padding:2px 4px"><input type="text" id="gfm_alias_${i}" value="${_escH(r.default_alias)}" style="width:160px" placeholder="如：HQ PN（留空同标准名）" oninput="fsUpdateGFMRow(${i})"></td>
-      <td style="padding:2px 4px"><button class="btn btn-sm btn-gray" style="color:#c00;padding:1px 6px;font-size:11px" onclick="fsRemoveGFMRow(${i})">✕</button></td>
-    </tr>`;
+    h+=`<div style="display:inline-flex;align-items:center;gap:3px;background:#eef2ff;border:1px solid #c5d0f0;border-radius:5px;padding:3px 8px">
+      <input type="text" id="gfm_std_${i}" value="${_escH(r.std_name)}" style="width:80px;font-size:12px;border:none;background:transparent;outline:none;color:#333" placeholder="列名" oninput="fsUpdateGFMRow(${i})">
+      <button style="background:none;border:none;color:#aaa;cursor:pointer;font-size:12px;padding:0 1px;line-height:1" onclick="fsRemoveGFMRow(${i})" title="删除">✕</button>
+    </div>`;
   });
-  h+='</table>';
+  h+=`<button class="btn btn-sm btn-gray" onclick="fsAddGFMRow()" style="padding:3px 10px;font-size:12px">+ 添加列</button>`;
+  h+='</div>';
   el.innerHTML=h;
+  fsRenderMappingTable();
 }
 
 function fsAddGFMRow(){
@@ -633,10 +631,12 @@ function fsRemoveGFMRow(i){
 }
 
 function fsUpdateGFMRow(i){
-  const s=$(`gfm_std_${i}`), a=$(`gfm_alias_${i}`);
-  if(s) _fsGlobalFetchMap[i].std_name=s.value;
-  if(a) _fsGlobalFetchMap[i].default_alias=a.value;
-  fsSaveConfig();
+  const s=$(`gfm_std_${i}`);
+  if(s){
+    _fsGlobalFetchMap[i].std_name=s.value;
+    _fsGlobalFetchMap[i].default_alias=s.value;  // alias defaults to std_name
+  }
+  fsSaveConfig(); fsRenderMappingTable();
 }
 
 function fsRenderMappingTable(){
