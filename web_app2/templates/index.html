@@ -212,6 +212,10 @@ tr:hover td { background:#f7f9fc; }
     <span class="hint" style="margin-left:8px">所有飞书表格共用这组本地列名</span>
   </div>
 </div>
+<div class="section"><h3>全局输出列映射 <span style="font-size:11px;font-weight:400;color:#888">（可选）</span></h3>
+  <div style="font-size:12px;color:#666;margin-bottom:8px">定义统一的输出列名（标准名），以及在飞书表中对应的默认列表头（别名）。每个 Sheet 可单独覆盖别名。此功能与下方各 Sheet 的"提取列"复选框并列，输出时标准名列在前。</div>
+  <div id="fsGFMSection"></div>
+</div>
 <div class="section"><h3>表格库</h3>
   <div class="row">
     <button class="btn btn-sm btn-gray" id="fsBatchUpdate">⟳ 一键刷新已缓存数据</button>
@@ -474,7 +478,7 @@ const FS_TABLES = {{ preset_tables | tojson }};
 // ── SheetConfig 默认值工厂 ──────────────────────────────────
 function _mkSheetCfg(){
   return {enabled:false, local_key_names:['','',''], feishu_key_names:['','',''],
-          fetch_col_names:[], _headers:[], _expanded:false,
+          fetch_col_names:[], fetch_col_aliases:{}, _headers:[], _expanded:false,
           cache_key:'', cache_row_count:0, cache_fetched_at:0,
           row_count_at_cache:0, _cache_stale:false};
 }
@@ -484,6 +488,7 @@ let fsTables = FS_TABLES.map((t,i)=>({
   sheet_configs:{},
 }));
 let fsCurIdx = null;
+let _fsGlobalFetchMap = [];  // [{std_name, default_alias}]
 
 // ─── localStorage 持久化 ──────────────────────────────
 const _FS_KEY = 'bom-tools-feishu-v2';  // v2: per-sheet config
@@ -501,6 +506,7 @@ function fsSaveConfig(){
       glk2?glk2.value:prev.global_local_keys?.[1]||'',
       glk3?glk3.value:prev.global_local_keys?.[2]||'',
     ],
+    global_fetch_map: _fsGlobalFetchMap.map(r=>({std_name:r.std_name||'',default_alias:r.default_alias||''})),
     tables: fsTables.map(t=>({
       idx: t.idx, token: t.token||'',
       _sheets: t._sheets||[], _connected: !!t._connected,
@@ -510,6 +516,7 @@ function fsSaveConfig(){
           local_key_names: sc.local_key_names||['','',''],
           feishu_key_names: sc.feishu_key_names||['','',''],
           fetch_col_names: sc.fetch_col_names||[],
+          fetch_col_aliases: sc.fetch_col_aliases||{},
           _headers: sc._headers||[],
           cache_key: sc.cache_key||'',
           cache_row_count: sc.cache_row_count||0,
@@ -523,21 +530,25 @@ function fsSaveConfig(){
 }
 
 function fsExportConfig(){
-  // 导出每个表格的 sheet_configs（只含有效数据，供写入服务端默认值）
-  const out = fsTables.map(t=>({
-    name: t.name,
-    token: t.token||'',
-    sheet_configs: Object.fromEntries(
-      Object.entries(t.sheet_configs)
-        .filter(([,sc])=>sc.enabled||sc.local_key_names.some(k=>k)||sc.fetch_col_names.length)
-        .map(([sid,sc])=>[sid,{
-          enabled: !!sc.enabled,
-          local_key_names: sc.local_key_names||['','',''],
-          feishu_key_names: sc.feishu_key_names||['','',''],
-          fetch_col_names: sc.fetch_col_names||[],
-        }])
-    ),
-  })).filter(t=>Object.keys(t.sheet_configs).length>0);
+  // 导出全局列映射 + 每个表格的 sheet_configs（只含有效数据，供写入服务端默认值）
+  const out = {
+    global_fetch_map: _fsGlobalFetchMap.filter(r=>r.std_name).map(r=>({std_name:r.std_name,default_alias:r.default_alias||r.std_name})),
+    tables: fsTables.map(t=>({
+      name: t.name,
+      token: t.token||'',
+      sheet_configs: Object.fromEntries(
+        Object.entries(t.sheet_configs)
+          .filter(([,sc])=>sc.enabled||sc.local_key_names.some(k=>k)||sc.fetch_col_names.length||Object.keys(sc.fetch_col_aliases||{}).length)
+          .map(([sid,sc])=>[sid,{
+            enabled: !!sc.enabled,
+            local_key_names: sc.local_key_names||['','',''],
+            feishu_key_names: sc.feishu_key_names||['','',''],
+            fetch_col_names: sc.fetch_col_names||[],
+            fetch_col_aliases: sc.fetch_col_aliases||{},
+          }])
+      ),
+    })).filter(t=>Object.keys(t.sheet_configs).length>0),
+  };
 
   const json = JSON.stringify(out, null, 2);
   navigator.clipboard.writeText(json).then(()=>{
@@ -553,11 +564,13 @@ function fsExportConfig(){
 }
 
 function fsClearConfig(){
-  if(!confirm('确认清除所有飞书本地配置？（含 Token、列映射、缓存记录）')) return;
+  if(!confirm('确认清除所有飞书本地配置？（含 Token、列映射、全局列映射、缓存记录）')) return;
   try{ localStorage.removeItem(_FS_KEY); }catch(e){}
   window._fsSavedCfg = null;
+  _fsGlobalFetchMap = [];
   fsTables = FS_TABLES.map((t,i)=>({...t, idx:i, _sheets:[], _connected:false, sheet_configs:{}}));
   renderFsTrees();
+  fsRenderGFMSection();
   $('fsCfgStatus').textContent='配置已清除';
 }
 
@@ -568,6 +581,7 @@ function fsClearConfig(){
     if(!raw) return;
     const cfg = JSON.parse(raw);
     window._fsSavedCfg = cfg;
+    if(cfg.global_fetch_map) _fsGlobalFetchMap = cfg.global_fetch_map;
     if(cfg.tables){
       cfg.tables.forEach(st=>{
         const t = fsTables[st.idx]; if(!t) return;
@@ -582,6 +596,47 @@ function fsClearConfig(){
     }
   }catch(e){}
 }());
+
+// ─── 全局输出列映射管理 ────────────────────────────────
+function fsRenderGFMSection(){
+  const el=$('fsGFMSection'); if(!el) return;
+  let h='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">';
+  h+='<button class="btn btn-sm btn-gray" onclick="fsAddGFMRow()" style="padding:2px 9px;font-size:12px">+ 添加映射列</button>';
+  h+='</div>';
+  if(!_fsGlobalFetchMap.length){
+    h+='<span style="color:#aaa;font-size:12px">暂无，点击"添加"可定义标准输出列名与默认别名</span>';
+    el.innerHTML=h; return;
+  }
+  h+='<table style="font-size:12px;border-collapse:collapse;width:auto">';
+  h+='<tr style="background:#f4f6f9"><th style="padding:4px 8px;text-align:left;font-weight:600">标准输出列名</th><th style="padding:4px 8px;text-align:left;font-weight:600">默认别名（飞书表头名）</th><th></th></tr>';
+  _fsGlobalFetchMap.forEach((r,i)=>{
+    h+=`<tr>
+      <td style="padding:2px 4px"><input type="text" id="gfm_std_${i}" value="${_escH(r.std_name)}" style="width:140px" placeholder="如：HQ料号" oninput="fsUpdateGFMRow(${i})"></td>
+      <td style="padding:2px 4px"><input type="text" id="gfm_alias_${i}" value="${_escH(r.default_alias)}" style="width:160px" placeholder="如：HQ PN（留空同标准名）" oninput="fsUpdateGFMRow(${i})"></td>
+      <td style="padding:2px 4px"><button class="btn btn-sm btn-gray" style="color:#c00;padding:1px 6px;font-size:11px" onclick="fsRemoveGFMRow(${i})">✕</button></td>
+    </tr>`;
+  });
+  h+='</table>';
+  el.innerHTML=h;
+}
+
+function fsAddGFMRow(){
+  _fsGlobalFetchMap.push({std_name:'',default_alias:''});
+  fsRenderGFMSection(); fsSaveConfig();
+}
+
+function fsRemoveGFMRow(i){
+  _fsGlobalFetchMap.splice(i,1);
+  fsRenderGFMSection(); fsSaveConfig();
+  if(fsCurIdx!==null) fsSelectTable(fsCurIdx);
+}
+
+function fsUpdateGFMRow(i){
+  const s=$(`gfm_std_${i}`), a=$(`gfm_alias_${i}`);
+  if(s) _fsGlobalFetchMap[i].std_name=s.value;
+  if(a) _fsGlobalFetchMap[i].default_alias=a.value;
+  fsSaveConfig();
+}
 
 function initFeishu(){
   const saved = window._fsSavedCfg;
@@ -599,6 +654,7 @@ function initFeishu(){
   ['fsBaseUrl','fsOrigin','fsUserId','fsGLk1','fsGLk2','fsGLk3'].forEach(id=>{
     const el=$(id); if(el) el.oninput = fsSaveConfig;
   });
+  fsRenderGFMSection();
   // 上传文件后更新本地键 datalist
   const _updateLkList=()=>{
     let dl='';(window._fsLocalHeaders||[]).forEach(h=>{if(h)dl+=`<option value="${_escH(h)}">`});
@@ -731,7 +787,20 @@ function fsSelectTable(idx){
             ${lkLabel}
           </div>`;
         });
-        h+=`<div style="font-size:12px;font-weight:600;margin:8px 0 4px;color:#333">需要提取的列：
+        // 全局列别名覆盖（仅当 _fsGlobalFetchMap 非空时显示）
+        const validGFM = _fsGlobalFetchMap.filter(r=>r.std_name);
+        if(validGFM.length){
+          h+=`<div style="font-size:12px;font-weight:600;margin:8px 0 3px;color:#333">全局列别名覆盖 <span style="font-size:11px;font-weight:400;color:#888">（留空则用默认别名）</span>：</div>`;
+          validGFM.forEach((gm, gi)=>{
+            const overrideVal=_escH((sc.fetch_col_aliases||{})[gm.std_name]||'');
+            h+=`<div class="row" style="margin-bottom:3px">
+              <label style="min-width:90px;font-size:12px;color:#444">${_escH(gm.std_name)}：</label>
+              <input type="text" id="fsgfa_${idx}_${sid}_${gi}" value="${overrideVal}"
+                     list="${fkDl}" style="width:180px" placeholder="默认：${_escH(gm.default_alias||gm.std_name)}">
+            </div>`;
+          });
+        }
+        h+=`<div style="font-size:12px;font-weight:600;margin:8px 0 4px;color:#333">额外提取列（逐列勾选）：
           <button class="btn btn-sm btn-gray" style="padding:1px 6px;font-size:11px" onclick="fsSelAllCols(${idx},'${sid}',true)">全选</button>
           <button class="btn btn-sm btn-gray" style="padding:1px 6px;font-size:11px" onclick="fsSelAllCols(${idx},'${sid}',false)">全不选</button>
         </div>`;
@@ -784,6 +853,12 @@ function fsSaveSheetCfg(tIdx, sid){
   sc.feishu_key_names=[0,1,2].map(ki=>($(`fsfk_${tIdx}_${sid}_${ki}`)||{value:''}).value.trim());
   sc.fetch_col_names=[];
   document.querySelectorAll(`.fs-chk-col-${tIdx}-${sid}:checked`).forEach(cb=>sc.fetch_col_names.push(cb.value));
+  // Save per-sheet alias overrides for global fetch map
+  sc.fetch_col_aliases={};
+  _fsGlobalFetchMap.filter(r=>r.std_name).forEach((gm,gi)=>{
+    const el=$(`fsgfa_${tIdx}_${sid}_${gi}`);
+    if(el && el.value.trim()) sc.fetch_col_aliases[gm.std_name]=el.value.trim();
+  });
   fsSaveConfig();
   const hint=$(`fsSaveHint_${tIdx}_${sid}`);if(hint){hint.textContent='✓ 已保存';setTimeout(()=>hint.textContent='',2000);}
 }
@@ -927,11 +1002,19 @@ async function fsRunMatch(){
       if(!fk.length) return;
       // 本地键与飞书键取相同数量
       const lk=gLocalKeys.slice(0,fk.length);
+      // 构建全局列映射（含per-sheet覆盖别名）
+      const gfm=_fsGlobalFetchMap.filter(r=>r.std_name);
+      const overrides=sc.fetch_col_aliases||{};
+      const fetch_col_map=gfm.map(r=>({
+        output:r.std_name,
+        alias:(overrides[r.std_name]||'').trim()||(r.default_alias||r.std_name),
+      }));
       enabledSheets.push({
         sheet_id:s.sheetId, sheet_name:s.title,
         enabled:true,
         local_key_names:lk, feishu_key_names:fk,
         fetch_col_names:sc.fetch_col_names||[],
+        fetch_col_map: fetch_col_map,
         cache_key:sc.cache_key||'',
       });
     });

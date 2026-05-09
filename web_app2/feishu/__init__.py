@@ -156,8 +156,9 @@ def _do_match_multi(local_ws, local_header_row, prepared_tables, all_fetch_cols,
                     c.alignment = Alignment(horizontal="left", vertical="center")
                     c.border = bdr
                 for j, col_name in enumerate(all_fetch_cols):
+                    lookup_name = pt.get("col_lookup", {}).get(col_name, col_name)
                     c = ws_out.cell(row=dr, column=max_local_col + j + 1,
-                                    value=mdict.get(col_name, ""))
+                                    value=mdict.get(lookup_name, ""))
                     c.fill = hq_fill
                     c.alignment = Alignment(horizontal="left", vertical="center")
                     c.border = bdr
@@ -377,16 +378,31 @@ def api_feishu_match():
                             for i in range(len(fs_headers))}
                 lookup.setdefault(key, []).append(row_dict)
 
-            for col in fetch_cols:
-                if col not in seen_fetch_cols:
-                    all_fetch_cols_ordered.append(col)
-                    seen_fetch_cols.add(col)
+            # Build col_lookup: output_name → actual feishu column name
+            # Priority: fetch_col_map (global mapped with aliases) > fetch_col_names (direct)
+            col_lookup = {}
+            fetch_col_map_cfg = scfg.get('fetch_col_map', [])  # [{output, alias}]
+            for fm in fetch_col_map_cfg:
+                out_name = (fm.get('output') or '').strip()
+                alias = (fm.get('alias') or '').strip() or out_name
+                if out_name:
+                    col_lookup[out_name] = alias
+                    if out_name not in seen_fetch_cols:
+                        all_fetch_cols_ordered.append(out_name)
+                        seen_fetch_cols.add(out_name)
+            # Old per-sheet direct columns (identity mapping, output == lookup)
+            for cn in fetch_cols:
+                if cn and cn not in col_lookup:
+                    col_lookup[cn] = cn
+                    if cn not in seen_fetch_cols:
+                        all_fetch_cols_ordered.append(cn)
+                        seen_fetch_cols.add(cn)
 
             prepared_tables.append({
                 "name": full_name,
                 "local_key_cols": local_key_cols,
                 "lookup": lookup,
-                "fetch_col_names": fetch_cols,
+                "col_lookup": col_lookup,
             })
             logs.append(f"[{full_name}] 就绪，{len(lookup)} 个唯一键")
 
