@@ -207,6 +207,7 @@ tr:hover td { background:#f7f9fc; }
   <div class="row">
     <button class="btn btn-sm btn-gray" id="fsBatchUpdate">⟳ 一键刷新已缓存数据</button>
     <span id="fsBatchHint" class="hint"></span>
+    <button class="btn btn-sm btn-gray" id="fsExportCfg" style="margin-left:8px">📋 导出当前配置</button>
     <button class="btn btn-sm btn-gray" id="fsClearConfig" style="margin-left:8px;color:#c00000">🗑 清除本地配置</button>
   </div>
   <div style="display:flex;gap:12px">
@@ -506,6 +507,36 @@ function fsSaveConfig(){
   try{ localStorage.setItem(_FS_KEY, JSON.stringify(cfg)); window._fsSavedCfg=cfg; }catch(e){}
 }
 
+function fsExportConfig(){
+  // 导出每个表格的 sheet_configs（只含有效数据，供写入服务端默认值）
+  const out = fsTables.map(t=>({
+    name: t.name,
+    token: t.token||'',
+    sheet_configs: Object.fromEntries(
+      Object.entries(t.sheet_configs)
+        .filter(([,sc])=>sc.enabled||sc.local_key_names.some(k=>k)||sc.fetch_col_names.length)
+        .map(([sid,sc])=>[sid,{
+          enabled: !!sc.enabled,
+          local_key_names: sc.local_key_names||['','',''],
+          feishu_key_names: sc.feishu_key_names||['','',''],
+          fetch_col_names: sc.fetch_col_names||[],
+        }])
+    ),
+  })).filter(t=>Object.keys(t.sheet_configs).length>0);
+
+  const json = JSON.stringify(out, null, 2);
+  navigator.clipboard.writeText(json).then(()=>{
+    alert('已复制到剪贴板，请粘贴给开发者写入服务端默认值。');
+  }).catch(()=>{
+    // 降级：弹框显示
+    const ta=document.createElement('textarea');
+    ta.value=json;ta.style.cssText='position:fixed;top:10px;left:10px;width:80vw;height:70vh;z-index:9999;font-size:12px;font-family:monospace';
+    document.body.appendChild(ta);ta.select();
+    alert('无法自动复制，请手动全选复制后关闭此框。');
+    ta.onblur=()=>ta.remove();
+  });
+}
+
 function fsClearConfig(){
   if(!confirm('确认清除所有飞书本地配置？（含 Token、列映射、缓存记录）')) return;
   try{ localStorage.removeItem(_FS_KEY); }catch(e){}
@@ -550,6 +581,7 @@ function initFeishu(){
   });
   renderFsTrees();
   $('fsBatchUpdate').onclick=fsBatchUpdate;
+  $('fsExportCfg').onclick=fsExportConfig;
   $('fsClearConfig').onclick=fsClearConfig;
   $('fsRun').onclick=fsRunMatch;
   $('fsFile').onchange=function(){
