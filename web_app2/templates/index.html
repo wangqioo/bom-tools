@@ -846,7 +846,7 @@ function fsSelectTable(idx){
           validGFM.forEach((gm, gi)=>{
             const overrideVal=(sc.fetch_col_aliases||{})[gm.std_name]||'';
             const defAlias=gm.default_alias||gm.std_name;
-            let opts=`<option value="">— ${_escH(defAlias)} —</option>`;
+            let opts=`<option value="">— 待映射 —</option>`;
             headers.forEach(h2=>{if(h2) opts+=`<option value="${_escH(h2)}"${h2===overrideVal?' selected':''}>${_escH(h2)}</option>`;});
             h+=`<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
               <label style="min-width:65px;font-size:12px;color:#444;text-align:right">${_escH(gm.std_name)}：</label>
