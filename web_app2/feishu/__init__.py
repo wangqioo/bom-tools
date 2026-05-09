@@ -146,6 +146,8 @@ def _do_match_multi(local_ws, local_header_row, prepared_tables, all_fetch_cols,
         found = False
         for pt in prepared_tables:
             key = tuple(_cell_str(row_vals[lc - 1]) for lc in pt["local_key_cols"])
+            if not any(k for k in key):  # 本地键全空，跳过匹配保留行
+                continue
             matches = pt["lookup"].get(key, [])
             if not matches:
                 continue
