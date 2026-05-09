@@ -202,14 +202,10 @@ tr:hover td { background:#f7f9fc; }
     <span class="hint">（一次只能匹配一个 Sheet）</span>
     <label>表头行：</label><input type="number" id="fsHdr" value="1" min="1" style="width:60px">
   </div>
-  <div class="row" style="margin-top:6px">
-    <label style="color:#c00000;min-width:70px">本地键 1：</label>
-    <input type="text" id="fsGLk1" style="width:160px" placeholder="本地列名（必填）">
-    <label style="margin-left:16px;min-width:70px">本地键 2：</label>
-    <input type="text" id="fsGLk2" style="width:160px" placeholder="可选">
-    <label style="margin-left:16px;min-width:70px">本地键 3：</label>
-    <input type="text" id="fsGLk3" style="width:160px" placeholder="可选">
-    <span class="hint" style="margin-left:8px">所有飞书表格共用这组本地列名</span>
+  <div class="row" style="margin-top:6px;align-items:flex-start">
+    <label style="min-width:70px;color:#c00000;padding-top:4px">本地键：</label>
+    <div id="fsGLkContainer" style="display:flex;flex-direction:column;gap:4px"></div>
+    <span class="hint" style="margin-left:10px;padding-top:4px">所有飞书表格共用这组本地列名</span>
   </div>
   <div class="row" style="margin-top:6px;align-items:center">
     <label style="min-width:70px;color:#555">提取列：</label>
@@ -477,7 +473,7 @@ const FS_TABLES = {{ preset_tables | tojson }};
 
 // ── SheetConfig 默认值工厂 ──────────────────────────────────
 function _mkSheetCfg(){
-  return {enabled:false, local_key_names:['','',''], feishu_key_names:['','',''],
+  return {enabled:false, local_key_names:[''], feishu_key_names:[''],
           fetch_col_names:[], fetch_col_aliases:{}, _headers:[], _expanded:false,
           cache_key:'', cache_row_count:0, cache_fetched_at:0,
           row_count_at_cache:0, _cache_stale:false};
@@ -494,6 +490,45 @@ let _fsGlobalFetchMap = [  // [{std_name, default_alias}]  pre-populated default
   {std_name:'厂商名称', default_alias:'厂商名称'},
   {std_name:'优选等级', default_alias:'优选等级'},
 ];
+let _fsGlobalLocalKeys = [''];  // dynamic local-side match keys
+
+function fsRenderGLKSection(){
+  const cont=$('fsGLkContainer'); if(!cont) return;
+  const hdrs=window._fsLocalHeaders||[];
+  let h='';
+  _fsGlobalLocalKeys.forEach((val,i)=>{
+    const req=i===0;
+    let opts=`<option value="">${req?'— 选择列 —':'（不使用）'}</option>`;
+    hdrs.forEach(h2=>{if(h2) opts+=`<option value="${_escH(h2)}"${h2===val?' selected':''}>${_escH(h2)}</option>`;});
+    h+=`<div style="display:flex;align-items:center;gap:4px">
+      <span style="min-width:16px;font-size:12px;${req?'color:#c00000':'color:#888'}">${i+1}</span>
+      <select id="fsGlk_${i}" style="width:180px;font-size:12px" onchange="fsGLKChange()">${opts}</select>
+      ${_fsGlobalLocalKeys.length>1?`<button class="btn btn-sm btn-gray" style="padding:0 6px;font-size:12px;line-height:20px" onclick="fsRemoveGLK(${i})">×</button>`:''}
+    </div>`;
+  });
+  h+=`<button class="btn btn-sm btn-gray" style="padding:0 8px;font-size:12px;line-height:20px;margin-top:2px" onclick="fsAddGLK()">+</button>`;
+  cont.innerHTML=h;
+}
+
+function fsGLKChange(){
+  _fsGlobalLocalKeys=_fsGlobalLocalKeys.map((_,i)=>($(`fsGlk_${i}`)||{value:''}).value.trim());
+  fsSaveConfig();
+  if(fsCurIdx!==null) fsSelectTable(fsCurIdx);
+}
+
+function fsAddGLK(){
+  _fsGlobalLocalKeys=_fsGlobalLocalKeys.map((_,i)=>($(`fsGlk_${i}`)||{value:''}).value.trim());
+  _fsGlobalLocalKeys.push('');
+  fsRenderGLKSection(); fsSaveConfig();
+}
+
+function fsRemoveGLK(i){
+  _fsGlobalLocalKeys=_fsGlobalLocalKeys.map((_,j)=>($(`fsGlk_${j}`)||{value:''}).value.trim());
+  _fsGlobalLocalKeys.splice(i,1);
+  if(!_fsGlobalLocalKeys.length) _fsGlobalLocalKeys=[''];
+  fsRenderGLKSection(); fsSaveConfig();
+  if(fsCurIdx!==null) fsSelectTable(fsCurIdx);
+}
 
 // ─── localStorage 持久化 ──────────────────────────────
 const _FS_KEY = 'bom-tools-feishu-v2';  // v2: per-sheet config
@@ -501,16 +536,11 @@ const _FS_KEY = 'bom-tools-feishu-v2';  // v2: per-sheet config
 function fsSaveConfig(){
   const bu=$('fsBaseUrl'), or_=$('fsOrigin'), ui=$('fsUserId');
   const prev = window._fsSavedCfg || {};
-  const glk1=$('fsGLk1'),glk2=$('fsGLk2'),glk3=$('fsGLk3');
   const cfg = {
     base_url: bu ? bu.value : prev.base_url||'',
     origin:  or_ ? or_.value : prev.origin||'',
     user_id:  ui ? ui.value  : prev.user_id||'',
-    global_local_keys: [
-      glk1?glk1.value:prev.global_local_keys?.[0]||'',
-      glk2?glk2.value:prev.global_local_keys?.[1]||'',
-      glk3?glk3.value:prev.global_local_keys?.[2]||'',
-    ],
+    global_local_keys: _fsGlobalLocalKeys.slice(),
     global_fetch_map: _fsGlobalFetchMap.map(r=>({std_name:r.std_name||'',default_alias:r.default_alias||''})),
     tables: fsTables.map(t=>({
       idx: t.idx, token: t.token||'',
@@ -518,8 +548,8 @@ function fsSaveConfig(){
       sheet_configs: Object.fromEntries(
         Object.entries(t.sheet_configs).map(([sid, sc])=>[sid,{
           enabled: !!sc.enabled,
-          local_key_names: sc.local_key_names||['','',''],
-          feishu_key_names: sc.feishu_key_names||['','',''],
+          local_key_names: sc.local_key_names||[''],
+          feishu_key_names: sc.feishu_key_names||[''],
           fetch_col_names: sc.fetch_col_names||[],
           fetch_col_aliases: sc.fetch_col_aliases||{},
           _headers: sc._headers||[],
@@ -546,8 +576,8 @@ function fsExportConfig(){
           .filter(([,sc])=>sc.enabled||sc.local_key_names.some(k=>k)||sc.fetch_col_names.length||Object.keys(sc.fetch_col_aliases||{}).length)
           .map(([sid,sc])=>[sid,{
             enabled: !!sc.enabled,
-            local_key_names: sc.local_key_names||['','',''],
-            feishu_key_names: sc.feishu_key_names||['','',''],
+            local_key_names: sc.local_key_names||[''],
+            feishu_key_names: sc.feishu_key_names||[''],
             fetch_col_names: sc.fetch_col_names||[],
             fetch_col_aliases: sc.fetch_col_aliases||{},
           }])
@@ -648,26 +678,19 @@ function initFeishu(){
     if(saved.base_url) $('fsBaseUrl').value = saved.base_url;
     if(saved.origin)   $('fsOrigin').value  = saved.origin;
     if(saved.user_id)  $('fsUserId').value  = saved.user_id;
-    if(saved.global_local_keys){
-      if($('fsGLk1'))$('fsGLk1').value=saved.global_local_keys[0]||'';
-      if($('fsGLk2'))$('fsGLk2').value=saved.global_local_keys[1]||'';
-      if($('fsGLk3'))$('fsGLk3').value=saved.global_local_keys[2]||'';
+    if(saved.global_local_keys && saved.global_local_keys.length){
+      _fsGlobalLocalKeys=saved.global_local_keys.slice();
+      if(!_fsGlobalLocalKeys.length) _fsGlobalLocalKeys=[''];
     }
     $('fsCfgStatus').textContent = '已从本地存储恢复配置';
   }
-  ['fsBaseUrl','fsOrigin','fsUserId','fsGLk1','fsGLk2','fsGLk3'].forEach(id=>{
+  ['fsBaseUrl','fsOrigin','fsUserId'].forEach(id=>{
     const el=$(id); if(el) el.oninput = fsSaveConfig;
   });
-  fsRenderGFMSection(); 
-  // 上传文件后更新本地键 datalist
-  const _updateLkList=()=>{
-    let dl='';(window._fsLocalHeaders||[]).forEach(h=>{if(h)dl+=`<option value="${_escH(h)}">`});
-    ['fsGLk1','fsGLk2','fsGLk3'].forEach(id=>{
-      let el=document.getElementById(id+'_list');
-      if(!el){el=document.createElement('datalist');el.id=id+'_list';document.body.appendChild(el);}
-      el.innerHTML=dl;const inp=$(id);if(inp)inp.setAttribute('list',id+'_list');
-    });
-  };
+  fsRenderGFMSection();
+  fsRenderGLKSection();
+  // 上传文件后更新本地键 selects
+  const _updateLkList=()=>{ fsRenderGLKSection(); };
   window._updateLkList=_updateLkList;
   renderFsTrees();
   $('fsBatchUpdate').onclick=fsBatchUpdate;
@@ -779,21 +802,22 @@ function fsSelectTable(idx){
         h+=`<datalist id="${lkDl}">${lkOpts}</datalist><datalist id="${fkDl}">${fkOpts}</datalist>`;
         h+=`<div style="padding:8px 12px;border-top:1px solid #eee;display:flex;gap:24px;align-items:flex-start">`;
         // ── 左列：匹配键 ──
-        const glk=[($('fsGLk1')||{value:''}).value,($('fsGLk2')||{value:''}).value,($('fsGLk3')||{value:''}).value];
         h+=`<div style="flex:0 0 auto;min-width:260px">`;
         h+=`<div style="font-size:12px;font-weight:600;margin-bottom:6px;color:#333">匹配键（飞书侧）</div>`;
-        [0,1,2].forEach(ki=>{
-          const fv=sc.feishu_key_names[ki]||'';
-          const lkLabel=glk[ki]?`<span style="color:#888;font-size:11px"> ← 本地"${_escH(glk[ki])}"</span>`:'';
+        const fkArr=sc.feishu_key_names.length?sc.feishu_key_names:[''];
+        fkArr.forEach((fv, ki)=>{
+          const lkLabel=_fsGlobalLocalKeys[ki]?`<span style="color:#888;font-size:11px"> ← 本地"${_escH(_fsGlobalLocalKeys[ki])}"</span>`:'';
           const req=ki===0?'color:#c00000':'color:#555';
           let opts=`<option value="">${ki===0?'— 选择列 —':'（不使用）'}</option>`;
           headers.forEach(h2=>{if(h2) opts+=`<option value="${_escH(h2)}"${h2===fv?' selected':''}>${_escH(h2)}</option>`;});
-          h+=`<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
-            <label style="min-width:18px;font-size:12px;${req}">${ki+1}</label>
+          h+=`<div style="display:flex;align-items:center;gap:4px;margin-bottom:4px">
+            <span style="min-width:16px;font-size:12px;${req}">${ki+1}</span>
             <select id="fsfk_${idx}_${sid}_${ki}" style="width:190px;font-size:12px">${opts}</select>
             ${lkLabel}
+            ${fkArr.length>1?`<button class="btn btn-sm btn-gray" style="padding:0 6px;font-size:12px;line-height:20px" onclick="fsRemoveMatchKey(${idx},'${sid}',${ki})">×</button>`:''}
           </div>`;
         });
+        h+=`<button class="btn btn-sm btn-gray" style="padding:0 8px;font-size:12px;line-height:20px;margin-top:2px" onclick="fsAddMatchKey(${idx},'${sid}')">+</button>`;
         h+=`</div>`;
         // ── 右列：提取列映射 ──
         const validGFM = _fsGlobalFetchMap.filter(r=>r.std_name);
@@ -855,7 +879,8 @@ function fsSaveSheetCfg(tIdx, sid){
   const t=fsTables[tIdx];
   if(!t.sheet_configs[sid]) t.sheet_configs[sid]=_mkSheetCfg();
   const sc=t.sheet_configs[sid];
-  sc.feishu_key_names=[0,1,2].map(ki=>($(`fsfk_${tIdx}_${sid}_${ki}`)||{value:''}).value.trim());
+  const _fkCount=sc.feishu_key_names.length||1;
+  sc.feishu_key_names=Array.from({length:_fkCount},(_,ki)=>($(`fsfk_${tIdx}_${sid}_${ki}`)||{value:''}).value.trim());
   // Save per-sheet alias overrides for global fetch map
   sc.fetch_col_aliases={};
   _fsGlobalFetchMap.filter(r=>r.std_name).forEach((gm,gi)=>{
@@ -864,6 +889,20 @@ function fsSaveSheetCfg(tIdx, sid){
   });
   fsSaveConfig();
   const hint=$(`fsSaveHint_${tIdx}_${sid}`);if(hint){hint.textContent='✓ 已保存';setTimeout(()=>hint.textContent='',2000);}
+}
+
+function fsAddMatchKey(tIdx, sid){
+  fsSaveSheetCfg(tIdx, sid);
+  fsTables[tIdx].sheet_configs[sid].feishu_key_names.push('');
+  fsSelectTable(tIdx);
+}
+
+function fsRemoveMatchKey(tIdx, sid, ki){
+  fsSaveSheetCfg(tIdx, sid);
+  const arr=fsTables[tIdx].sheet_configs[sid].feishu_key_names;
+  arr.splice(ki,1);
+  if(!arr.length) arr.push('');
+  fsSelectTable(tIdx);
 }
 
 async function fsConnectTable(idx){
@@ -990,7 +1029,7 @@ async function fsRunMatch(){
   const f=$('fsFile').files[0];if(!f){alert('请先上传 BOM 文件');return;}
 
   // 全局本地键
-  const gLocalKeys=[($('fsGLk1')||{value:''}).value.trim(),($('fsGLk2')||{value:''}).value.trim(),($('fsGLk3')||{value:''}).value.trim()].filter(k=>k);
+  const gLocalKeys=_fsGlobalLocalKeys.map(k=>k.trim()).filter(k=>k);
   if(!gLocalKeys.length){alert('请先填写本地匹配键（本地 BOM 文件区域）');return;}
 
   // 构建 per-sheet 配置
