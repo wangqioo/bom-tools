@@ -612,9 +612,11 @@ function fsClearConfig(){
   try{ localStorage.removeItem(_FS_KEY); }catch(e){}
   window._fsSavedCfg = null;
   _fsGlobalFetchMap = [];
+  _fsGlobalLocalKeys = [''];
   fsTables = FS_TABLES.map((t,i)=>({...t, idx:i, _sheets:[], _connected:false, sheet_configs:{}}));
   renderFsTrees();
   fsRenderGFMSection();
+  fsRenderGLKSection();
   $('fsCfgStatus').textContent='配置已清除';
 }
 
@@ -814,10 +816,12 @@ function fsSelectTable(idx){
         // ── 左列：匹配键 ──
         h+=`<div style="flex:0 0 auto;min-width:260px">`;
         h+=`<div style="font-size:12px;font-weight:600;margin-bottom:6px;color:#333">匹配键（飞书侧）</div>`;
-        // feishu key count mirrors local key count
+        // feishu key count mirrors local key count — persist any resize immediately
         const glkCount=_fsGlobalLocalKeys.length;
-        while(sc.feishu_key_names.length<glkCount) sc.feishu_key_names.push('');
-        if(sc.feishu_key_names.length>glkCount) sc.feishu_key_names.splice(glkCount);
+        let _fkResized=false;
+        while(sc.feishu_key_names.length<glkCount){sc.feishu_key_names.push('');_fkResized=true;}
+        if(sc.feishu_key_names.length>glkCount){sc.feishu_key_names.splice(glkCount);_fkResized=true;}
+        if(_fkResized) fsSaveConfig();
         sc.feishu_key_names.forEach((fv, ki)=>{
           const lkName=_fsGlobalLocalKeys[ki]||`键${ki+1}`;
           const req=ki===0?'color:#c00000':'color:#555';
@@ -881,9 +885,6 @@ function fsToggleSheetExpand(tIdx, sid){
   fsSelectTable(tIdx);
 }
 
-function fsSelAllCols(tIdx, sid, val){
-  document.querySelectorAll(`.fs-chk-col-${tIdx}-${sid}`).forEach(cb=>cb.checked=val);
-}
 
 function fsSaveSheetCfg(tIdx, sid){
   const t=fsTables[tIdx];
