@@ -1028,7 +1028,8 @@ function fsClearSheetCache(tIdx, sid){
 
 // 一键缓存所有启用的 Sheet
 async function fsBatchUpdate(){
-  $('fsBatchUpdate').disabled=true;$('fsBatchHint').textContent='缓存中...';
+  $('fsBatchUpdate').disabled=true;
+  const _bh=$('fsBatchHint'); _bh.style.color='#1a8a1a'; _bh.textContent='缓存中...';
   let count=0;
   for(let i=0;i<fsTables.length;i++){
     const t=fsTables[i];
@@ -1037,7 +1038,7 @@ async function fsBatchUpdate(){
     const enabledSids=Object.entries(t.sheet_configs).filter(([,sc])=>sc.enabled).map(([sid])=>sid);
     if(!enabledSids.length) continue;
     if(!t._connected){
-      $('fsBatchHint').textContent=`连接中：${t.name}`;
+      _bh.textContent=`连接中：${t.name}`;
       // silently connect to get sheets+headers
       try{
         const r=await fetch('/api/feishu/sheets',{method:'POST',headers:{'Content-Type':'application/json'},
@@ -1051,7 +1052,7 @@ async function fsBatchUpdate(){
       }catch(e){console.error(e);}
     }
     for(const sid of enabledSids){
-      $('fsBatchHint').textContent=`缓存 ${t.name}/${t._sheets.find(s=>s.sheetId===sid)?.title||sid}`;
+      _bh.textContent=`缓存 ${t.name}/${t._sheets.find(s=>s.sheetId===sid)?.title||sid}`;
       try{
         const r=await fetch('/api/feishu/load',{method:'POST',headers:{'Content-Type':'application/json'},
           body:JSON.stringify({base_url:$('fsBaseUrl').value,origin:$('fsOrigin').value,user_id:$('fsUserId').value,token:t.token,sheet_id:sid})});
@@ -1068,7 +1069,7 @@ async function fsBatchUpdate(){
     }
     renderFsTrees(); // 每完成一个在线库立即更新左侧状态
   }
-  $('fsBatchUpdate').disabled=false;$('fsBatchHint').textContent=`✓ 完成 ${count} 个 Sheet`;
+  $('fsBatchUpdate').disabled=false; _bh.style.color='#1a8a1a'; _bh.textContent=`✓ 完成 ${count} 个 Sheet`;
   renderFsTrees();fsSaveConfig();
   if(fsCurIdx!==null)fsSelectTable(fsCurIdx);
 }
