@@ -1,9 +1,16 @@
 # -*- coding: utf-8 -*-
 """BOM Tools Web v2.0 — 全新清洁版入口"""
 
-import os, threading, time
+import os, json, threading, time
 from flask import Flask, render_template, send_file
 from shared import UPLOAD_DIR, OUTPUT_DIR, CACHE_DIR, FEISHU_PRESET_TABLES, _cleanup_old_files
+
+_DEFAULT_CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'default_config.json')
+try:
+    with open(_DEFAULT_CONFIG_PATH, 'r', encoding='utf-8') as _f:
+        _DEFAULT_CONFIG = json.load(_f)
+except Exception:
+    _DEFAULT_CONFIG = {}
 
 from bom import bom_bp
 from feishu import feishu_bp
@@ -24,7 +31,8 @@ app.register_blueprint(plm_bp)
 
 @app.route('/')
 def index():
-    return render_template('index.html', preset_tables=FEISHU_PRESET_TABLES)
+    return render_template('index.html', preset_tables=FEISHU_PRESET_TABLES,
+                           default_config=_DEFAULT_CONFIG)
 
 
 @app.route('/download/<filename>')

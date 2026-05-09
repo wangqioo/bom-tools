@@ -219,6 +219,7 @@ tr:hover td { background:#f7f9fc; }
     <button class="btn btn-sm btn-gray" id="fsBatchUpdate">⟳ 一键刷新已缓存数据</button>
     <span id="fsBatchHint" class="hint"></span>
     <button class="btn btn-sm btn-gray" id="fsExportCfg" style="margin-left:8px">📋 导出当前配置</button>
+    <button class="btn btn-sm btn-gray" id="fsRestoreDefault" style="margin-left:8px;color:#1a6bbf">↩ 恢复默认配置</button>
     <button class="btn btn-sm btn-gray" id="fsClearConfig" style="margin-left:8px;color:#c00000">🗑 清除本地配置</button>
   </div>
   <div style="display:flex;gap:12px">
@@ -472,6 +473,7 @@ function initPlm(){
 
 // ─── 飞书匹配 ─────────────────────────────────────────
 const FS_TABLES = {{ preset_tables | tojson }};
+const FS_DEFAULT_CONFIG = {{ default_config | tojson }};
 
 // ── SheetConfig 默认值工厂 ──────────────────────────────────
 function _mkSheetCfg(){
@@ -625,6 +627,42 @@ function fsClearConfig(){
   $('fsCfgStatus').textContent='配置已清除';
 }
 
+function fsRestoreDefault(){
+  if(!FS_DEFAULT_CONFIG || !FS_DEFAULT_CONFIG.tables) { alert('没有内置默认配置'); return; }
+  if(!confirm('将用内置默认配置覆盖当前所有设置（本地键、提取列、所有 Sheet 映射），确定？')) return;
+  // 恢复全局本地键
+  _fsGlobalLocalKeys = (FS_DEFAULT_CONFIG.global_local_keys||[]).length
+    ? FS_DEFAULT_CONFIG.global_local_keys.slice() : [''];
+  // 恢复全局提取列
+  _fsGlobalFetchMap = (FS_DEFAULT_CONFIG.global_fetch_map||[]).map(n=>({std_name:n,default_alias:n}));
+  if(!_fsGlobalFetchMap.length) _fsGlobalFetchMap=[{std_name:'HQ料号',default_alias:'HQ料号'},{std_name:'规格型号',default_alias:'规格型号'},{std_name:'厂商名称',default_alias:'厂商名称'},{std_name:'优选等级',default_alias:'优选等级'}];
+  // 重建 fsTables，注入默认 sheet configs
+  const defByToken = {};
+  (FS_DEFAULT_CONFIG.tables||[]).forEach(dt=>{ defByToken[dt.token] = dt; });
+  fsTables = FS_TABLES.map((t,i)=>{
+    const dt = defByToken[t.token]||{};
+    const sheet_configs = {};
+    (dt.sheets||[]).forEach(ds=>{
+      sheet_configs[ds.sheet_id] = {
+        enabled: !!ds.enabled,
+        feishu_key_names: ds.feishu_key_names||[],
+        fetch_col_aliases: ds.fetch_col_aliases||{},
+        fetch_col_names: [],
+        _headers: [], _expanded: false,
+        cache_key:'', cache_row_count:0, cache_fetched_at:0,
+        row_count_at_cache:0, _cache_stale:false,
+      };
+    });
+    return {...t, idx:i, _sheets:[], _connected:false, sheet_configs};
+  });
+  fsCurIdx = null;
+  renderFsTrees();
+  fsRenderGFMSection();
+  fsRenderGLKSection();
+  fsSaveConfig();
+  $('fsCfgStatus').textContent='默认配置已恢复';
+}
+
 // 页面加载时预读配置并合并到 fsTables
 (function(){
   try{
@@ -712,6 +750,7 @@ function initFeishu(){
   renderFsTrees();
   $('fsBatchUpdate').onclick=fsBatchUpdate;
   $('fsExportCfg').onclick=fsExportConfig;
+  $('fsRestoreDefault').onclick=fsRestoreDefault;
   $('fsClearConfig').onclick=fsClearConfig;
   $('fsRun').onclick=fsRunMatch;
   $('fsFile').onchange=function(){
