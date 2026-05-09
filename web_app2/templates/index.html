@@ -202,14 +202,16 @@ tr:hover td { background:#f7f9fc; }
     <span class="hint">（一次只能匹配一个 Sheet）</span>
     <label>表头行：</label><input type="number" id="fsHdr" value="1" min="1" style="width:60px">
   </div>
-  <div class="row" style="margin-top:6px;align-items:flex-start">
-    <label style="min-width:70px;color:#c00000;padding-top:4px">本地键：</label>
-    <div id="fsGLkContainer" style="display:flex;flex-direction:column;gap:4px"></div>
-    <span class="hint" style="margin-left:10px;padding-top:4px">所有飞书表格共用这组本地列名</span>
-  </div>
-  <div class="row" style="margin-top:6px;align-items:center">
-    <label style="min-width:70px;color:#555">提取列：</label>
-    <div id="fsGFMSection" style="display:inline-flex;flex-wrap:wrap;gap:5px;align-items:center"></div>
+  <div class="row" style="margin-top:6px;align-items:flex-start;gap:32px">
+    <div>
+      <div style="font-size:12px;font-weight:600;color:#c00000;margin-bottom:5px">本地键</div>
+      <div id="fsGLkContainer" style="display:flex;flex-direction:column;gap:4px"></div>
+    </div>
+    <div>
+      <div style="font-size:12px;font-weight:600;color:#555;margin-bottom:5px">提取列</div>
+      <div id="fsGFMSection" style="display:flex;flex-direction:column;gap:4px"></div>
+    </div>
+    <span class="hint" style="padding-top:2px">所有飞书表格共用这组配置</span>
   </div>
 </div>
 <div class="section"><h3>表格库</h3>
@@ -637,17 +639,18 @@ function fsClearConfig(){
 // ─── 全局输出列映射管理 ────────────────────────────────
 function fsRenderGFMSection(){
   const el=$('fsGFMSection'); if(!el) return;
-  let h='<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px">';
+  let h='';
   _fsGlobalFetchMap.forEach((r,i)=>{
-    h+=`<div style="display:inline-flex;align-items:center;gap:3px;background:#eef2ff;border:1px solid #c5d0f0;border-radius:5px;padding:3px 8px">
-      <input type="text" id="gfm_std_${i}" value="${_escH(r.std_name)}" style="width:80px;font-size:12px;border:none;background:transparent;outline:none;color:#333" placeholder="列名" oninput="fsUpdateGFMRow(${i})">
-      <button style="background:none;border:none;color:#aaa;cursor:pointer;font-size:12px;padding:0 1px;line-height:1" onclick="fsRemoveGFMRow(${i})" title="删除">✕</button>
+    h+=`<div style="display:flex;align-items:center;gap:4px">
+      <span style="min-width:16px;font-size:12px;color:#888">${i+1}</span>
+      <input type="text" id="gfm_std_${i}" value="${_escH(r.std_name)}"
+        style="width:180px;font-size:12px;padding:1px 5px;border:1px solid #aaa;border-radius:3px;height:24px"
+        placeholder="列名" oninput="fsUpdateGFMRow(${i})">
+      ${_fsGlobalFetchMap.length>1?`<button class="btn btn-sm btn-gray" style="padding:0 6px;font-size:12px;line-height:20px" onclick="fsRemoveGFMRow(${i})">×</button>`:''}
     </div>`;
   });
-  h+=`<button class="btn btn-sm btn-gray" onclick="fsAddGFMRow()" style="padding:3px 10px;font-size:12px">+ 添加列</button>`;
-  h+='</div>';
+  h+=`<button class="btn btn-sm btn-gray" style="padding:0 8px;font-size:12px;line-height:20px;margin-top:2px" onclick="fsAddGFMRow()">+</button>`;
   el.innerHTML=h;
-  
 }
 
 function fsAddGFMRow(){
