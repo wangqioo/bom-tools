@@ -574,31 +574,36 @@ function fsSaveConfig(){
 }
 
 function fsExportConfig(){
-  // 导出全局列映射 + 每个表格的 sheet_configs（只含有效数据，供写入服务端默认值）
+  // 按最新架构导出：全局本地键 + 全局提取列 + 每个表格有效 sheet 配置
   const out = {
-    global_fetch_map: _fsGlobalFetchMap.filter(r=>r.std_name).map(r=>({std_name:r.std_name,default_alias:r.default_alias||r.std_name})),
-    tables: fsTables.map(t=>({
-      name: t.name,
-      token: t.token||'',
-      sheet_configs: Object.fromEntries(
-        Object.entries(t.sheet_configs)
-          .filter(([,sc])=>sc.enabled||sc.local_key_names.some(k=>k)||sc.fetch_col_names.length||Object.keys(sc.fetch_col_aliases||{}).length)
-          .map(([sid,sc])=>[sid,{
-            enabled: !!sc.enabled,
-            local_key_names: sc.local_key_names||[''],
-            feishu_key_names: sc.feishu_key_names||[''],
-            fetch_col_names: sc.fetch_col_names||[],
-            fetch_col_aliases: sc.fetch_col_aliases||{},
-          }])
-      ),
-    })).filter(t=>Object.keys(t.sheet_configs).length>0),
+    global_local_keys: _fsGlobalLocalKeys.filter(k=>k),
+    global_fetch_map: _fsGlobalFetchMap.filter(r=>r.std_name).map(r=>r.std_name),
+    tables: fsTables.map(t=>{
+      // 找出有意义的 sheet 配置：enabled 或填了至少一个飞书键或有提取列覆盖
+      const sheetList = (t._sheets||[]).map(s=>{
+        const sid=s.sheetId;
+        const sc=t.sheet_configs[sid];
+        if(!sc) return null;
+        const fk=(sc.feishu_key_names||[]).filter(k=>k);
+        const aliases=sc.fetch_col_aliases||{};
+        if(!sc.enabled && !fk.length && !Object.keys(aliases).length) return null;
+        return {
+          sheet_id: sid,
+          sheet_name: s.title||sid,
+          enabled: !!sc.enabled,
+          feishu_key_names: fk,
+          fetch_col_aliases: aliases,
+        };
+      }).filter(Boolean);
+      if(!sheetList.length) return null;
+      return {name:t.name, token:t.token||'', sheets:sheetList};
+    }).filter(Boolean),
   };
 
   const json = JSON.stringify(out, null, 2);
   navigator.clipboard.writeText(json).then(()=>{
     alert('已复制到剪贴板，请粘贴给开发者写入服务端默认值。');
   }).catch(()=>{
-    // 降级：弹框显示
     const ta=document.createElement('textarea');
     ta.value=json;ta.style.cssText='position:fixed;top:10px;left:10px;width:80vw;height:70vh;z-index:9999;font-size:12px;font-family:monospace';
     document.body.appendChild(ta);ta.select();
