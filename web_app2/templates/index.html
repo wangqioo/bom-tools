@@ -472,7 +472,7 @@ function _mkSheetCfg(){
 }
 
 let fsTables = FS_TABLES.map((t,i)=>({
-  ...t, idx:i, token:'', _sheets:[], _connected:false,
+  ...t, idx:i, _sheets:[], _connected:false,
   sheet_configs:{},
 }));
 let fsCurIdx = null;
@@ -512,7 +512,7 @@ function fsClearConfig(){
   if(!confirm('确认清除所有飞书本地配置？（含 Token、列映射、缓存记录）')) return;
   try{ localStorage.removeItem(_FS_KEY); }catch(e){}
   window._fsSavedCfg = null;
-  fsTables = FS_TABLES.map((t,i)=>({...t, idx:i, token:'', _sheets:[], _connected:false, sheet_configs:{}}));
+  fsTables = FS_TABLES.map((t,i)=>({...t, idx:i, _sheets:[], _connected:false, sheet_configs:{}}));
   renderFsTrees();
   $('fsCfgStatus').textContent='配置已清除';
 }
