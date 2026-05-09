@@ -644,7 +644,6 @@ function fsSelectTable(idx){
     <label>启用：</label><input type="checkbox" id="fsDetEnable" ${t.enabled?'checked':''} onchange="fsTables[${idx}].enabled=this.checked;renderFsTrees();fsSaveConfig()"></div>`;
   h+=`<div class="row">
     <button class="btn btn-sm btn-primary" onclick="fsConnectTable(${idx})">连接并获取 Sheet 列表</button>
-    <button class="btn btn-sm btn-gray"    onclick="fsLoadHeaders(${idx})">获取列标题（配置用）</button>
     <button class="btn btn-sm btn-green"   onclick="fsCacheTable(${idx})">⬇ 加载并缓存全部数据</button>
   </div>`;
   if(t._sheets.length){
@@ -661,8 +660,8 @@ function fsSelectTable(idx){
         : `<span style="color:#2a8a2a">✓ 已缓存 ${t.cache_row_count} 行数据（${_fmtTime(t.cache_fetched_at)}）</span>`)
     : '<span style="color:#e07000">无服务端缓存，匹配时将实时拉取（较慢）</span>';
   const connInfo = t._loaded
-    ? `已获取列标题（${t._headers.length} 列）`
-    : t._connected ? '已连接，可获取列标题' : '未连接';
+    ? `已连接并获取列标题（${t._headers.length} 列）`
+    : t._connected ? '已连接' : '未连接';
   h+=`<div style="margin-top:6px;font-size:12px">${cacheInfo}<br><span style="color:#888">${connInfo}</span></div>`;
   $('fsDetail').innerHTML=h;
 }
@@ -688,6 +687,18 @@ async function fsConnectTable(idx){
     if(d.success){
       t._sheets=d.sheets;t._connected=true;
       if(!t.active_sheet_ids.length)t.active_sheet_ids=d.sheets.map(s=>s.sheetId);
+      // 连接时顺带返回表头
+      if(d.headers&&d.headers.length){
+        t._headers=d.headers.filter(h=>h);
+        t._loaded=true;
+        let dl='';t._headers.forEach(h=>dl+=`<option value="${h}">`);
+        ['fsFk1','fsFk2','fsFk3'].forEach(id=>{
+          let el=document.getElementById(id+'_flist');
+          if(!el){el=document.createElement('datalist');el.id=id+'_flist';document.body.appendChild(el);}
+          el.innerHTML=dl;
+          const inp=document.getElementById(id);if(inp)inp.setAttribute('list',id+'_flist');
+        });
+      }
       // 检测缓存是否与线上一致（行数比对）
       if(t.cache_key && Object.keys(t._cache_sheet_counts||{}).length>0){
         const live={};d.sheets.forEach(s=>live[s.sheetId]=s.rowCount||0);
@@ -697,36 +708,7 @@ async function fsConnectTable(idx){
       } else {
         t._cache_stale=false;
       }
-      fsSelectTable(idx);renderFsTrees();fsSaveConfig();
-    } else alert(d.error);
-  }catch(e){alert(e.message);}
-  btns.forEach(b=>b.disabled=false);
-}
-
-// 获取列标题（快速，仅读前2行，用于配置列映射）
-async function fsLoadHeaders(idx){
-  const t=fsTables[idx];
-  if(!t._connected){alert('请先连接');return;}
-  if(!t.active_sheet_ids.length){alert('请至少选择一个 Sheet');return;}
-  const btns=$('fsDetail').querySelectorAll('button');btns.forEach(b=>b.disabled=true);
-  try{
-    const firstSheet=t._sheets.find(s=>t.active_sheet_ids.includes(s.sheetId));
-    if(!firstSheet){alert('找不到选中的 Sheet');btns.forEach(b=>b.disabled=false);return;}
-    const r=await fetch('/api/feishu/headers',{method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({base_url:$('fsBaseUrl').value,origin:$('fsOrigin').value,user_id:$('fsUserId').value,
-        token:t.token,sheet_id:firstSheet.sheetId,col_count:firstSheet.columnCount||100})});
-    const d=await r.json();
-    if(d.success){
-      t._headers=d.headers.filter(h=>h);
-      t._loaded=true;
       fsSelectTable(idx);renderFsTrees();renderFsMapTable();fsSaveConfig();
-      let dl='';t._headers.forEach(h=>dl+=`<option value="${h}">`);
-      ['fsFk1','fsFk2','fsFk3'].forEach(id=>{
-        let el=document.getElementById(id+'_flist');
-        if(!el){el=document.createElement('datalist');el.id=id+'_flist';document.body.appendChild(el);}
-        el.innerHTML=dl;$(id).setAttribute('list',id+'_flist');
-      });
     } else alert(d.error);
   }catch(e){alert(e.message);}
   btns.forEach(b=>b.disabled=false);

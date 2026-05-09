@@ -253,7 +253,7 @@ def api_feishu_load():
 
 @feishu_bp.route('/api/feishu/sheets', methods=['POST'])
 def api_feishu_sheets():
-    """获取飞书表格的 Sheet 列表"""
+    """获取飞书表格的 Sheet 列表，顺带读取第一个 Sheet 的表头"""
     data = request.get_json(silent=True) or {}
     base_url = data.get('base_url', 'https://mcenter.huaqin.com')
     origin = data.get('origin', '')
@@ -263,7 +263,17 @@ def api_feishu_sheets():
         return jsonify({'success': False, 'error': '请填写 Token'})
     try:
         sheets = _hq_get_sheets(base_url, origin, user_id, token)
-        return jsonify({'success': True, 'sheets': sheets})
+        headers = []
+        if sheets:
+            first_sid = sheets[0]['sheetId']
+            col_count = sheets[0].get('columnCount', 100) or 100
+            try:
+                rows = _hq_read_sheet(base_url, origin, user_id, token,
+                                      first_sid, row_count=2, col_count=col_count, batch_size=10)
+                headers = [_cell_str(v) for v in (rows[0] if rows else [])]
+            except Exception:
+                pass  # 表头读取失败不影响连接
+        return jsonify({'success': True, 'sheets': sheets, 'headers': headers})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
