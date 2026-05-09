@@ -1,0 +1,1388 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BOM Tools · Web 版 v2</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: -apple-system,'Segoe UI','Microsoft YaHei',sans-serif; display:flex; height:100vh; background:#f0f2f5; }
+/* === 左侧导航 === */
+.sidebar { width:200px; background:linear-gradient(180deg,#1a2942,#1a3a5c); color:#ccc; display:flex; flex-direction:column; flex-shrink:0; }
+.sidebar .logo { padding:18px 16px; font-size:15px; font-weight:700; color:#fff; border-bottom:1px solid rgba(255,255,255,.08); cursor:pointer; }
+.sidebar .logo .sub { font-size:11px; font-weight:400; color:#8ab4f8; display:block; margin-top:2px; }
+.sidebar nav { flex:1; padding:8px 0; overflow-y:auto; }
+.sidebar nav a { display:flex; align-items:center; gap:10px; padding:11px 18px; color:#b0bec5; text-decoration:none; font-size:14px; transition:all .12s; border-left:3px solid transparent; }
+.sidebar nav a:hover { background:rgba(255,255,255,.06); color:#e0e0e0; }
+.sidebar nav a.active { background:rgba(45,108,223,.25); color:#fff; border-left-color:#4a9eff; font-weight:600; }
+.sidebar nav a .icon { font-size:18px; width:24px; text-align:center; }
+/* === 主内容 === */
+.main { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+.toolbar { background:#fff; padding:10px 20px; border-bottom:1px solid #e0e0e0; display:flex; align-items:center; gap:12px; }
+.toolbar h2 { font-size:18px; color:#1a3a5c; }
+.toolbar .badge { background:#e8f0fe; color:#1a5ad4; padding:3px 10px; border-radius:10px; font-size:11px; }
+.content { flex:1; overflow-y:auto; padding:16px 20px; }
+/* === 通用组件 === */
+.section { background:#fff; border-radius:10px; padding:16px 20px; margin-bottom:12px; box-shadow:0 1px 4px rgba(0,0,0,.06); }
+.section h3 { font-size:14px; color:#1a3a5c; margin-bottom:10px; padding-bottom:6px; border-bottom:2px solid #e8f0fe; }
+.row { display:flex; gap:10px; align-items:center; margin-bottom:10px; flex-wrap:wrap; }
+.row label { font-weight:600; font-size:13px; min-width:65px; color:#444; white-space:nowrap; }
+.row .hint { font-size:11px; color:#999; margin-left:4px; }
+input[type="text"],input[type="number"],select { padding:7px 10px; border:1px solid #c8ccd0; border-radius:6px; font-size:13px; outline:none; }
+input[type="text"]:focus,input[type="number"]:focus,select:focus { border-color:#4a9eff; box-shadow:0 0 0 2px rgba(74,158,255,.12); }
+input[type="file"] { font-size:13px; }
+.btn { padding:8px 18px; border:none; border-radius:6px; font-size:13px; font-weight:600; cursor:pointer; transition:all .12s; }
+.btn-primary { background:#2d6cdf; color:#fff; }
+.btn-primary:hover { background:#1a5ad4; }
+.btn-primary:disabled { background:#a0bce8; cursor:not-allowed; }
+.btn-outline { background:#fff; color:#2d6cdf; border:1px solid #2d6cdf; }
+.btn-outline:hover { background:#e8f0fe; }
+.btn-sm { padding:4px 12px; font-size:12px; }
+.btn-gray { background:#f0f2f5; color:#555; border:1px solid #d0d5dd; }
+.btn-gray:hover { background:#e0e4e8; }
+.btn-green { background:#2a8a2a; color:#fff; }
+.btn-green:hover { background:#227322; }
+/* === 结果区 === */
+.result { display:none; background:#f0fdf0; border:1px solid #a3d9a3; border-radius:8px; padding:14px 18px; margin-top:12px; }
+.result.show { display:block; }
+.result .title { color:#2a8a2a; font-weight:700; font-size:14px; }
+.result .download { display:inline-block; margin-top:8px; background:#2a8a2a; color:#fff; padding:8px 18px; border-radius:6px; text-decoration:none; font-weight:600; font-size:13px; }
+.result .download:hover { background:#227322; }
+.error { display:none; background:#fff0f0; color:#c00000; padding:12px 16px; border-radius:8px; margin-top:12px; border:1px solid #f0c0c0; }
+.error.show { display:block; }
+/* === 表格 === */
+table { width:100%; border-collapse:collapse; font-size:12px; margin-top:8px; }
+th { background:#f0f2f5; padding:8px 6px; text-align:left; font-weight:600; border-bottom:2px solid #d0d5dd; position:sticky; top:0; white-space:nowrap; }
+td { padding:7px 6px; border-bottom:1px solid #e8eaed; white-space:nowrap; }
+tr:hover td { background:#f7f9fc; }
+.table-wrap { max-height:320px; overflow:auto; border:1px solid #e0e0e0; border-radius:6px; }
+/* === Tab 切换 === */
+.tabs { display:flex; gap:0; border-bottom:2px solid #d0d5dd; margin-bottom:16px; }
+.tab-btn { padding:8px 20px; background:#f5f7fa; border:1px solid #d0d5dd; border-bottom:none; border-radius:6px 6px 0 0; cursor:pointer; font-size:14px; font-weight:500; color:#666; margin-bottom:-2px; position:relative; }
+.tab-btn.active { background:#fff; color:#1a5ad4; border-color:#1a5ad4; }
+.tab-btn:hover { background:#eef2f7; }
+.tab-content { display:none; }
+.tab-content.active { display:block; }
+/* === 树形列表（飞书表格库） === */
+.tree-list { border:1px solid #e0e0e0; border-radius:6px; max-height:420px; overflow-y:auto; background:#fff; }
+.tree-item { display:flex; align-items:center; padding:7px 12px; cursor:pointer; font-size:13px; border-bottom:1px solid #f0f0f0; gap:8px; }
+.tree-item:hover { background:#f7f9fc; }
+.tree-item.selected { background:#e8f0fe; color:#1a5ad4; font-weight:600; }
+.tree-item .indent { width:16px; flex-shrink:0; }
+.tree-cat { font-weight:700; font-size:12px; color:#1a5fa8; padding:6px 12px; background:#f0f5fd; border-bottom:1px solid #d0ddf0; cursor:default; }
+.tree-cat.alt { color:#7a3a9a; background:#f8f0ff; border-bottom-color:#e0d0f0; }
+.badge-sm { display:inline-block; padding:1px 8px; border-radius:8px; font-size:10px; font-weight:600; }
+.badge-green { background:#e8f5e9; color:#2a8a2a; }
+.badge-orange { background:#fff3e0; color:#e07000; }
+.badge-gray { background:#f0f0f0; color:#888; }
+.badge-blue { background:#e8f0fe; color:#2d6cdf; }
+/* === checkbox list === */
+.chk-list { display:flex; flex-wrap:wrap; gap:3px; max-height:160px; overflow-y:auto; padding:6px; border:1px solid #e0e0e0; border-radius:6px; }
+.chk-list label { display:inline-flex; align-items:center; gap:3px; padding:2px 8px; font-size:12px; cursor:pointer; border-radius:4px; white-space:nowrap; }
+.chk-list label:hover { background:#f0f2f5; }
+/* === 详情面板 === */
+.detail-panel { background:#fafbfc; border:1px solid #e0e0e0; border-radius:6px; padding:14px; font-size:13px; }
+.detail-panel h4 { font-size:14px; margin-bottom:8px; }
+/* === 概览卡片 === */
+.overview-grid { display:grid; grid-template-columns:1fr; gap:12px; animation:fadeIn .25s ease; }
+@keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+.overview-card { display:flex; align-items:flex-start; gap:18px; background:#fff; border-radius:12px; padding:20px 22px; box-shadow:0 1px 4px rgba(0,0,0,.06); cursor:pointer; transition:all .15s; border:1px solid transparent; }
+.overview-card:hover { box-shadow:0 4px 16px rgba(0,0,0,.1); border-color:#4a9eff; transform:translateY(-1px); }
+.overview-card .oc-icon { font-size:36px; width:44px; text-align:center; flex-shrink:0; margin-top:2px; }
+.overview-card .oc-body { flex:1; min-width:0; }
+.overview-card .oc-title { font-size:16px; font-weight:700; color:#1a3a5c; margin-bottom:6px; }
+.overview-card .oc-badge { display:inline-block; font-size:11px; font-weight:600; background:#e8f0fe; color:#1a5ad4; padding:1px 8px; border-radius:8px; vertical-align:middle; margin-left:6px; }
+.overview-card .oc-desc { font-size:13px; color:#666; line-height:1.6; }
+/* === 加载遮罩 === */
+.spinner { display:inline-block; animation:spin .8s linear infinite; }
+@keyframes spin { 100% { transform:rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<!-- ===== 左侧导航 ===== -->
+<aside class="sidebar">
+  <div class="logo" onclick="showOverview()">🛠 BOM Tools<span class="sub">硬件设计辅助平台 v2</span></div>
+  <nav>
+    <a href="#" data-tool="bom"><span class="icon">📋</span>BOM 格式转换</a>
+    <a href="#" data-tool="feishu"><span class="icon">🔍</span>飞书优选库+关系库匹配</a>
+    <a href="#" data-tool="pref-rate"><span class="icon">📊</span>查询BOM优选率</a>
+    <a href="#" data-tool="plm"><span class="icon">📤</span>转换为上传PLM系统格式</a>
+  </nav>
+</aside>
+
+<!-- ===== 主内容区 ===== -->
+<div class="main">
+  <div class="toolbar">
+    <h2 id="toolTitle">BOM Tools</h2>
+    <span class="badge" id="toolBadge">硬件设计辅助平台</span>
+  </div>
+  <div class="content" id="contentArea"></div>
+</div>
+
+<!-- ===== 隐藏模板 ===== -->
+
+<!-- ── BOM 工具 ── -->
+<script type="text/html" id="tpl-bom">
+<div class="section"><h3>第一步：选择文件</h3>
+  <div class="row"><label>文件路径：</label><input type="file" id="bomFile" accept=".xlsx,.xlsm,.xls" style="width:320px"><button class="btn btn-outline btn-sm" id="bomBrowse">浏览...</button></div>
+  <div class="row"><label>Sheet：</label><select id="bomSheet" style="width:180px"><option>先选择文件</option></select><label>表头行：</label><input type="number" id="bomHdr" value="1" min="1" style="width:60px"><button class="btn btn-sm btn-gray" id="bomRefresh">刷新预览</button></div>
+  <div id="bomPreview" class="table-wrap" style="margin-top:8px"></div>
+</div>
+<div class="section"><h3>第二步：列映射（自动识别，可手动调整）</h3>
+  <div class="row">
+    <label>格式：</label>
+    <select id="bomFmt">
+      <option value="A">格式A — 品牌型号合并列（|| 或空格分隔，如 MURATA:GRM188||SAMSUNG:CL10）</option>
+      <option value="B">格式B — 厂家/型号分开列，分号分隔（如 YAGEO;KOA / RC0805;RK73）</option>
+      <option value="C">格式C — 制造商含编号，冒号分隔（如 1630-大毅科技[全称]:0362-RALEC[全称]）</option>
+    </select>
+  </div>
+  <div class="row">
+    <label>物料名称列：</label><input type="text" id="bomColName" style="width:80px" placeholder="如 C">
+    <label>用量列：</label><input type="text" id="bomColQty" style="width:80px" placeholder="如 D">
+    <label>品牌/厂家列：</label><input type="text" id="bomColBrand" style="width:80px" placeholder="如 E">
+    <label>型号列：</label><input type="text" id="bomColModel" style="width:80px" placeholder="如 F">
+    <span class="hint">（填写列字母，格式A无需填型号列）</span>
+  </div>
+  <div id="bomDetected" style="font-size:12px;color:#555;background:#f7f9fc;padding:8px;border-radius:6px;margin-top:4px"></div>
+</div>
+<div class="section"><h3>第三步：输出设置</h3>
+  <div class="row">
+    <label>输出模式：</label>
+    <select id="bomOutputMode">
+      <option value="expand">原格式展开（保留原列，供应商拆多行，新增厂商/型号/是否独供列）</option>
+      <option value="hq">HQ 整机BOM配置表（绿色表头，含序号/HQ PN/厂商型号/主二供/用量）</option>
+    </select>
+  </div>
+  <div class="row" id="bomProjRow" style="display:none"><label>项目名称：</label><input type="text" id="bomProjName" style="width:240px" placeholder="写入BOM表头（可留空）"></div>
+  <button class="btn btn-primary" id="bomRun">⚡ 开始转换</button> <span id="bomStatus" style="font-size:13px;color:#888"></span>
+</div>
+<div class="result" id="bomResult"><span class="title">✅ 转换完成</span><br><span id="bomStats" style="display:inline-block;margin-top:6px"></span><br><a class="download" id="bomDl" href="#">📥 下载结果文件</a></div>
+<div class="error" id="bomError"></div>
+</script>
+
+<!-- ── PLM 工具 ── -->
+<script type="text/html" id="tpl-plm">
+<!-- 子功能 Tab -->
+<div style="display:flex;gap:8px;margin-bottom:18px;border-bottom:2px solid #e0e4ef;padding-bottom:0">
+  <button class="plm-tab-btn active" data-plm-tab="bom-cfg" style="padding:6px 18px;border:none;background:none;font-size:13px;font-weight:600;color:#1a5ad4;border-bottom:2px solid #1a5ad4;margin-bottom:-2px;cursor:pointer">整机BOM配置表转换</button>
+  <button class="plm-tab-btn" data-plm-tab="spec-extract" style="padding:6px 18px;border:none;background:none;font-size:13px;font-weight:600;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer">规格型号提取</button>
+</div>
+
+<!-- 整机BOM配置表转换 -->
+<div id="plm-tab-bom-cfg">
+<div class="section"><h3>第一步：选择整机BOM配置表</h3>
+  <div class="row"><label>文件路径：</label><input type="file" id="plmFile" accept=".xlsx,.xlsm,.xls" style="width:320px"><button class="btn btn-outline btn-sm" id="plmBrowse">浏览...</button></div>
+  <div class="row"><label>Sheet：</label><select id="plmSheet" style="width:180px"><option>先选择文件</option></select><label>表头行：</label><input type="text" id="plmHdr" value="4" style="width:50px"><button class="btn btn-sm btn-gray" id="plmRefresh">加载 / 刷新</button></div>
+</div>
+<div class="section"><h3>第二步：列映射（自动识别，可手动填列字母覆盖）</h3>
+  <div id="plmDetectLog" style="font-size:12px;color:#555;background:#f7f9fc;padding:8px;border-radius:6px;margin-bottom:8px"></div>
+  <div id="plmColMap" class="table-wrap" style="margin-bottom:10px;max-height:200px"></div>
+  <div class="row">
+    <label>HQ PN 列：</label><input type="text" id="plmColHqpn" style="width:60px" placeholder="如 E">
+    <label>主二供列：</label><input type="text" id="plmColStype" style="width:60px" placeholder="如 I">
+    <label>用量列：</label><input type="text" id="plmColQty" style="width:60px" placeholder="如 K">
+  </div>
+</div>
+<div class="section"><h3>第三步：输出设置</h3>
+  <div class="row"><label>项目配置名：</label><input type="text" id="plmProjName" style="width:240px" placeholder="写入PLM文件头部（可留空）"></div>
+  <button class="btn btn-primary" id="plmRun">⚡ 开始转换</button> <span id="plmStatus" style="font-size:13px;color:#888"></span>
+</div>
+<div class="result" id="plmResult"><span class="title">✅ 转换完成</span><br><span id="plmStats" style="display:inline-block;margin-top:6px"></span><br><a class="download" id="plmDl" href="#">📥 下载 PLM 导入文件</a></div>
+<div class="error" id="plmError"></div>
+<div id="plmLogBox" style="display:none;margin-top:10px"><h4 style="margin:0 0 6px;font-size:13px">📋 处理日志</h4><pre id="plmLog" style="font-size:12px;background:#1a1a2e;color:#e0e0e0;padding:10px;border-radius:6px;max-height:200px;overflow:auto;white-space:pre-wrap;font-family:Consolas,'Courier New',monospace"></pre></div>
+</div>
+
+<!-- 规格型号提取 -->
+<div id="plm-tab-spec-extract" style="display:none">
+<div class="section"><h3>第一步：上传BOM文件</h3>
+  <div class="row"><label>文件路径：</label><input type="file" id="seFile" accept=".xlsx,.xlsm,.xls" style="width:320px"></div>
+  <div class="row">
+    <label>Sheet：</label><select id="seSheet" style="width:180px"><option>先选择文件</option></select>
+    <label style="margin-left:12px">表头行：</label><input type="number" id="seHdr" value="1" min="1" style="width:55px">
+    <button class="btn btn-sm btn-gray" id="seRefresh" style="margin-left:8px">刷新列表</button>
+  </div>
+</div>
+<div class="section"><h3>第二步：选择提取列</h3>
+  <div class="row">
+    <label>提取列：</label>
+    <select id="seCol" style="width:220px"><option>先刷新列表</option></select>
+    <span style="font-size:12px;color:#888;margin-left:10px">提取后将去除所有空格</span>
+  </div>
+</div>
+<div class="section">
+  <button class="btn btn-primary" id="seRun">⚡ 开始提取</button>
+  <span id="seStatus" style="font-size:13px;margin-left:10px;color:#888"></span>
+</div>
+<div class="result" id="seResult">
+  <span class="title">✅ 提取完成</span>
+  <div id="seStats" style="margin-top:6px;font-size:13px"></div>
+  <a class="download" id="seDl" href="#">📥 下载规格型号列表</a>
+</div>
+<div class="error" id="seError"></div>
+</div>
+</script>
+
+<!-- ── 查询BOM优选率 ── -->
+<script type="text/html" id="tpl-pref-rate">
+<div class="section"><h3>第一步：上传BOM文件</h3>
+  <div class="row"><label>文件路径：</label><input type="file" id="prFile" accept=".xlsx,.xlsm,.xls" style="width:320px"></div>
+  <div class="row"><label>Sheet：</label><select id="prSheet" style="width:200px"><option>先选择文件</option></select>
+    <label style="margin-left:16px">表头行：</label><input type="number" id="prHdr" value="1" min="1" style="width:55px">
+    <button class="btn btn-sm btn-gray" id="prRefresh" style="margin-left:8px">刷新列表</button>
+  </div>
+  <div class="row"><label>HQ料号列：</label><select id="prKeyCol" style="width:200px"><option>先刷新列表</option></select></div>
+</div>
+<div class="section"><h3>第二步：查询</h3>
+  <p style="font-size:12px;color:#666;margin:0 0 10px">将从所有已缓存的<b>优选库</b> sheet 中按 HQ料号 查找对应的优选等级。请确保已在「飞书优选库+关系库匹配」中完成缓存。</p>
+  <button class="btn btn-primary" id="prRun">⚡ 开始查询</button>
+  <span id="prStatus" style="font-size:13px;margin-left:10px"></span>
+</div>
+<div class="result" id="prResult">
+  <span class="title">✅ 查询完成</span>
+  <div id="prStats" style="margin-top:8px;font-size:14px;line-height:2"></div>
+  <a class="download" id="prDl" href="#">📥 下载查询结果</a>
+</div>
+<div class="error" id="prError"></div>
+</script>
+
+<!-- ── 飞书工具 ── -->
+<script type="text/html" id="tpl-feishu">
+<div class="section"><h3>网关设置</h3>
+  <div class="row">
+    <label>网关地址：</label><input type="text" id="fsBaseUrl" value="https://mcenter.huaqin.com" style="width:260px">
+    <label>Origin：</label><input type="text" id="fsOrigin" value="cli_a96ac38049f8d0e5" style="width:200px">
+    <label>工号：</label><input type="text" id="fsUserId" value="" style="width:110px" placeholder="如 100448405">
+  </div>
+  <div style="font-size:11px;color:#888" id="fsCfgStatus"></div>
+</div>
+<div class="section"><h3>本地 BOM 文件</h3>
+  <div class="row">
+    <label>文件路径：</label><input type="file" id="fsFile" accept=".xlsx,.xlsm,.xls" style="width:300px">
+    <label>Sheet：</label><select id="fsSheet" style="width:180px"><option>先选择文件</option></select>
+    <span class="hint">（一次只能匹配一个 Sheet）</span>
+    <label>表头行：</label><input type="number" id="fsHdr" value="1" min="1" style="width:60px">
+  </div>
+  <div class="row" style="margin-top:6px;align-items:flex-start;gap:32px">
+    <div>
+      <div style="font-size:12px;font-weight:600;color:#c00000;margin-bottom:5px">本地键</div>
+      <div id="fsGLkContainer" style="display:flex;flex-direction:column;gap:4px"></div>
+    </div>
+    <div>
+      <div style="font-size:12px;font-weight:600;color:#555;margin-bottom:5px">提取列</div>
+      <div id="fsGFMSection" style="display:flex;flex-direction:column;gap:4px"></div>
+    </div>
+    <span class="hint" style="padding-top:2px">所有飞书表格共用这组配置</span>
+  </div>
+</div>
+<div class="section"><h3>表格库</h3>
+  <div class="row">
+    <button class="btn btn-sm btn-gray" id="fsBatchUpdate">⟳ 一键缓存所有启用 Sheet</button>
+    <span id="fsBatchHint" class="hint"></span>
+    <button class="btn btn-sm btn-gray" id="fsExportCfg" style="margin-left:8px">📋 导出当前配置</button>
+    <button class="btn btn-sm btn-gray" id="fsRestoreDefault" style="margin-left:8px;color:#1a6bbf">↩ 恢复默认配置</button>
+    <button class="btn btn-sm btn-gray" id="fsClearConfig" style="margin-left:8px;color:#c00000">🗑 清除本地配置</button>
+  </div>
+  <div style="display:flex;gap:12px">
+    <div style="width:240px;flex-shrink:0">
+      <div class="tree-list" id="fsTreeList"></div>
+    </div>
+    <div class="detail-panel" style="flex:1" id="fsDetail">
+      <span style="color:#888">← 点击左侧表格查看详情</span>
+    </div>
+  </div>
+</div>
+<div class="section"><h3>运行匹配</h3>
+  <div id="fsRunStatus" style="font-size:12px;color:#888;margin-bottom:8px"></div>
+  <button class="btn btn-primary" id="fsRun">⚡ 开始匹配</button>
+  <span id="fsRunStatus2" style="font-size:13px;color:#888;margin-left:8px"></span>
+</div>
+<div class="result" id="fsResult"><span class="title">✅ 匹配完成</span><br><span id="fsStats" style="display:inline-block;margin-top:6px"></span><br><a class="download" id="fsDl" href="#">📥 下载匹配结果</a></div>
+<div class="error" id="fsError"></div>
+<div id="fsLogBox" style="display:none;margin-top:10px"><h4 style="margin:0 0 6px;font-size:13px">📋 处理日志</h4><pre id="fsLog" style="font-size:12px;background:#1a1a2e;color:#e0e0e0;padding:10px;border-radius:6px;max-height:200px;overflow:auto;white-space:pre-wrap;font-family:Consolas,'Courier New',monospace"></pre></div>
+</script>
+
+<script>
+// ═══════════════════ 通用函数 ═══════════════════
+function $(id){return document.getElementById(id);}
+function show(el){el.style.display='block';}
+function hide(el){el.style.display='none';}
+
+// ═══════════════════ 左侧导航切换 ═══════════════════
+const TOOLS = {
+  bom:    {title:'BOM 格式转换',        badge:'v5.10', tpl:'tpl-bom',
+           desc:'将客户提供的多种格式 BOM 表自动识别列映射，支持品牌型号合并列/分开列（格式A/B/C），展开为多供应商独立行，或输出 HQ 标准整机BOM配置表。'},
+  feishu: {title:'飞书优选库+关系库匹配', badge:'v3.0',  tpl:'tpl-feishu',
+           desc:'连接飞书内部 API 网关，支持 15 个预置库（优选库 + 对应关系库），多键 AND 匹配（最多 3 对），批量提取字段，输出含来源表格的匹配结果。'},
+  'pref-rate': {title:'查询BOM优选率', badge:'v1.0', tpl:'tpl-pref-rate',
+               desc:'按 HQ料号 在所有优选库缓存中查找优选等级，输出含优选率统计的 Excel 结果文件。'},
+  plm:    {title:'转换为上传PLM系统格式', badge:'v1.6',  tpl:'tpl-plm',
+           desc:'将整机 BOM 配置表转换为 PLM 系统可导入的标准格式：序号、料号、单耗等25列，主供行填单耗，替代料自动标记主辅BOM标记。'},
+};
+let curTool = null;
+
+function showOverview(){
+  curTool = null;
+  document.querySelectorAll('.sidebar nav a').forEach(x=>x.classList.remove('active'));
+  $('toolTitle').textContent = 'BOM Tools';
+  $('toolBadge').textContent = '硬件设计辅助平台';
+  let html = '<div class="overview-grid">';
+  for(const [key, t] of Object.entries(TOOLS)){
+    const iconEl = document.querySelector('.sidebar nav a[data-tool="'+key+'"] .icon');
+    const icon = iconEl ? iconEl.textContent : '🛠';
+    html += '<div class="overview-card" onclick="switchTool(\''+key+'\')">' +
+      '<div class="oc-icon">'+icon+'</div>' +
+      '<div class="oc-body">' +
+        '<div class="oc-title">'+t.title+' <span class="oc-badge">'+t.badge+'</span></div>' +
+        '<div class="oc-desc">'+t.desc+'</div>' +
+      '</div></div>';
+  }
+  html += '</div>';
+  $('contentArea').innerHTML = html;
+}
+
+function switchTool(key){
+  const a = document.querySelector('.sidebar nav a[data-tool="'+key+'"]');
+  if(a) a.click();
+}
+
+document.querySelectorAll('.sidebar nav a').forEach(a=>{
+  a.onclick=function(e){
+    e.preventDefault();
+    document.querySelectorAll('.sidebar nav a').forEach(x=>x.classList.remove('active'));
+    this.classList.add('active');
+    curTool = this.dataset.tool;
+    const t=TOOLS[curTool];
+    $('toolTitle').textContent=t.title;
+    $('toolBadge').textContent=t.badge;
+    $('contentArea').innerHTML=$(t.tpl).innerHTML;
+    initTool(curTool);
+  };
+});
+
+function initTool(tool){
+  if(tool==='bom') initBom();
+  else if(tool==='feishu') initFeishu();
+  else if(tool==='plm') initPlm();
+  else if(window._toolInits&&window._toolInits[tool]) window._toolInits[tool]();
+}
+
+// ─── BOM ──────────────────────────────────────────────
+function updateBomPreview(headers, previewRows){
+  if(!headers||!headers.length){$('bomPreview').innerHTML='';return;}
+  let h='<table>';
+  // 列字母行
+  h+='<tr style="background:#e8f0fe">';
+  headers.forEach((_,ci)=>h+=`<th style="color:#1a5ad4;font-size:11px;font-weight:700;padding:2px 6px">${String.fromCharCode(65+ci)}</th>`);
+  h+='</tr>';
+  // 表头行
+  h+='<tr>';
+  headers.forEach(hd=>h+=`<th>${hd||''}</th>`);
+  h+='</tr>';
+  // 数据行
+  (previewRows||[]).forEach(r=>{
+    h+='<tr>';
+    r.forEach(c=>h+=`<td>${c||''}</td>`);
+    h+='</tr>';
+  });
+  h+='</table>';
+  $('bomPreview').innerHTML=h;
+}
+
+function updateBomFromApi(d){
+  if(!d.success) return;
+  let opts='';
+  d.sheets.forEach(s=>opts+=`<option${s===d.current_sheet?' selected':''}>${s}</option>`);
+  $('bomSheet').innerHTML=opts;
+  if(d.detected){
+    if(d.detected.name)  $('bomColName').value=d.detected.name;
+    if(d.detected.qty)   $('bomColQty').value=d.detected.qty;
+    if(d.detected.brand) $('bomColBrand').value=d.detected.brand;
+    if(d.detected.model) $('bomColModel').value=d.detected.model;
+  }
+  // Format guess
+  if(d.fmt_guess){
+    const sel=$('bomFmt');
+    for(let i=0;i<sel.options.length;i++){
+      if(sel.options[i].value===d.fmt_guess){sel.selectedIndex=i;break;}
+    }
+  }
+  $('bomDetected').textContent='自动识别：'+JSON.stringify(d.detected||{});
+  updateBomPreview(d.headers, d.preview);
+}
+
+function initBom(){
+  $('bomBrowse').onclick=()=>$('bomFile').click();
+  $('bomOutputMode').onchange=function(){
+    $('bomProjRow').style.display=this.value==='hq'?'flex':'none';
+  };
+  $('bomSheet').onchange=function(){
+    const f=$('bomFile').files[0];if(!f)return;
+    hide($('bomResult'));hide($('bomError'));
+    const fd=new FormData();fd.append('file',f);fd.append('sheet_name',this.value);fd.append('header_row',$('bomHdr').value);
+    fetch('/api/bom/detect',{method:'POST',body:fd}).then(r=>r.json()).then(updateBomFromApi);
+  };
+  $('bomFile').onchange=function(){
+    const f=this.files[0];if(!f)return;
+    hide($('bomResult'));hide($('bomError'));
+    const fd=new FormData();fd.append('file',f);fd.append('header_row',$('bomHdr').value);
+    fetch('/api/bom/detect',{method:'POST',body:fd}).then(r=>r.json()).then(updateBomFromApi);
+  };
+  $('bomRefresh').onclick=function(){
+    const f=$('bomFile').files[0];if(!f)return;
+    const fd=new FormData();fd.append('file',f);fd.append('sheet_name',$('bomSheet').value);fd.append('header_row',$('bomHdr').value);
+    fetch('/api/bom/detect',{method:'POST',body:fd}).then(r=>r.json()).then(updateBomFromApi);
+  };
+  $('bomRun').onclick=async function(){
+    const f=$('bomFile').files[0];if(!f){alert('请选择文件');return;}
+    const btn=$('bomRun');btn.disabled=true;$('bomStatus').textContent='处理中...';
+    hide($('bomResult'));hide($('bomError'));
+    const fd=new FormData();fd.append('file',f);
+    fd.append('fmt',$('bomFmt').value);
+    fd.append('sheet',$('bomSheet').value);
+    fd.append('header_row',$('bomHdr').value);
+    fd.append('col_name',$('bomColName').value);
+    fd.append('col_qty',$('bomColQty').value);
+    fd.append('col_brand',$('bomColBrand').value);
+    fd.append('col_model',$('bomColModel').value);
+    fd.append('output_mode',$('bomOutputMode').value);
+    fd.append('project_name',$('bomProjName')?$('bomProjName').value:'');
+    try{
+      const r=await fetch('/api/bom/convert',{method:'POST',body:fd});
+      const d=await r.json();
+      if(d.success){
+        let stats=`共 <b>${d.total}</b> 行`;
+        if(d.skipped!=null) stats+=`，跳过空行 ${d.skipped} 行`;
+        $('bomStats').innerHTML=stats;
+        $('bomDl').href=d.download;
+        show($('bomResult'));$('bomStatus').textContent='完成！';
+      } else {
+        $('bomError').textContent=d.error||'转换失败';show($('bomError'));$('bomStatus').textContent='';
+      }
+    }catch(e){$('bomError').textContent=e.message;show($('bomError'));}
+    btn.disabled=false;
+  };
+}
+
+// ─── PLM ──────────────────────────────────────────────
+function buildColMapTable(headers){
+  if(!headers||!headers.length){$('plmColMap').innerHTML='';return;}
+  let h='<table><tr style="background:#e8f0fe"><th style="width:50px">列</th><th>列名</th></tr>';
+  headers.forEach(e=>{
+    const m=e.match(/^([A-Z]+):(.+)/);
+    if(m) h+=`<tr><td style="font-weight:700;color:#1a5ad4">${m[1]}</td><td>${m[2]}</td></tr>`;
+    else  h+=`<tr><td></td><td>${e}</td></tr>`;
+  });
+  h+='</table>';
+  $('plmColMap').innerHTML=h;
+}
+
+function updatePlmFromApi(d){
+  if(!d.success) return;
+  let opts='';
+  d.sheets.forEach(s=>opts+=`<option${s===d.current_sheet?' selected':''}>${s}</option>`);
+  $('plmSheet').innerHTML=opts;
+  if(d.detected){
+    if(d.detected.hq_pn)       $('plmColHqpn').value=d.detected.hq_pn;
+    if(d.detected.supply_type) $('plmColStype').value=d.detected.supply_type;
+    if(d.detected.qty)         $('plmColQty').value=d.detected.qty;
+  }
+  $('plmDetectLog').textContent='自动识别：'+(d.headers||[]).join(' | ');
+  buildColMapTable(d.headers);
+}
+
+function initPlm(){
+  // ── PLM sub-tab switching ──
+  document.querySelectorAll('.plm-tab-btn').forEach(btn=>{
+    btn.onclick=function(){
+      document.querySelectorAll('.plm-tab-btn').forEach(b=>{
+        b.style.color='#888'; b.style.borderBottomColor='transparent';
+      });
+      this.style.color='#1a5ad4'; this.style.borderBottomColor='#1a5ad4';
+      document.querySelectorAll('#plm-tab-bom-cfg,#plm-tab-spec-extract').forEach(el=>el.style.display='none');
+      $('plm-tab-'+this.dataset.plmTab).style.display='block';
+    };
+  });
+
+  // ── 规格型号提取 ──
+  $('seFile').onchange = seLoadFile;
+  $('seRefresh').onclick = ()=>{ if($('seFile').files[0]) seLoadFile(); };
+  $('seRun').onclick = seRun;
+
+  $('plmBrowse').onclick=()=>$('plmFile').click();
+  $('plmFile').onchange=function(){
+    const f=this.files[0];if(!f)return;
+    const fd=new FormData();fd.append('file',f);fd.append('header_row',$('plmHdr').value||4);
+    fetch('/api/plm/detect',{method:'POST',body:fd}).then(r=>r.json()).then(updatePlmFromApi);
+  };
+  $('plmSheet').onchange=function(){
+    const f=$('plmFile').files[0];if(!f)return;
+    const fd=new FormData();fd.append('file',f);fd.append('sheet_name',this.value);fd.append('header_row',$('plmHdr').value||4);
+    fetch('/api/plm/detect',{method:'POST',body:fd}).then(r=>r.json()).then(updatePlmFromApi);
+  };
+  $('plmRefresh').onclick=function(){
+    const f=$('plmFile').files[0];if(!f)return;
+    const fd=new FormData();fd.append('file',f);fd.append('sheet_name',$('plmSheet').value);fd.append('header_row',$('plmHdr').value||4);
+    fetch('/api/plm/detect',{method:'POST',body:fd}).then(r=>r.json()).then(updatePlmFromApi);
+  };
+  $('plmRun').onclick=async function(){
+    const f=$('plmFile').files[0];if(!f){alert('请选择文件');return;}
+    const btn=$('plmRun');btn.disabled=true;$('plmStatus').textContent='处理中...';
+    hide($('plmResult'));hide($('plmError'));hide($('plmLogBox'));
+    const fd=new FormData();fd.append('file',f);
+    fd.append('sheet',$('plmSheet').value);
+    fd.append('header_row',$('plmHdr').value);
+    fd.append('col_hqpn',$('plmColHqpn').value);
+    fd.append('col_stype',$('plmColStype').value);
+    fd.append('col_qty',$('plmColQty').value);
+    fd.append('project_name',$('plmProjName').value);
+    try{
+      const r=await fetch('/api/plm/convert',{method:'POST',body:fd});
+      const d=await r.json();
+      if(d.success){
+        $('plmStats').innerHTML=`写入 <b>${d.total}</b> 行${d.skipped?`，跳过 ${d.skipped} 行（用量为空）`:''}`;
+        $('plmDl').href=d.download;
+        show($('plmResult'));$('plmStatus').textContent='完成！';
+        if(d.skip_logs&&d.skip_logs.length){$('plmLog').textContent=d.skip_logs.join('\n');show($('plmLogBox'));}else hide($('plmLogBox'));
+      } else {
+        $('plmError').textContent=d.error||'转换失败';show($('plmError'));$('plmStatus').textContent='';
+      }
+    }catch(e){$('plmError').textContent=e.message;show($('plmError'));}
+    btn.disabled=false;
+  };
+}
+
+// ─── 规格型号提取 ─────────────────────────────────────
+async function seLoadFile(){
+  const f=$('seFile').files[0]; if(!f) return;
+  const fd=new FormData();
+  fd.append('file',f);
+  fd.append('header_row',$('seHdr').value||1);
+  const cur=$('seSheet').value;
+  if(cur&&cur!=='先选择文件') fd.append('sheet_name',cur);
+  $('seStatus').textContent='加载中...';
+  try{
+    const r=await fetch('/api/feishu/local_sheets',{method:'POST',body:fd});
+    const d=await r.json();
+    if(!d.success){$('seStatus').textContent='加载失败：'+d.error;return;}
+    const ss=$('seSheet');
+    ss.innerHTML=d.sheets.map(s=>`<option${s===d.current_sheet?' selected':''}>${_escH(s)}</option>`).join('');
+    ss.onchange=seLoadFile;
+    const kc=$('seCol');
+    kc.innerHTML=d.headers.map(h=>`<option value="${_escH(h)}">${_escH(h)}</option>`).join('');
+    // auto-select column containing 规格型号
+    const auto=d.headers.find(h=>h.includes('规格型号'));
+    if(auto) kc.value=auto;
+    $('seStatus').textContent=`已加载 ${d.headers.length} 列`;
+  }catch(e){$('seStatus').textContent='错误：'+e.message;}
+}
+
+async function seRun(){
+  const f=$('seFile').files[0];
+  if(!f){alert('请先上传文件');return;}
+  const col=$('seCol').value;
+  if(!col||col==='先刷新列表'){alert('请先刷新列表并选择提取列');return;}
+  $('seRun').disabled=true; $('seStatus').style.color='#1a8a1a'; $('seStatus').textContent='提取中...';
+  $('seResult').style.display='none'; $('seError').style.display='none';
+  const fd=new FormData();
+  fd.append('file',f);
+  fd.append('config',JSON.stringify({
+    header_row:parseInt($('seHdr').value)||1,
+    sheet_name:$('seSheet').value,
+    col_name:col,
+  }));
+  try{
+    const r=await fetch('/api/plm/spec_extract',{method:'POST',body:fd});
+    const d=await r.json();
+    if(d.success){
+      $('seStats').textContent=`共提取 ${d.count} 条规格型号`;
+      $('seDl').href=d.download;
+      $('seStatus').textContent='';
+      $('seResult').style.display='block';
+    }else{
+      $('seError').textContent='错误：'+d.error;
+      $('seError').style.display='block';
+      $('seStatus').textContent='';
+    }
+  }catch(e){$('seError').textContent=e.message;$('seError').style.display='block';$('seStatus').textContent='';}
+  $('seRun').disabled=false;
+}
+
+// ─── 飞书匹配 ─────────────────────────────────────────
+const FS_TABLES = {{ preset_tables | tojson }};
+const FS_DEFAULT_CONFIG = {{ default_config | tojson }};
+
+// ── SheetConfig 默认值工厂 ──────────────────────────────────
+function _mkSheetCfg(){
+  const fkInit=_fsGlobalLocalKeys.map(()=>'');
+  return {enabled:false, local_key_names:_fsGlobalLocalKeys.slice(), feishu_key_names:fkInit,
+          fetch_col_names:[], fetch_col_aliases:{}, _headers:[], _expanded:false,
+          cache_key:'', cache_row_count:0, cache_fetched_at:0,
+          row_count_at_cache:0, _cache_stale:false};
+}
+
+let fsTables = FS_TABLES.map((t,i)=>({
+  ...t, idx:i, _sheets:[], _connected:false,
+  sheet_configs:{},
+}));
+let fsCurIdx = null;
+let _fsGlobalFetchMap = [  // [{std_name, default_alias}]  pre-populated defaults
+  {std_name:'HQ料号',    default_alias:'HQ料号'},
+  {std_name:'HQ规格型号', default_alias:'HQ规格型号'},
+  {std_name:'HQ制造商',  default_alias:'HQ制造商'},
+  {std_name:'优选等级',  default_alias:'优选等级'},
+  {std_name:'HQ描述',    default_alias:'HQ描述'},
+];
+let _fsGlobalLocalKeys = [''];  // dynamic local-side match keys
+
+function fsRenderGLKSection(){
+  const cont=$('fsGLkContainer'); if(!cont) return;
+  const hdrs=window._fsLocalHeaders||[];
+  let h='';
+  _fsGlobalLocalKeys.forEach((val,i)=>{
+    const req=i===0;
+    let opts=`<option value="">${req?'— 选择列 —':'（不使用）'}</option>`;
+    hdrs.forEach(h2=>{if(h2) opts+=`<option value="${_escH(h2)}"${h2===val?' selected':''}>${_escH(h2)}</option>`;});
+    h+=`<div style="display:flex;align-items:center;gap:4px">
+      <span style="min-width:16px;font-size:12px;${req?'color:#c00000':'color:#888'}">${i+1}</span>
+      <select id="fsGlk_${i}" style="width:180px;font-size:12px" onchange="fsGLKChange()">${opts}</select>
+      ${_fsGlobalLocalKeys.length>1?`<button class="btn btn-sm btn-gray" style="padding:0 6px;font-size:12px;line-height:20px" onclick="fsRemoveGLK(${i})">×</button>`:''}
+    </div>`;
+  });
+  h+=`<button class="btn btn-sm btn-gray" style="padding:0 8px;font-size:12px;line-height:20px;margin-top:2px" onclick="fsAddGLK()">+</button>`;
+  cont.innerHTML=h;
+}
+
+function fsGLKChange(){
+  _fsGlobalLocalKeys=_fsGlobalLocalKeys.map((_,i)=>($(`fsGlk_${i}`)||{value:''}).value.trim());
+  fsSaveConfig();
+  if(fsCurIdx!==null) fsSelectTable(fsCurIdx);
+}
+
+function fsAddGLK(){
+  _fsGlobalLocalKeys=_fsGlobalLocalKeys.map((_,i)=>($(`fsGlk_${i}`)||{value:''}).value.trim());
+  _fsGlobalLocalKeys.push('');
+  fsTables.forEach(t=>Object.values(t.sheet_configs).forEach(sc=>sc.feishu_key_names.push('')));
+  fsRenderGLKSection(); fsSaveConfig();
+  if(fsCurIdx!==null) fsSelectTable(fsCurIdx);
+}
+
+function fsRemoveGLK(i){
+  _fsGlobalLocalKeys=_fsGlobalLocalKeys.map((_,j)=>($(`fsGlk_${j}`)||{value:''}).value.trim());
+  _fsGlobalLocalKeys.splice(i,1);
+  if(!_fsGlobalLocalKeys.length) _fsGlobalLocalKeys=[''];
+  fsTables.forEach(t=>Object.values(t.sheet_configs).forEach(sc=>{
+    if(sc.feishu_key_names.length>i) sc.feishu_key_names.splice(i,1);
+    if(!sc.feishu_key_names.length) sc.feishu_key_names=[''];
+  }));
+  fsRenderGLKSection(); fsSaveConfig();
+  if(fsCurIdx!==null) fsSelectTable(fsCurIdx);
+}
+
+// ─── localStorage 持久化 ──────────────────────────────
+const _FS_KEY = 'bom-tools-feishu-v2';  // v2: per-sheet config
+
+function fsSaveConfig(){
+  const bu=$('fsBaseUrl'), or_=$('fsOrigin'), ui=$('fsUserId');
+  const prev = window._fsSavedCfg || {};
+  const cfg = {
+    base_url: bu ? bu.value : prev.base_url||'',
+    origin:  or_ ? or_.value : prev.origin||'',
+    user_id:  ui ? ui.value  : prev.user_id||'',
+    global_local_keys: _fsGlobalLocalKeys.slice(),
+    global_fetch_map: _fsGlobalFetchMap.map(r=>({std_name:r.std_name||'',default_alias:r.default_alias||''})),
+    tables: fsTables.map(t=>({
+      idx: t.idx, token: t.token||'',
+      _sheets: t._sheets||[], _connected: !!t._connected,
+      sheet_configs: Object.fromEntries(
+        Object.entries(t.sheet_configs).map(([sid, sc])=>[sid,{
+          enabled: !!sc.enabled,
+          local_key_names: sc.local_key_names||[''],
+          feishu_key_names: sc.feishu_key_names||[''],
+          fetch_col_names: sc.fetch_col_names||[],
+          fetch_col_aliases: sc.fetch_col_aliases||{},
+          _headers: sc._headers||[],
+          cache_key: sc.cache_key||'',
+          cache_row_count: sc.cache_row_count||0,
+          cache_fetched_at: sc.cache_fetched_at||0,
+          row_count_at_cache: sc.row_count_at_cache||0,
+        }])
+      ),
+    })),
+  };
+  try{ localStorage.setItem(_FS_KEY, JSON.stringify(cfg)); window._fsSavedCfg=cfg; }catch(e){}
+}
+
+function fsExportConfig(){
+  // 按最新架构导出：全局本地键 + 全局提取列 + 每个表格有效 sheet 配置
+  const out = {
+    global_local_keys: _fsGlobalLocalKeys.filter(k=>k),
+    global_fetch_map: _fsGlobalFetchMap.filter(r=>r.std_name).map(r=>r.std_name),
+    tables: fsTables.map(t=>{
+      // 找出有意义的 sheet 配置：enabled 或填了至少一个飞书键或有提取列覆盖
+      const sheetList = (t._sheets||[]).map(s=>{
+        const sid=s.sheetId;
+        const sc=t.sheet_configs[sid];
+        if(!sc) return null;
+        const fk=(sc.feishu_key_names||[]).filter(k=>k);
+        const aliases=sc.fetch_col_aliases||{};
+        if(!sc.enabled && !fk.length && !Object.keys(aliases).length) return null;
+        return {
+          sheet_id: sid,
+          sheet_name: s.title||sid,
+          enabled: !!sc.enabled,
+          feishu_key_names: fk,
+          fetch_col_aliases: aliases,
+        };
+      }).filter(Boolean);
+      if(!sheetList.length) return null;
+      return {name:t.name, token:t.token||'', sheets:sheetList};
+    }).filter(Boolean),
+  };
+
+  const json = JSON.stringify(out, null, 2);
+  const blob = new Blob([json], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'bom_config.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function fsClearConfig(){
+  if(!confirm('确认清除所有飞书本地配置？（含 Token、列映射、全局列映射、缓存记录）')) return;
+  try{ localStorage.removeItem(_FS_KEY); }catch(e){}
+  window._fsSavedCfg = null;
+  _fsGlobalFetchMap = [];
+  _fsGlobalLocalKeys = [''];
+  fsTables = FS_TABLES.map((t,i)=>({...t, idx:i, _sheets:[], _connected:false, sheet_configs:{}}));
+  renderFsTrees();
+  fsRenderGFMSection();
+  fsRenderGLKSection();
+  $('fsCfgStatus').textContent='配置已清除';
+}
+
+function fsRestoreDefault(){
+  if(!FS_DEFAULT_CONFIG || !FS_DEFAULT_CONFIG.tables) { alert('没有内置默认配置'); return; }
+  if(!confirm('将用内置默认配置覆盖当前所有设置（本地键、提取列、所有 Sheet 映射），确定？')) return;
+  // 恢复全局本地键
+  _fsGlobalLocalKeys = (FS_DEFAULT_CONFIG.global_local_keys||[]).length
+    ? FS_DEFAULT_CONFIG.global_local_keys.slice() : [''];
+  // 恢复全局提取列
+  _fsGlobalFetchMap = (FS_DEFAULT_CONFIG.global_fetch_map||[]).map(n=>({std_name:n,default_alias:n}));
+  if(!_fsGlobalFetchMap.length) _fsGlobalFetchMap=[{std_name:'HQ料号',default_alias:'HQ料号'},{std_name:'HQ规格型号',default_alias:'HQ规格型号'},{std_name:'HQ制造商',default_alias:'HQ制造商'},{std_name:'优选等级',default_alias:'优选等级'},{std_name:'HQ描述',default_alias:'HQ描述'}];
+  // 重建 fsTables，注入默认 sheet configs
+  const defByToken = {};
+  (FS_DEFAULT_CONFIG.tables||[]).forEach(dt=>{ defByToken[dt.token] = dt; });
+  fsTables = FS_TABLES.map((t,i)=>{
+    const dt = defByToken[t.token]||{};
+    const sheet_configs = {};
+    (dt.sheets||[]).forEach(ds=>{
+      sheet_configs[ds.sheet_id] = {
+        enabled: !!ds.enabled,
+        feishu_key_names: ds.feishu_key_names||[],
+        fetch_col_aliases: ds.fetch_col_aliases||{},
+        fetch_col_names: [],
+        _headers: [], _expanded: false,
+        cache_key:'', cache_row_count:0, cache_fetched_at:0,
+        row_count_at_cache:0, _cache_stale:false,
+      };
+    });
+    return {...t, idx:i, _sheets:[], _connected:false, sheet_configs};
+  });
+  fsCurIdx = null;
+  renderFsTrees();
+  fsRenderGFMSection();
+  fsRenderGLKSection();
+  fsSaveConfig();
+  $('fsCfgStatus').textContent='默认配置已恢复';
+}
+
+// 页面加载时预读配置并合并到 fsTables
+(function(){
+  try{
+    const raw = localStorage.getItem(_FS_KEY);
+    if(!raw) return;
+    const cfg = JSON.parse(raw);
+    window._fsSavedCfg = cfg;
+    // Only restore if saved map has at least one non-empty entry
+    if(cfg.global_fetch_map && cfg.global_fetch_map.some(r=>r.std_name))
+      _fsGlobalFetchMap = cfg.global_fetch_map.filter(r=>r.std_name);
+    if(cfg.tables){
+      cfg.tables.forEach(st=>{
+        const t = fsTables[st.idx]; if(!t) return;
+        t.token      = st.token || t.token || '';
+        t._sheets    = st._sheets || [];
+        t._connected = !!st._connected;
+        const saved_sc = st.sheet_configs || {};
+        Object.entries(saved_sc).forEach(([sid, sc])=>{
+          t.sheet_configs[sid] = Object.assign(_mkSheetCfg(), sc, {_expanded:false, _cache_stale:false});
+        });
+      });
+    }
+  }catch(e){}
+}());
+
+// ─── 全局输出列映射管理 ────────────────────────────────
+function fsRenderGFMSection(){
+  const el=$('fsGFMSection'); if(!el) return;
+  let h='';
+  _fsGlobalFetchMap.forEach((r,i)=>{
+    h+=`<div style="display:flex;align-items:center;gap:4px">
+      <span style="min-width:16px;font-size:12px;color:#888">${i+1}</span>
+      <input type="text" id="gfm_std_${i}" value="${_escH(r.std_name)}"
+        style="width:180px;font-size:12px;padding:1px 5px;border:1px solid #aaa;border-radius:3px;height:24px"
+        placeholder="列名" oninput="fsUpdateGFMRow(${i})">
+      ${_fsGlobalFetchMap.length>1?`<button class="btn btn-sm btn-gray" style="padding:0 6px;font-size:12px;line-height:20px" onclick="fsRemoveGFMRow(${i})">×</button>`:''}
+    </div>`;
+  });
+  h+=`<button class="btn btn-sm btn-gray" style="padding:0 8px;font-size:12px;line-height:20px;margin-top:2px" onclick="fsAddGFMRow()">+</button>`;
+  el.innerHTML=h;
+}
+
+function fsAddGFMRow(){
+  _fsGlobalFetchMap.push({std_name:'',default_alias:''});
+  fsRenderGFMSection();  fsSaveConfig();
+}
+
+function fsRemoveGFMRow(i){
+  _fsGlobalFetchMap.splice(i,1);
+  fsRenderGFMSection();  fsSaveConfig();
+  if(fsCurIdx!==null) fsSelectTable(fsCurIdx);
+}
+
+function fsUpdateGFMRow(i){
+  const s=$(`gfm_std_${i}`);
+  if(s){
+    _fsGlobalFetchMap[i].std_name=s.value;
+    _fsGlobalFetchMap[i].default_alias=s.value;
+  }
+  fsSaveConfig();
+  if(fsCurIdx!==null) fsSelectTable(fsCurIdx);
+}
+
+
+function initFeishu(){
+  const saved = window._fsSavedCfg;
+  if(saved){
+    if(saved.base_url) $('fsBaseUrl').value = saved.base_url;
+    if(saved.origin)   $('fsOrigin').value  = saved.origin;
+    if(saved.user_id)  $('fsUserId').value  = saved.user_id;
+    if(saved.global_local_keys && saved.global_local_keys.length){
+      _fsGlobalLocalKeys=saved.global_local_keys.slice();
+      if(!_fsGlobalLocalKeys.length) _fsGlobalLocalKeys=[''];
+    }
+    $('fsCfgStatus').textContent = '已从本地存储恢复配置';
+  }
+  ['fsBaseUrl','fsOrigin','fsUserId'].forEach(id=>{
+    const el=$(id); if(el) el.oninput = fsSaveConfig;
+  });
+  fsRenderGFMSection();
+  fsRenderGLKSection();
+  // 上传文件后更新本地键 selects
+  const _updateLkList=()=>{ fsRenderGLKSection(); };
+  window._updateLkList=_updateLkList;
+  renderFsTrees();
+  $('fsBatchUpdate').onclick=fsBatchUpdate;
+  $('fsExportCfg').onclick=fsExportConfig;
+  $('fsRestoreDefault').onclick=fsRestoreDefault;
+  $('fsClearConfig').onclick=fsClearConfig;
+  $('fsRun').onclick=fsRunMatch;
+  $('fsFile').onchange=function(){
+    const f=this.files[0];if(!f)return;
+    const fd=new FormData();fd.append('file',f);fd.append('header_row',$('fsHdr').value||1);
+    fetch('/api/feishu/local_sheets',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{
+      if(!d.success)return;
+      window._fsLocalHeaders=d.headers||[];
+      const sel=$('fsSheet');sel.innerHTML='';
+      (d.sheets||[]).forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent=s;sel.appendChild(o);});
+      if(window._updateLkList) window._updateLkList();
+    });
+  };
+}
+
+function _fmtTime(ts){
+  if(!ts) return '';
+  const d=new Date(ts*1000);
+  return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
+function _sheetSummary(t){
+  // returns {enabledCount, cachedCount, staleCount, totalEnabled}
+  let enabled=0, cached=0, stale=0;
+  Object.values(t.sheet_configs).forEach(sc=>{
+    if(sc.enabled){ enabled++;
+      if(sc.cache_key){ cached++; if(sc._cache_stale) stale++; }
+    }
+  });
+  return {enabled, cached, stale};
+}
+
+function renderFsTrees(){
+  const cats={'优选库':[],'对应关系库':[]};
+  fsTables.forEach(t=>{const c=t.category||'优选库';(cats[c]=cats[c]||[]).push(t);});
+  let h='';
+  for(const [cat,ts] of Object.entries(cats)){
+    if(!ts.length)continue;
+    h+=`<div class="tree-cat${cat==='对应关系库'?' alt':''}">▸ ${cat}</div>`;
+    ts.forEach(t=>{
+      const {enabled, cached, stale} = _sheetSummary(t);
+      // ld badge: ✓=全部启用sheet已缓存  ⚠=有过期缓存  ◎=已连接  —=未连接
+      const ld = cached>0 ? (stale>0?'⚠':'✓') : (t._connected?'◎':'—');
+      const ldCls = cached>0 ? (stale>0?'badge-orange':'badge-green') : (t._connected?'badge-blue':'badge-gray');
+      // mt badge: ●=有启用且有缓存  ！=有启用无缓存  ○=无启用
+      const mt = enabled>0&&cached>0?'●':enabled>0?'！':'○';
+      const mtCls = enabled>0&&cached>0?'badge-green':enabled>0?'badge-orange':'badge-gray';
+      const hint = enabled>0 ? ` <span style="font-size:10px;color:#888">${enabled}Sheet</span>` : '';
+      h+=`<div class="tree-item" data-idx="${t.idx}" onclick="fsSelectTable(${t.idx})">
+        <span class="indent"></span><span style="flex:1">${t.name}${hint}</span>
+        <span class="badge-sm ${ldCls}">${ld}</span>
+        <span class="badge-sm ${mtCls}">${mt}</span>
+      </div>`;
+    });
+  }
+  $('fsTreeList').innerHTML=h;
+}
+
+function _escH(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
+
+function fsSelectTable(idx){
+  fsCurIdx=idx;
+  const t=fsTables[idx];
+  document.querySelectorAll('#fsTreeList .tree-item').forEach(el=>el.classList.toggle('selected',parseInt(el.dataset.idx)===idx));
+
+  let h=`<h4>${_escH(t.name)} <span style="font-size:11px;color:#888;font-weight:400">(${_escH(t.category||'优选库')})</span></h4>`;
+  h+=`<div class="row"><label>Token：</label><input type="text" id="fsDetToken" value="${_escH(t.token||'')}" style="width:300px" placeholder="飞书表格 Token"></div>`;
+  h+=`<div class="row">
+    <button class="btn btn-sm btn-primary" onclick="fsConnectTable(${idx})">连接并获取 Sheet 列表</button>
+  </div>`;
+
+  if(t._sheets.length){
+    h+=`<div style="margin-top:10px;margin-bottom:4px;font-weight:600">Sheets 配置：</div>`;
+    t._sheets.forEach(s=>{
+      const sid=s.sheetId;
+      const sc = t.sheet_configs[sid] || _mkSheetCfg();
+      const headers = sc._headers||[];
+      const chk = sc.enabled?'checked':'';
+      let cacheTag;
+      if(sc.cache_key){
+        cacheTag = sc._cache_stale
+          ? `<span style="color:#c07000;font-size:11px">⚠过期(${_fmtTime(sc.cache_fetched_at)})</span>`
+          : `<span style="color:#2a8a2a;font-size:11px">✓${sc.cache_row_count}行(${_fmtTime(sc.cache_fetched_at)})</span>`;
+      } else {
+        cacheTag = `<span style="color:#e07000;font-size:11px">无缓存</span>`;
+      }
+      const hdrTag = headers.length ? `<span style="color:#888;font-size:11px">${headers.length}列</span>` : '';
+      const exp = sc._expanded;
+      h+=`<div style="border:1px solid #dde;border-radius:4px;margin-bottom:6px;background:${sc.enabled?'#f8fff8':'#fafafa'}">`;
+      // Sheet header row
+      h+=`<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;cursor:pointer" onclick="fsToggleSheetExpand(${idx},'${sid}')">
+        <input type="checkbox" ${chk} onclick="event.stopPropagation();fsToggleSheetEnable(${idx},'${sid}',this.checked)" title="参与匹配">
+        <span style="flex:1;font-size:13px">${_escH(s.title)}</span>
+        ${hdrTag} ${cacheTag}
+        <button class="btn btn-sm btn-green" style="padding:1px 7px;font-size:12px" onclick="event.stopPropagation();fsCacheSheet(${idx},'${sid}')">⬇ 缓存</button>
+        ${sc.cache_key?`<button class="btn btn-sm btn-gray" style="padding:1px 7px;font-size:12px;color:#c00000" onclick="event.stopPropagation();fsClearSheetCache(${idx},'${sid}')">✕ 清除</button>`:''}
+        <span style="font-size:12px;color:#666">${exp?'▲':'▼'}</span>
+      </div>`;
+      // Expanded config section
+      if(exp){
+        // local key datalist
+        const lkDl = `fslk_${idx}_${sid}`;
+        const fkDl = `fsfk_${idx}_${sid}`;
+        let lkOpts='';(window._fsLocalHeaders||[]).forEach(h2=>lkOpts+=`<option value="${_escH(h2)}">`);
+        let fkOpts='';headers.forEach(h2=>fkOpts+=`<option value="${_escH(h2)}">`);
+        h+=`<datalist id="${lkDl}">${lkOpts}</datalist><datalist id="${fkDl}">${fkOpts}</datalist>`;
+        h+=`<div style="padding:8px 12px;border-top:1px solid #eee;display:flex;gap:24px;align-items:flex-start">`;
+        // ── 左列：匹配键 ──
+        h+=`<div style="flex:0 0 auto;min-width:260px">`;
+        h+=`<div style="font-size:12px;font-weight:600;margin-bottom:6px;color:#333">匹配键（飞书侧）</div>`;
+        // feishu key count mirrors local key count — persist any resize immediately
+        const glkCount=_fsGlobalLocalKeys.length;
+        let _fkResized=false;
+        while(sc.feishu_key_names.length<glkCount){sc.feishu_key_names.push('');_fkResized=true;}
+        if(sc.feishu_key_names.length>glkCount){sc.feishu_key_names.splice(glkCount);_fkResized=true;}
+        if(_fkResized) fsSaveConfig();
+        sc.feishu_key_names.forEach((fv, ki)=>{
+          const lkName=_fsGlobalLocalKeys[ki]||`键${ki+1}`;
+          const req=ki===0?'color:#c00000':'color:#555';
+          let opts=`<option value="">${ki===0?'— 选择列 —':'（不使用）'}</option>`;
+          headers.forEach(h2=>{if(h2) opts+=`<option value="${_escH(h2)}"${h2===fv?' selected':''}>${_escH(h2)}</option>`;});
+          h+=`<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+            <label style="min-width:65px;font-size:12px;${req};text-align:right">${_escH(lkName)}：</label>
+            <select id="fsfk_${idx}_${sid}_${ki}" style="width:190px;font-size:12px" onchange="fsSaveSheetCfg(${idx},'${sid}')">${opts}</select>
+          </div>`;
+        });
+        h+=`</div>`;
+        // ── 右列：提取列映射 ──
+        const validGFM = _fsGlobalFetchMap.filter(r=>r.std_name);
+        h+=`<div style="flex:1">`;
+        if(validGFM.length){
+          h+=`<div style="font-size:12px;font-weight:600;margin-bottom:6px;color:#333">提取列映射</div>`;
+          validGFM.forEach((gm, gi)=>{
+            const overrideVal=(sc.fetch_col_aliases||{})[gm.std_name]||'';
+            const defAlias=gm.default_alias||gm.std_name;
+            let opts=`<option value="">— 待映射 —</option>`;
+            headers.forEach(h2=>{if(h2) opts+=`<option value="${_escH(h2)}"${h2===overrideVal?' selected':''}>${_escH(h2)}</option>`;});
+            h+=`<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+              <label style="min-width:75px;font-size:12px;color:#444;text-align:left">${_escH(gm.std_name)}：</label>
+              <select id="fsgfa_${idx}_${sid}_${gi}" style="width:190px;font-size:12px" onchange="fsSaveSheetCfg(${idx},'${sid}')">${opts}</select>
+            </div>`;
+          });
+        } else {
+          h+=`<div style="color:#aaa;font-size:12px">在上方"提取列"中添加标准列后显示</div>`;
+        }
+        h+=`</div>`;
+        h+=`</div>`;  // end flex row
+      }
+      h+=`</div>`;
+    });
+  } else if(t._connected){
+    h+=`<div style="color:#888;font-size:12px;margin-top:10px">该在线表格无 Sheet 或 Token 失效</div>`;
+  } else {
+    h+=`<div style="color:#888;font-size:12px;margin-top:10px">填写 Token 后点击「连接」获取 Sheet 列表</div>`;
+  }
+
+  $('fsDetail').innerHTML=h;
+}
+
+function fsToggleSheetEnable(tIdx, sid, val){
+  const t=fsTables[tIdx];
+  if(!t.sheet_configs[sid]) t.sheet_configs[sid]=_mkSheetCfg();
+  t.sheet_configs[sid].enabled=val;
+  renderFsTrees();fsSaveConfig();
+  // re-render without collapsing current expand state
+  fsSelectTable(tIdx);
+}
+
+function fsToggleSheetExpand(tIdx, sid){
+  const t=fsTables[tIdx];
+  if(!t.sheet_configs[sid]) t.sheet_configs[sid]=_mkSheetCfg();
+  t.sheet_configs[sid]._expanded = !t.sheet_configs[sid]._expanded;
+  fsSelectTable(tIdx);
+}
+
+
+function fsSaveSheetCfg(tIdx, sid){
+  const t=fsTables[tIdx];
+  if(!t.sheet_configs[sid]) t.sheet_configs[sid]=_mkSheetCfg();
+  const sc=t.sheet_configs[sid];
+  const _fkCount=sc.feishu_key_names.length||1;
+  sc.feishu_key_names=Array.from({length:_fkCount},(_,ki)=>($(`fsfk_${tIdx}_${sid}_${ki}`)||{value:''}).value.trim());
+  // Save per-sheet alias overrides for global fetch map
+  sc.fetch_col_aliases={};
+  _fsGlobalFetchMap.filter(r=>r.std_name).forEach((gm,gi)=>{
+    const el=$(`fsgfa_${tIdx}_${sid}_${gi}`);
+    if(el && el.value.trim()) sc.fetch_col_aliases[gm.std_name]=el.value.trim();
+  });
+  fsSaveConfig();
+}
+
+
+async function fsConnectTable(idx){
+  const t=fsTables[idx];
+  const tokenEl=$('fsDetToken');
+  if(tokenEl)t.token=tokenEl.value.trim();
+  if(!t.token){alert('请先填写 Token');return;}
+  const btns=$('fsDetail').querySelectorAll('button');btns.forEach(b=>b.disabled=true);
+  // 加载提示
+  let hint=$('fsConnectHint_'+idx);
+  if(!hint){
+    const btn=$('fsDetail').querySelector('button.btn-primary');
+    if(btn){hint=document.createElement('span');hint.id='fsConnectHint_'+idx;hint.className='hint';btn.after(hint);}
+  }
+  if(hint) hint.textContent='⏳ 连接中，正在获取 Sheet 列表及表头...';
+  try{
+    const r=await fetch('/api/feishu/sheets',{method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({base_url:$('fsBaseUrl').value,origin:$('fsOrigin').value,user_id:$('fsUserId').value,token:t.token})});
+    const d=await r.json();
+    if(d.success){
+      t._sheets=d.sheets;t._connected=true;
+      const sheetHeaders=d.sheet_headers||{};
+      // 更新每个 sheet 的表头，并检测缓存是否过期
+      d.sheets.forEach(s=>{
+        const sid=s.sheetId;
+        if(!t.sheet_configs[sid]) t.sheet_configs[sid]=_mkSheetCfg();
+        const sc=t.sheet_configs[sid];
+        const hdrs=(sheetHeaders[sid]||[]).filter(h=>h);
+        if(hdrs.length) sc._headers=hdrs;
+        // 检测缓存是否过期（行数比对）
+        if(sc.cache_key && sc.row_count_at_cache>0){
+          sc._cache_stale = (s.rowCount||0) !== sc.row_count_at_cache;
+        }
+      });
+      fsSelectTable(idx);renderFsTrees();fsSaveConfig();
+    } else { if(hint)hint.textContent=''; alert(d.error); }
+  }catch(e){ if(hint)hint.textContent=''; alert(e.message); }
+  btns.forEach(b=>b.disabled=false);
+}
+
+// 缓存单个 Sheet 数据到服务端
+async function fsCacheSheet(tIdx, sid){
+  const t=fsTables[tIdx];
+  if(!t.token){alert('请先填写并连接 Token');return;}
+  const btns=$('fsDetail').querySelectorAll('button');btns.forEach(b=>b.disabled=true);
+  // 找到该 sheet 的缓存按钮，在旁边插入提示
+  let cHint=document.getElementById(`fsCacheHint_${tIdx}_${sid}`);
+  if(!cHint){
+    const allBtns=[...$('fsDetail').querySelectorAll('button')];
+    const cBtn=allBtns.find(b=>b.getAttribute('onclick')||'');  // 先占位，fsSelectTable 会重绘
+    cHint=document.createElement('span');cHint.id=`fsCacheHint_${tIdx}_${sid}`;cHint.className='hint';
+    $('fsDetail').appendChild(cHint);
+  }
+  cHint.textContent='⏳ 正在拉取全部数据，请稍候...';
+  try{
+    const r=await fetch('/api/feishu/load',{method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({base_url:$('fsBaseUrl').value,origin:$('fsOrigin').value,user_id:$('fsUserId').value,
+        token:t.token, sheet_id:sid})});
+    const d=await r.json();
+    if(d.success){
+      if(!t.sheet_configs[sid]) t.sheet_configs[sid]=_mkSheetCfg();
+      const sc=t.sheet_configs[sid];
+      sc.cache_key          = d.cache_key;
+      sc.cache_row_count    = d.row_count;
+      sc.cache_fetched_at   = d.fetched_at;
+      sc.row_count_at_cache = d.row_count_at_cache||0;
+      sc._cache_stale       = false;
+      if(d.headers&&d.headers.length) sc._headers=d.headers.filter(h=>h);
+      fsSelectTable(tIdx);renderFsTrees();fsSaveConfig();
+    } else { alert('缓存失败：'+d.error); }
+  }catch(e){alert(e.message);}
+  btns.forEach(b=>b.disabled=false);
+}
+
+function fsClearSheetCache(tIdx, sid){
+  const sc=fsTables[tIdx].sheet_configs[sid];
+  if(!sc) return;
+  sc.cache_key=''; sc.cache_row_count=0; sc.cache_fetched_at=0;
+  sc.row_count_at_cache=0; sc._cache_stale=false;
+  fsSaveConfig();
+  fsSelectTable(tIdx); renderFsTrees();
+}
+
+// 一键缓存所有启用的 Sheet
+async function fsBatchUpdate(){
+  $('fsBatchUpdate').disabled=true;
+  const _bh=$('fsBatchHint'); _bh.style.color='#1a8a1a'; _bh.textContent='缓存中...';
+  let count=0;
+  for(let i=0;i<fsTables.length;i++){
+    const t=fsTables[i];
+    if(!t.token) continue;
+    // 缓存所有已启用的 Sheet（含从未缓存过的）
+    const enabledSids=Object.entries(t.sheet_configs).filter(([,sc])=>sc.enabled).map(([sid])=>sid);
+    if(!enabledSids.length) continue;
+    if(!t._connected){
+      _bh.textContent=`连接中：${t.name}`;
+      // silently connect to get sheets+headers
+      try{
+        const r=await fetch('/api/feishu/sheets',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({base_url:$('fsBaseUrl').value,origin:$('fsOrigin').value,user_id:$('fsUserId').value,token:t.token})});
+        const d=await r.json();
+        if(d.success){ t._sheets=d.sheets;t._connected=true;
+          const sh=d.sheet_headers||{};
+          d.sheets.forEach(s=>{if(!t.sheet_configs[s.sheetId])t.sheet_configs[s.sheetId]=_mkSheetCfg();
+            const hdrs=(sh[s.sheetId]||[]).filter(h=>h);if(hdrs.length)t.sheet_configs[s.sheetId]._headers=hdrs;});
+        }
+      }catch(e){console.error(e);}
+    }
+    for(const sid of enabledSids){
+      _bh.textContent=`缓存 ${t.name}/${t._sheets.find(s=>s.sheetId===sid)?.title||sid}`;
+      try{
+        const r=await fetch('/api/feishu/load',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({base_url:$('fsBaseUrl').value,origin:$('fsOrigin').value,user_id:$('fsUserId').value,token:t.token,sheet_id:sid})});
+        const d=await r.json();
+        if(d.success){
+          if(!t.sheet_configs[sid])t.sheet_configs[sid]=_mkSheetCfg();
+          const sc=t.sheet_configs[sid];
+          sc.cache_key=d.cache_key;sc.cache_row_count=d.row_count;
+          sc.cache_fetched_at=d.fetched_at;sc.row_count_at_cache=d.row_count_at_cache||0;
+          sc._cache_stale=false;if(d.headers&&d.headers.length)sc._headers=d.headers.filter(h=>h);
+          count++;
+        }
+      }catch(e){console.error(e);}
+    }
+    renderFsTrees(); // 每完成一个在线库立即更新左侧状态
+  }
+  $('fsBatchUpdate').disabled=false; _bh.style.color='#1a8a1a'; _bh.textContent=`✓ 完成 ${count} 个 Sheet`;
+  renderFsTrees();fsSaveConfig();
+  if(fsCurIdx!==null)fsSelectTable(fsCurIdx);
+}
+
+async function fsRunMatch(){
+  const f=$('fsFile').files[0];if(!f){alert('请先上传 BOM 文件');return;}
+
+  // 全局本地键
+  const gLocalKeys=_fsGlobalLocalKeys.map(k=>k.trim()).filter(k=>k);
+  if(!gLocalKeys.length){alert('请先填写本地匹配键（本地 BOM 文件区域）');return;}
+
+  // 构建 per-sheet 配置
+  const tables=[];
+  fsTables.forEach(t=>{
+    if(!t.token) return;
+    const enabledSheets=[];
+    (t._sheets||[]).forEach(s=>{
+      const sc=t.sheet_configs[s.sheetId];
+      if(!sc||!sc.enabled) return;
+      const fk=(sc.feishu_key_names||[]).filter(k=>k);
+      if(!fk.length) return;
+      // 本地键与飞书键取相同数量
+      const lk=gLocalKeys.slice(0,fk.length);
+      // 构建全局列映射（含per-sheet覆盖别名）
+      const gfm=_fsGlobalFetchMap.filter(r=>r.std_name);
+      const overrides=sc.fetch_col_aliases||{};
+      const fetch_col_map=gfm.map(r=>({
+        output:r.std_name,
+        alias:(overrides[r.std_name]||'').trim()||(r.default_alias||r.std_name),
+      }));
+      enabledSheets.push({
+        sheet_id:s.sheetId, sheet_name:s.title,
+        enabled:true,
+        local_key_names:lk, feishu_key_names:fk,
+        fetch_col_names:sc.fetch_col_names||[],
+        fetch_col_map: fetch_col_map,
+        cache_key:sc.cache_key||'',
+      });
+    });
+    if(enabledSheets.length) tables.push({name:t.name, token:t.token, sheets:enabledSheets});
+  });
+
+  if(!tables.length){alert('没有启用的 Sheet，请先在表格库中勾选并配置列映射');return;}
+
+  $('fsRun').disabled=true;$('fsBatchUpdate').disabled=true;
+  $('fsRunStatus2').textContent='匹配中...';
+  hide($('fsResult'));hide($('fsError'));hide($('fsLogBox'));
+
+  const config={
+    base_url:$('fsBaseUrl').value, origin:$('fsOrigin').value, user_id:$('fsUserId').value,
+    sheet_name:$('fsSheet').value, header_row:parseInt($('fsHdr').value)||1,
+    tables,
+  };
+  const fd=new FormData();fd.append('file',f);fd.append('config',JSON.stringify(config));
+  try{
+    const r=await fetch('/api/feishu/match',{method:'POST',body:fd});
+    const d=await r.json();
+    if(d.logs&&d.logs.length){$('fsLog').textContent=d.logs.join('\n');show($('fsLogBox'));}
+    if(d.success){
+      $('fsStats').innerHTML=`共 <b>${d.total}</b> 行 | 命中 <b>${d.matched}</b> | 未匹配 <b>${d.unmatched}</b>`;
+      $('fsDl').href=d.download;show($('fsResult'));$('fsRunStatus2').textContent='完成！';
+    } else {
+      $('fsError').textContent=d.error||'匹配失败';show($('fsError'));$('fsRunStatus2').textContent='';
+    }
+  }catch(e){$('fsError').textContent=e.message;show($('fsError'));}
+  $('fsRun').disabled=false;$('fsBatchUpdate').disabled=false;
+}
+
+// ═══════════════════ 查询BOM优选率 ═══════════════════
+(function(){
+  // 工具初始化（每次切换到此工具时调用）
+  function prInit(){
+    $('prFile').onchange = prLoadFile;
+    $('prRefresh').onclick = ()=>{ if($('prFile').files[0]) prLoadFile(); };
+    $('prRun').onclick = prRun;
+    hide($('prResult')); hide($('prError'));
+  }
+
+  async function prLoadFile(){
+    const f = $('prFile').files[0]; if(!f) return;
+    const hdr = parseInt($('prHdr').value)||1;
+    const fd = new FormData();
+    fd.append('file', f);
+    fd.append('header_row', hdr);
+    const cur = $('prSheet').value;
+    if(cur && cur !== '先选择文件') fd.append('sheet_name', cur);
+    try{
+      const r = await fetch('/api/feishu/local_sheets', {method:'POST', body:fd});
+      const d = await r.json();
+      if(!d.success){$('prStatus').textContent='加载失败：'+d.error;return;}
+      // populate sheet selector
+      const ss = $('prSheet');
+      ss.innerHTML = d.sheets.map(s=>`<option${s===d.current_sheet?' selected':''}>${_escH(s)}</option>`).join('');
+      ss.onchange = prLoadFile;
+      // populate key col selector
+      const kc = $('prKeyCol');
+      kc.innerHTML = d.headers.map(h=>`<option value="${_escH(h)}">${_escH(h)}</option>`).join('');
+      // auto-select HQ料号 if present
+      const auto = d.headers.find(h=>h.includes('HQ料号')||h==='HQ料号');
+      if(auto) kc.value = auto;
+      $('prStatus').textContent = `已加载 ${d.headers.length} 列`;
+    }catch(e){$('prStatus').textContent='错误：'+e.message;}
+  }
+
+  async function prRun(){
+    const f=$('prFile').files[0];
+    if(!f){alert('请先上传BOM文件');return;}
+    const keyCol=$('prKeyCol').value;
+    if(!keyCol||keyCol==='先刷新列表'){alert('请先刷新列表并选择HQ料号列');return;}
+
+    // Build tables config: 优选库 only, enabled sheets with cache
+    const tables=[];
+    fsTables.forEach(t=>{
+      // filter by category from FS_TABLES (preset)
+      const preset=FS_TABLES.find(p=>p.token===t.token);
+      if(!preset||preset.category!=='优选库') return;
+      const sheets=[];
+      Object.entries(t.sheet_configs).forEach(([sid,sc])=>{
+        if(!sc.enabled||!sc.cache_key) return;
+        sheets.push({sid, name:(t._sheets||[]).find(s=>s.sheetId===sid)?.title||sid,
+                     cache_key:sc.cache_key, fetch_col_aliases:sc.fetch_col_aliases||{}});
+      });
+      if(sheets.length) tables.push({name:t.name, token:t.token, sheets});
+    });
+
+    if(!tables.length){
+      alert('没有找到已缓存的优选库 sheet。请先在「飞书优选库+关系库匹配」中缓存相关 sheet。');
+      return;
+    }
+
+    $('prRun').disabled=true; $('prStatus').style.color='#1a8a1a';
+    $('prStatus').textContent='查询中...';
+    hide($('prResult')); hide($('prError'));
+
+    const cfg={
+      header_row: parseInt($('prHdr').value)||1,
+      sheet_name: $('prSheet').value,
+      local_key_col: keyCol,
+      tables,
+    };
+    const fd=new FormData();
+    fd.append('file',f);
+    fd.append('config',JSON.stringify(cfg));
+    try{
+      const r=await fetch('/api/feishu/pref_rate',{method:'POST',body:fd});
+      const d=await r.json();
+      if(d.success){
+        $('prStats').innerHTML=
+          `共 <b>${d.total}</b> 行 &nbsp;|&nbsp; `+
+          `匹配到HQ料号 <b style="color:#2a8a2a">${d.matched}</b> 行 &nbsp;|&nbsp; `+
+          `未匹配 <b style="color:#888">${d.unmatched}</b> 行（不参与计算）<br>`+
+          `已匹配中：优选料 <b style="color:#2a8a2a">${d.preferred}</b> 行 &nbsp;|&nbsp; `+
+          `非优选料 <b style="color:#c07000">${d.non_preferred}</b> 行<br>`+
+          `<span style="font-size:13px;color:#555">优选率（优选料/已匹配）= </span>`+
+          `<b style="font-size:20px;color:#1a5ad4">${d.rate}</b>`;
+        $('prDl').href=d.download;
+        $('prStatus').textContent='';
+        show($('prResult'));
+      } else {
+        $('prError').textContent='错误：'+d.error;
+        show($('prError'));
+        $('prStatus').textContent='';
+      }
+    }catch(e){$('prError').textContent=e.message;show($('prError'));$('prStatus').textContent='';}
+    $('prRun').disabled=false;
+  }
+
+  // Register init hook
+  window._toolInits = window._toolInits||{};
+  window._toolInits['pref-rate'] = prInit;
+})();
+
+// ═══════════════════ 页面加载 ═══════════════════
+showOverview();
+</script>
+</body>
+</html>

@@ -77,7 +77,7 @@ echo.
 echo   Close this window to stop the server
 echo ========================================
 echo.
-cd web_app
+cd web_app2
 echo.
 echo Starting Flask server...
 echo If this fails, copy the error text above.

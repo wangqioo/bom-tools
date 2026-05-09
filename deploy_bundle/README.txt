@@ -23,7 +23,7 @@ HOW TO USE
   4. Open http://localhost:5000 in a browser
 
 WHAT'S INCLUDED
-  - Flask web application (web_app/)
+  - Flask web application (web_app2/)
   - All Python dependencies as .whl files (wheels/)
     - Supports Python 3.10, 3.11, 3.12, 3.14
   - Automatic virtual environment setup

@@ -1,0 +1,1890 @@
+{
+  "global_local_keys": [
+    "型号"
+  ],
+  "global_fetch_map": [
+    "HQ料号",
+    "HQ规格型号",
+    "HQ制造商",
+    "优选等级",
+    "HQ描述"
+  ],
+  "tables": [
+    {
+      "name": "MLCC",
+      "token": "shthq7d9W17DSo7cwuFhtIg7KPf",
+      "sheets": [
+        {
+          "sheet_id": "0WaCOa",
+          "sheet_name": "工业级和不区分优选库(用于选型)",
+          "enabled": true,
+          "feishu_key_names": [
+            "规格型号"
+          ],
+          "fetch_col_aliases": {
+            "HQ料号": "HQ编码",
+            "HQ规格型号": "规格型号",
+            "HQ制造商": "制造商",
+            "优选等级": "PI",
+            "HQ描述": "描述"
+          }
+        }
+      ]
+    },
+    {
+      "name": "电阻",
+      "token": "shthqdJvubPLY8mrO8qkOMXmGiw",
+      "sheets": [
+        {
+          "sheet_id": "0Rfegx",
+          "sheet_name": "DBG通用电阻(用于物料选型)",
+          "enabled": true,
+          "feishu_key_names": [
+            "规格型号"
+          ],
+          "fetch_col_aliases": {
+            "HQ料号": "物料编码",
+            "HQ规格型号": "规格型号",
+            "HQ制造商": "制造商",
+            "优选等级": "PI",
+            "HQ描述": "PLM描述(调整)"
+          }
+        },
+        {
+          "sheet_id": "3hHtuU",
+          "sheet_name": "DBG防硫化电阻(用于物料选型)",
+          "enabled": true,
+          "feishu_key_names": [
+            "规格型号"
+          ],
+          "fetch_col_aliases": {
+            "HQ料号": "物料编码",
+            "HQ规格型号": "规格型号",
+            "HQ制造商": "制造商",
+            "优选等级": "PI",
+            "HQ描述": "PLM描述(调整)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "电解电容",
+      "token": "shthqO56eTG9DyJX60nDaaMGp0e",
+      "sheets": [
+        {
+          "sheet_id": "snZgJO",
+          "sheet_name": "DBG电解电容优选库V1.2(用于物料选型)",
+          "enabled": true,
+          "feishu_key_names": [
+            "规格型号"
+          ],
+          "fetch_col_aliases": {
+            "HQ料号": "华勤物料号",
+            "HQ规格型号": "规格型号",
+            "HQ制造商": "制造商",
+            "优选等级": "PI",
+            "HQ描述": "物料描述"
+          }
+        }
+      ]
+    },
+    {
+      "name": "网络变压器/电感器",
+      "token": "shthquBGGQB8twAgmJWSBwFY5he",
+      "sheets": [
+        {
+          "sheet_id": "3TIPZk",
+          "sheet_name": "功率电感器",
+          "enabled": true,
+          "feishu_key_names": [
+            "规格型号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "制造商",
+            "HQ料号": "物料编码",
+            "HQ规格型号": "规格型号",
+            "优选等级": "更新后PI"
+          }
+        },
+        {
+          "sheet_id": "4patoJ",
+          "sheet_name": "TLVR",
+          "enabled": true,
+          "feishu_key_names": [
+            "规格型号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "制造商",
+            "HQ料号": "物料编码",
+            "HQ规格型号": "规格型号",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "6EnVvO",
+          "sheet_name": "一般用电感器",
+          "enabled": true,
+          "feishu_key_names": [
+            "规格型号"
+          ],
+          "fetch_col_aliases": {
+            "HQ料号": "物料编码",
+            "HQ规格型号": "规格型号",
+            "HQ制造商": "制造商",
+            "优选等级": "PI",
+            "HQ描述": "描述"
+          }
+        },
+        {
+          "sheet_id": "7WLGFP",
+          "sheet_name": "网络变压器",
+          "enabled": true,
+          "feishu_key_names": [
+            "规格型号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "制造商",
+            "HQ料号": "物料编码",
+            "HQ规格型号": "规格型号",
+            "优选等级": "PI"
+          }
+        }
+      ]
+    },
+    {
+      "name": "磁珠",
+      "token": "shthq1EJlpgHfBqBGNediRZdt8c",
+      "sheets": [
+        {
+          "sheet_id": "3kRIFh",
+          "sheet_name": "DBG磁珠优选库更新(用于物料选型)",
+          "enabled": true,
+          "feishu_key_names": [
+            "规格型号"
+          ],
+          "fetch_col_aliases": {
+            "HQ料号": "物料编码",
+            "HQ规格型号": "规格型号",
+            "HQ制造商": "制造商",
+            "优选等级": "PI",
+            "HQ描述": "新描述"
+          }
+        }
+      ]
+    },
+    {
+      "name": "晶体晶振",
+      "token": "shthqpy6hg6hVD78VNPElmcSF6d",
+      "sheets": [
+        {
+          "sheet_id": "3wMjcf",
+          "sheet_name": "无源晶体",
+          "enabled": true,
+          "feishu_key_names": [
+            "规格型号"
+          ],
+          "fetch_col_aliases": {
+            "HQ料号": "物料编码",
+            "HQ规格型号": "规格型号",
+            "HQ制造商": "制造商",
+            "优选等级": "DBG PI",
+            "HQ描述": "新描述"
+          }
+        },
+        {
+          "sheet_id": "4sjpba",
+          "sheet_name": "有源晶振",
+          "enabled": true,
+          "feishu_key_names": [
+            "规格型号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "制造商",
+            "HQ料号": "物料编码",
+            "HQ规格型号": "规格型号",
+            "优选等级": "DBG PI"
+          }
+        }
+      ]
+    },
+    {
+      "name": "保险丝",
+      "token": "shthqpsZCFkwGjn62CjRYCpKrHg",
+      "sheets": [
+        {
+          "sheet_id": "4uPMyK",
+          "sheet_name": "贴片电流保险丝",
+          "enabled": true,
+          "feishu_key_names": [
+            "规格型号"
+          ],
+          "fetch_col_aliases": {
+            "HQ料号": "物料编码",
+            "HQ规格型号": "规格型号",
+            "HQ制造商": "制造商",
+            "优选等级": "PI",
+            "HQ描述": "新描述"
+          }
+        },
+        {
+          "sheet_id": "5efkwX",
+          "sheet_name": "贴片自恢复保险丝",
+          "enabled": true,
+          "feishu_key_names": [
+            "规格型号"
+          ],
+          "fetch_col_aliases": {
+            "HQ料号": "物料编码",
+            "HQ规格型号": "规格型号",
+            "HQ制造商": "制造商",
+            "优选等级": "PI",
+            "HQ描述": "新描述"
+          }
+        }
+      ]
+    },
+    {
+      "name": "纽扣电池",
+      "token": "shthqngCNYdufotGIcL6Vn6gWWh",
+      "sheets": [
+        {
+          "sheet_id": "3HWybX",
+          "sheet_name": "纽扣电池",
+          "enabled": true,
+          "feishu_key_names": [
+            "规格型号"
+          ],
+          "fetch_col_aliases": {
+            "HQ料号": "物料编码",
+            "HQ规格型号": "规格型号",
+            "HQ制造商": "制造商",
+            "优选等级": "PI",
+            "HQ描述": "描述"
+          }
+        }
+      ]
+    },
+    {
+      "name": "滤波器/共模扼流圈",
+      "token": "shthqaZbFrblnh3V0A3ahhOj4Og",
+      "sheets": [
+        {
+          "sheet_id": "3xrqUr",
+          "sheet_name": "DBG滤波器(共模扼流圈)优选库",
+          "enabled": true,
+          "feishu_key_names": [
+            "规格型号"
+          ],
+          "fetch_col_aliases": {
+            "HQ料号": "物料编码",
+            "HQ规格型号": "规格型号",
+            "HQ制造商": "制造商",
+            "优选等级": "PI",
+            "HQ描述": "描述"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Power IC优选库",
+      "token": "shthqz7lKPJt9UGF4FOIU1uyTUh",
+      "sheets": [
+        {
+          "sheet_id": "1UuGvI",
+          "sheet_name": "多相控制器",
+          "enabled": true,
+          "feishu_key_names": [
+            "Part Number"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "Brand",
+            "HQ料号": "料号",
+            "HQ规格型号": "Part Number",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "2oQgms",
+          "sheet_name": "Power Stage",
+          "enabled": true,
+          "feishu_key_names": [
+            "Part Number"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "Brand",
+            "HQ料号": "料号",
+            "HQ规格型号": "Part Number",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "3VXeVj",
+          "sheet_name": "DCDC",
+          "enabled": true,
+          "feishu_key_names": [
+            "Part Number"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "Brand",
+            "HQ料号": "料号",
+            "HQ规格型号": "Part Number",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "4vSRXp",
+          "sheet_name": "LDO",
+          "enabled": true,
+          "feishu_key_names": [
+            "Part Number"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "Brand",
+            "HQ料号": "料号",
+            "HQ规格型号": "Part Number",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "5viLmN",
+          "sheet_name": "efuse",
+          "enabled": true,
+          "feishu_key_names": [
+            "Part Number"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "Brand",
+            "HQ料号": "料号",
+            "HQ规格型号": "Part Number",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "6yFoKB",
+          "sheet_name": "load switch ",
+          "enabled": true,
+          "feishu_key_names": [
+            "PART NUMBER"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "Brand",
+            "HQ料号": "料号",
+            "HQ规格型号": "PART NUMBER",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "7atUMr",
+          "sheet_name": "热插拔控制器",
+          "enabled": true,
+          "feishu_key_names": [
+            "PART NUMBER"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "Brand",
+            "HQ料号": "料号",
+            "HQ规格型号": "PART NUMBER",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "8HJkBu",
+          "sheet_name": "电压电流功率检测芯片",
+          "enabled": true,
+          "feishu_key_names": [
+            "Part Number"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "Brand",
+            "HQ料号": "料号",
+            "HQ规格型号": "Part Number",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "9efTzT",
+          "sheet_name": "电流检测放大器",
+          "enabled": true,
+          "feishu_key_names": [
+            "Part Number"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "Brand",
+            "HQ料号": "料号",
+            "HQ规格型号": "Part Number",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "10LLXH",
+          "sheet_name": "电源模组",
+          "enabled": true,
+          "feishu_key_names": [
+            "Part Number"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "Brand",
+            "HQ料号": "料号",
+            "HQ规格型号": "Part Number",
+            "优选等级": "PI"
+          }
+        }
+      ]
+    },
+    {
+      "name": "功能IC优选库",
+      "token": "shthq4b1PTCh1HqyalUal6aTYte",
+      "sheets": [
+        {
+          "sheet_id": "0Igcun",
+          "sheet_name": "BMC",
+          "enabled": true,
+          "feishu_key_names": [
+            "型号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "制造商",
+            "HQ料号": "料号",
+            "HQ规格型号": "型号",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "1YFpRU",
+          "sheet_name": "网络交换芯片",
+          "enabled": true,
+          "feishu_key_names": [
+            "Part Number"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "Brand",
+            "HQ料号": "料号",
+            "HQ规格型号": "Part Number",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "2HiCLN",
+          "sheet_name": "网卡芯片&PHY",
+          "enabled": true,
+          "feishu_key_names": [
+            "型号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "制造商",
+            "HQ料号": "料号",
+            "HQ规格型号": "型号",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "3RILoL",
+          "sheet_name": "PCIe switch",
+          "enabled": true,
+          "feishu_key_names": [
+            "Part Number"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "Brand",
+            "HQ料号": "料号",
+            "HQ规格型号": "Part Number",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "4XpKyY",
+          "sheet_name": "SAS Expander",
+          "enabled": true,
+          "feishu_key_names": [
+            "Part Number"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "Brand",
+            "HQ料号": "料号",
+            "HQ规格型号": "Part Number",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "5yvuJa",
+          "sheet_name": "时序、复位芯片",
+          "enabled": true,
+          "feishu_key_names": [
+            "Part Number"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "Brand",
+            "HQ料号": "料号",
+            "HQ规格型号": "Part Number",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "6WsDAR",
+          "sheet_name": "电平基准芯片",
+          "enabled": true,
+          "feishu_key_names": [
+            "Part Number"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "Brand",
+            "HQ料号": "料号",
+            "HQ规格型号": "Part Number",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "7zqRud",
+          "sheet_name": "模拟开关和多路复用器",
+          "enabled": true,
+          "feishu_key_names": [
+            "Part Number"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "Brand",
+            "HQ料号": "料号",
+            "HQ规格型号": "Part Number",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "8ruBHy",
+          "sheet_name": "缓冲器、驱动器和收发器",
+          "enabled": true,
+          "feishu_key_names": [
+            "Part Number"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "Brand",
+            "HQ料号": "料号",
+            "HQ规格型号": "Part Number",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "9eMquf",
+          "sheet_name": "触发器、锁存器和寄存器",
+          "enabled": true,
+          "feishu_key_names": [
+            "Part Number"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "Brand",
+            "HQ料号": "料号",
+            "HQ规格型号": "Part Number",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "10SKtF",
+          "sheet_name": "温度传感器",
+          "enabled": true,
+          "feishu_key_names": [
+            "Part Number"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "Brand",
+            "HQ料号": "料号",
+            "HQ规格型号": "Part Number",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "11voQu",
+          "sheet_name": "电平转换芯片 ",
+          "enabled": true,
+          "feishu_key_names": [
+            "Part Number"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "Brand",
+            "HQ料号": "料号",
+            "HQ规格型号": "Part Number",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "12hyxb",
+          "sheet_name": "逻辑门",
+          "enabled": true,
+          "feishu_key_names": [
+            "Part Number"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "Brand",
+            "HQ料号": "料号",
+            "HQ规格型号": "Part Number",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "13yKTX",
+          "sheet_name": "接口扩展芯片",
+          "enabled": true,
+          "feishu_key_names": [
+            "Part Number"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "Brand",
+            "HQ料号": "料号",
+            "HQ规格型号": "Part Number",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "14ivAv",
+          "sheet_name": "接口转换芯片",
+          "enabled": true,
+          "feishu_key_names": [
+            "Part Number"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "Brand",
+            "HQ料号": "料号",
+            "HQ规格型号": "Part Number",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "15PQwc",
+          "sheet_name": "接口控制芯片",
+          "enabled": true,
+          "feishu_key_names": [
+            "Part Number"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "Brand",
+            "HQ料号": "料号",
+            "HQ规格型号": "Part Number",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "16Ivcc",
+          "sheet_name": "EEPROM",
+          "enabled": true,
+          "feishu_key_names": [
+            "Part Number"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "Brand",
+            "HQ料号": "料号",
+            "HQ规格型号": "Part Number",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "17fqOq",
+          "sheet_name": "NOR FLASH",
+          "enabled": true,
+          "feishu_key_names": [
+            "Part Number"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "Brand",
+            "HQ料号": "料号",
+            "HQ规格型号": "Part Number",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "18wozY",
+          "sheet_name": "NAND FLASH",
+          "enabled": true,
+          "feishu_key_names": [
+            "Part Number"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "Brand",
+            "HQ料号": "料号",
+            "HQ规格型号": "Part Number",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "19tvuJ",
+          "sheet_name": "DRAM",
+          "enabled": true,
+          "feishu_key_names": [
+            "Part Number"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "Brand",
+            "HQ料号": "料号",
+            "HQ规格型号": "Part Number",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "20Ndvr",
+          "sheet_name": "UFS",
+          "enabled": true,
+          "feishu_key_names": [
+            "Part Number"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "Brand",
+            "HQ料号": "料号",
+            "HQ规格型号": "Part Number",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "21Fbdp",
+          "sheet_name": "eMMC",
+          "enabled": true,
+          "feishu_key_names": [
+            "Part Number"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "Brand",
+            "HQ料号": "料号",
+            "HQ规格型号": "Part Number",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "22CSvq",
+          "sheet_name": "retimer",
+          "enabled": true,
+          "feishu_key_names": [
+            "型号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "Brand",
+            "HQ料号": "料号",
+            "HQ规格型号": "型号",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "23pHfc",
+          "sheet_name": "redriver",
+          "enabled": true,
+          "feishu_key_names": [
+            "Part Number"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "Brand",
+            "HQ料号": "料号",
+            "HQ规格型号": "Part Number",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "24GqYv",
+          "sheet_name": "clock gen",
+          "enabled": true,
+          "feishu_key_names": [
+            "Part Number"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "1009",
+            "HQ料号": "料号",
+            "HQ规格型号": "Part Number",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "25zBCC",
+          "sheet_name": "clock buffer",
+          "enabled": true,
+          "feishu_key_names": [
+            "Part Number"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "Brand",
+            "HQ料号": "料号",
+            "HQ规格型号": "Part Number",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "26KQGu",
+          "sheet_name": "RTC",
+          "enabled": true,
+          "feishu_key_names": [
+            "Part Number"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "Brand",
+            "HQ料号": "料号",
+            "HQ规格型号": "Part Number",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "27VuUl",
+          "sheet_name": "数据转换芯片",
+          "enabled": true,
+          "feishu_key_names": [
+            "Part Number"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "Brand",
+            "HQ料号": "料号",
+            "HQ规格型号": "Part Number",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "28uNCO",
+          "sheet_name": "MCU",
+          "enabled": true,
+          "feishu_key_names": [
+            "Part Number"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "Brand",
+            "HQ料号": "料号",
+            "HQ规格型号": "Part Number",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "29zWTJ",
+          "sheet_name": "比较器",
+          "enabled": true,
+          "feishu_key_names": [
+            "Part Number"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "Brand",
+            "HQ料号": "料号",
+            "HQ规格型号": "Part Number",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "30OffA",
+          "sheet_name": "放大器",
+          "enabled": true,
+          "feishu_key_names": [
+            "Part Number"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "Brand",
+            "HQ料号": "料号",
+            "HQ规格型号": "Part Number",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "31lwuC",
+          "sheet_name": "安全加密芯片",
+          "enabled": true,
+          "feishu_key_names": [
+            "Part Number"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "Brand",
+            "HQ料号": "料号",
+            "HQ规格型号": "Part Number",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "32okxT",
+          "sheet_name": "可编程逻辑器",
+          "enabled": true,
+          "feishu_key_names": [
+            "Part Number"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "Brand",
+            "HQ料号": "料号",
+            "HQ规格型号": "Part Number",
+            "优选等级": "PI"
+          }
+        }
+      ]
+    },
+    {
+      "name": "DBG分立器件优选库",
+      "token": "shthqEZrwmemvVULwrhmyAmlfzd",
+      "sheets": [
+        {
+          "sheet_id": "5a88f6",
+          "sheet_name": "小信号开关二极管",
+          "enabled": true,
+          "feishu_key_names": [
+            "规格型号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "制造商",
+            "HQ料号": "物料编码",
+            "HQ规格型号": "规格型号",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "m3qTym",
+          "sheet_name": "肖特基二极管",
+          "enabled": true,
+          "feishu_key_names": [
+            "规格型号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "制造商",
+            "HQ料号": "物料编码",
+            "HQ规格型号": "规格型号",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "rjCz4j",
+          "sheet_name": "齐纳二极管",
+          "enabled": true,
+          "feishu_key_names": [
+            "规格型号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "制造商",
+            "HQ料号": "物料编码",
+            "HQ规格型号": "规格型号",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "CfFMXM",
+          "sheet_name": "TVS",
+          "enabled": true,
+          "feishu_key_names": [
+            "规格型号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "制造商",
+            "HQ料号": "物料编码",
+            "HQ规格型号": "规格型号",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "O5umgO",
+          "sheet_name": "普通LED",
+          "enabled": true,
+          "feishu_key_names": [
+            "Part Number"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "Brand",
+            "HQ料号": "料号",
+            "HQ规格型号": "Part Number",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "2o5BMH",
+          "sheet_name": "ESD抑制器",
+          "enabled": true,
+          "feishu_key_names": [
+            "Part Number"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "Brand",
+            "HQ料号": "物料编码",
+            "HQ规格型号": "Part Number",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "7S8mdg",
+          "sheet_name": "信号三极管",
+          "enabled": true,
+          "feishu_key_names": [
+            "规格型号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "制造商",
+            "HQ料号": "物料编码",
+            "HQ规格型号": "规格型号",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "0cIJpB",
+          "sheet_name": "功率三极管",
+          "enabled": true,
+          "feishu_key_names": [
+            "规格型号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "制造商",
+            "HQ料号": "物料编码",
+            "HQ规格型号": "规格型号",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "iFWGfo",
+          "sheet_name": "信号MOSFET",
+          "enabled": true,
+          "feishu_key_names": [
+            "Part Number"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "Brand",
+            "HQ料号": "物料编码",
+            "HQ规格型号": "Part Number",
+            "优选等级": "优选属性"
+          }
+        },
+        {
+          "sheet_id": "JcCsAy",
+          "sheet_name": "功率MOSFET",
+          "enabled": true,
+          "feishu_key_names": [
+            "Part Number"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "Brand",
+            "HQ料号": "物料编码",
+            "HQ规格型号": "Part Number",
+            "优选等级": "PI"
+          }
+        },
+        {
+          "sheet_id": "iIFFEr",
+          "sheet_name": "光耦",
+          "enabled": true,
+          "feishu_key_names": [
+            "Part Number"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "Brand",
+            "HQ料号": "物料编码",
+            "HQ规格型号": "Part Number",
+            "优选等级": "PI"
+          }
+        }
+      ]
+    },
+    {
+      "name": "连接器",
+      "token": "shthqE9sVI2DkIBYkSkLcUdNxvn",
+      "sheets": [
+        {
+          "sheet_id": "4iUMUQ",
+          "sheet_name": "RJ45",
+          "enabled": true,
+          "feishu_key_names": [
+            "供应商料号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "华勤料号",
+            "HQ规格型号": "供应商料号",
+            "优选等级": "PI值"
+          }
+        },
+        {
+          "sheet_id": "5GhUah",
+          "sheet_name": "USB",
+          "enabled": true,
+          "feishu_key_names": [
+            "供应商料号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "华勤料号",
+            "HQ规格型号": "供应商料号",
+            "优选等级": "PI值"
+          }
+        },
+        {
+          "sheet_id": "6oGCkI",
+          "sheet_name": "Audio Jack",
+          "enabled": true,
+          "feishu_key_names": [
+            "供应商料号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "华勤料号",
+            "HQ规格型号": "供应商料号",
+            "优选等级": "PI值"
+          }
+        },
+        {
+          "sheet_id": "7ZFeRM",
+          "sheet_name": "SFP",
+          "enabled": true,
+          "feishu_key_names": [
+            "供应商料号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "华勤料号",
+            "HQ规格型号": "供应商料号",
+            "优选等级": "PI值"
+          }
+        },
+        {
+          "sheet_id": "8zQpYp",
+          "sheet_name": "Cage",
+          "enabled": true,
+          "feishu_key_names": [
+            "供应商料号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "华勤料号",
+            "HQ规格型号": "供应商料号",
+            "优选等级": "PI值"
+          }
+        },
+        {
+          "sheet_id": "9xznMQ",
+          "sheet_name": "DP",
+          "enabled": true,
+          "feishu_key_names": [
+            "供应商料号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "华勤料号",
+            "HQ规格型号": "供应商料号",
+            "优选等级": "PI值"
+          }
+        },
+        {
+          "sheet_id": "10vVix",
+          "sheet_name": "HDMI",
+          "enabled": true,
+          "feishu_key_names": [
+            "供应商料号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "华勤料号",
+            "HQ规格型号": "供应商料号",
+            "优选等级": "PI值"
+          }
+        },
+        {
+          "sheet_id": "11liAD",
+          "sheet_name": "D-Sub",
+          "enabled": true,
+          "feishu_key_names": [
+            "供应商料号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "华勤料号",
+            "HQ规格型号": "供应商料号",
+            "优选等级": "PI值"
+          }
+        },
+        {
+          "sheet_id": "12PDlc",
+          "sheet_name": "Combo",
+          "enabled": true,
+          "feishu_key_names": [
+            "供应商料号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "华勤料号",
+            "HQ规格型号": "供应商料号",
+            "优选等级": "PI值"
+          }
+        },
+        {
+          "sheet_id": "13NEbN",
+          "sheet_name": "Din类",
+          "enabled": true,
+          "feishu_key_names": [
+            "供应商料号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "华勤料号",
+            "HQ规格型号": "供应商料号",
+            "优选等级": "优选等级"
+          }
+        },
+        {
+          "sheet_id": "14tmYs",
+          "sheet_name": "CPU Socket ",
+          "enabled": true,
+          "feishu_key_names": [
+            "供应商料号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "华勤料号",
+            "HQ规格型号": "供应商料号",
+            "优选等级": "优选等级"
+          }
+        },
+        {
+          "sheet_id": "15ZwKJ",
+          "sheet_name": "CPU Socket Related ",
+          "enabled": true,
+          "feishu_key_names": [
+            "供应商料号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "华勤料号",
+            "HQ规格型号": "供应商料号",
+            "优选等级": "优选等级"
+          }
+        },
+        {
+          "sheet_id": "16NhGh",
+          "sheet_name": "DDR",
+          "enabled": true,
+          "feishu_key_names": [
+            "供应商料号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "华勤料号",
+            "HQ规格型号": "供应商料号",
+            "优选等级": "PI值"
+          }
+        },
+        {
+          "sheet_id": "17fgzQ",
+          "sheet_name": "M.2",
+          "enabled": true,
+          "feishu_key_names": [
+            "供应商料号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "华勤料号",
+            "HQ规格型号": "供应商料号",
+            "优选等级": "PI值"
+          }
+        },
+        {
+          "sheet_id": "18zbnx",
+          "sheet_name": "GEN Z ",
+          "enabled": true,
+          "feishu_key_names": [
+            "供应商料号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "华勤料号",
+            "HQ规格型号": "供应商料号",
+            "优选等级": "PI值"
+          }
+        },
+        {
+          "sheet_id": "19Riub",
+          "sheet_name": "PCIe ",
+          "enabled": true,
+          "feishu_key_names": [
+            "供应商料号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "华勤料号",
+            "HQ规格型号": "供应商料号",
+            "优选等级": "PI值"
+          }
+        },
+        {
+          "sheet_id": "20gxkM",
+          "sheet_name": "Slim SAS",
+          "enabled": true,
+          "feishu_key_names": [
+            "供应商料号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "华勤料号",
+            "HQ规格型号": "供应商料号",
+            "优选等级": "PI值"
+          }
+        },
+        {
+          "sheet_id": "21bHfo",
+          "sheet_name": "U2&U3",
+          "enabled": true,
+          "feishu_key_names": [
+            "供应商料号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "华勤料号",
+            "HQ规格型号": "供应商料号",
+            "优选等级": "PI值"
+          }
+        },
+        {
+          "sheet_id": "22DbXE",
+          "sheet_name": "SATA",
+          "enabled": true,
+          "feishu_key_names": [
+            "供应商料号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "华勤料号",
+            "HQ规格型号": "供应商料号",
+            "优选等级": "PI值"
+          }
+        },
+        {
+          "sheet_id": "23QPNo",
+          "sheet_name": "SAS 29Pin ",
+          "enabled": true,
+          "feishu_key_names": [
+            "供应商料号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "华勤料号",
+            "HQ规格型号": "供应商料号",
+            "优选等级": "PI值"
+          }
+        },
+        {
+          "sheet_id": "24zgbX",
+          "sheet_name": "Mini SAS HD",
+          "enabled": true,
+          "feishu_key_names": [
+            "供应商料号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "华勤料号",
+            "HQ规格型号": "供应商料号",
+            "优选等级": "PI值"
+          }
+        },
+        {
+          "sheet_id": "25MxYs",
+          "sheet_name": "Oculink",
+          "enabled": true,
+          "feishu_key_names": [
+            "供应商料号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "华勤料号",
+            "HQ规格型号": "供应商料号",
+            "优选等级": "PI值"
+          }
+        },
+        {
+          "sheet_id": "26EzHy",
+          "sheet_name": "MCIO",
+          "enabled": true,
+          "feishu_key_names": [
+            "供应商料号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "华勤料号",
+            "HQ规格型号": "供应商料号",
+            "优选等级": "PI值"
+          }
+        },
+        {
+          "sheet_id": "27ADpL",
+          "sheet_name": "高速BTB",
+          "enabled": true,
+          "feishu_key_names": [
+            "供应商料号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "华勤料号",
+            "HQ规格型号": "供应商料号",
+            "优选等级": "P值"
+          }
+        },
+        {
+          "sheet_id": "28vPDb",
+          "sheet_name": "Guide Module",
+          "enabled": true,
+          "feishu_key_names": [
+            "供应商料号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "华勤料号",
+            "HQ规格型号": "供应商料号",
+            "优选等级": "PI值"
+          }
+        },
+        {
+          "sheet_id": "29yOJV",
+          "sheet_name": "高速WTB",
+          "enabled": true,
+          "feishu_key_names": [
+            "供应商料号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "华勤料号",
+            "HQ规格型号": "供应商料号",
+            "优选等级": "PI值"
+          }
+        },
+        {
+          "sheet_id": "30lIRE",
+          "sheet_name": "High Power Card Edge",
+          "enabled": true,
+          "feishu_key_names": [
+            "供应商料号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "华勤料号",
+            "HQ规格型号": "供应商料号",
+            "优选等级": "PI值"
+          }
+        },
+        {
+          "sheet_id": "31AQVe",
+          "sheet_name": "功率WTB",
+          "enabled": true,
+          "feishu_key_names": [
+            "供应商料号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "华勤料号",
+            "HQ规格型号": "供应商料号",
+            "优选等级": "PI值"
+          }
+        },
+        {
+          "sheet_id": "Isv4TQ",
+          "sheet_name": "风扇连接器",
+          "enabled": true,
+          "feishu_key_names": [
+            "供应商料号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "华勤料号",
+            "HQ规格型号": "供应商料号",
+            "优选等级": "PI值"
+          }
+        },
+        {
+          "sheet_id": "32JfFP",
+          "sheet_name": "功率BTB ",
+          "enabled": true,
+          "feishu_key_names": [
+            "供应商料号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "华勤料号",
+            "HQ规格型号": "供应商料号",
+            "优选等级": "PI值"
+          }
+        },
+        {
+          "sheet_id": "33ylTu",
+          "sheet_name": "异形大电流",
+          "enabled": true,
+          "feishu_key_names": [
+            "供应商料号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "华勤料号",
+            "HQ规格型号": "供应商料号",
+            "优选等级": "PI值"
+          }
+        },
+        {
+          "sheet_id": "34ZrME",
+          "sheet_name": "Header",
+          "enabled": true,
+          "feishu_key_names": [
+            "供应商料号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "华勤料号",
+            "HQ规格型号": "供应商料号",
+            "优选等级": "PI值"
+          }
+        },
+        {
+          "sheet_id": "35WWcB",
+          "sheet_name": "Wafer ",
+          "enabled": true,
+          "feishu_key_names": [
+            "供应商料号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "华勤料号",
+            "HQ规格型号": "供应商料号",
+            "优选等级": "PI值"
+          }
+        },
+        {
+          "sheet_id": "36dgKy",
+          "sheet_name": "低速BTB",
+          "enabled": true,
+          "feishu_key_names": [
+            "供应商料号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "华勤料号",
+            "HQ规格型号": "供应商料号",
+            "优选等级": "优选等级"
+          }
+        },
+        {
+          "sheet_id": "37LCxb",
+          "sheet_name": "Button&Switch",
+          "enabled": true,
+          "feishu_key_names": [
+            "供应商料号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "华勤料号",
+            "HQ规格型号": "供应商料号",
+            "优选等级": "PI值"
+          }
+        },
+        {
+          "sheet_id": "38bFBi",
+          "sheet_name": "Flash Socket",
+          "enabled": true,
+          "feishu_key_names": [
+            "供应商料号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "华勤料号",
+            "HQ规格型号": "供应商料号",
+            "优选等级": "PI值"
+          }
+        },
+        {
+          "sheet_id": "39HpgU",
+          "sheet_name": "RF",
+          "enabled": true,
+          "feishu_key_names": [
+            "供应商料号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "华勤料号",
+            "HQ规格型号": "供应商料号",
+            "优选等级": "PI值"
+          }
+        },
+        {
+          "sheet_id": "40LSNI",
+          "sheet_name": "ZIF",
+          "enabled": true,
+          "feishu_key_names": [
+            "供应商料号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "华勤料号",
+            "HQ规格型号": "供应商料号",
+            "优选等级": "优选等级"
+          }
+        },
+        {
+          "sheet_id": "41LJAp",
+          "sheet_name": "SIM卡座",
+          "enabled": true,
+          "feishu_key_names": [
+            "供应商料号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "华勤料号",
+            "HQ规格型号": "供应商料号",
+            "优选等级": "优选等级"
+          }
+        },
+        {
+          "sheet_id": "42PWuZ",
+          "sheet_name": "SD卡座",
+          "enabled": true,
+          "feishu_key_names": [
+            "供应商料号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "华勤料号",
+            "HQ规格型号": "供应商料号",
+            "优选等级": "优选等级"
+          }
+        },
+        {
+          "sheet_id": "43pcCO",
+          "sheet_name": "Battery Holder",
+          "enabled": true,
+          "feishu_key_names": [
+            "供应商料号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "华勤料号",
+            "HQ规格型号": "供应商料号",
+            "优选等级": "优选等级"
+          }
+        },
+        {
+          "sheet_id": "44oaXU",
+          "sheet_name": "Busbar",
+          "enabled": true,
+          "feishu_key_names": [
+            "供应商料号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "华勤料号",
+            "HQ规格型号": "供应商料号",
+            "优选等级": "PI值"
+          }
+        },
+        {
+          "sheet_id": "45TdMA",
+          "sheet_name": "Speaker",
+          "enabled": true,
+          "feishu_key_names": [
+            "供应商料号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "华勤料号",
+            "HQ规格型号": "供应商料号",
+            "优选等级": "优选等级"
+          }
+        },
+        {
+          "sheet_id": "46cSvZ",
+          "sheet_name": "跳线帽",
+          "enabled": true,
+          "feishu_key_names": [
+            "供应商料号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "华勤料号",
+            "HQ规格型号": "供应商料号",
+            "优选等级": "优选等级"
+          }
+        },
+        {
+          "sheet_id": "47pjAy",
+          "sheet_name": "连接器附件",
+          "enabled": true,
+          "feishu_key_names": [
+            "供应商料号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "华勤料号",
+            "HQ规格型号": "供应商料号",
+            "优选等级": "PI值"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Cable",
+      "token": "shthqpYELkJAH7b0uPn1HRcEyLg",
+      "sheets": [
+        {
+          "sheet_id": "1ZoPmL",
+          "sheet_name": "SATA",
+          "enabled": true,
+          "feishu_key_names": [
+            "规格型号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "物料编码",
+            "HQ规格型号": "规格型号",
+            "优选等级": "优选等级"
+          }
+        },
+        {
+          "sheet_id": "5YBIpy",
+          "sheet_name": "低速信号线",
+          "enabled": true,
+          "feishu_key_names": [
+            "规格型号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "物料编码",
+            "HQ规格型号": "规格型号",
+            "优选等级": "优选等级"
+          }
+        },
+        {
+          "sheet_id": "2EgWQi",
+          "sheet_name": "Mini SAS HD",
+          "enabled": true,
+          "feishu_key_names": [
+            "规格型号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "物料编码",
+            "HQ规格型号": "规格型号",
+            "优选等级": "优选等级"
+          }
+        },
+        {
+          "sheet_id": "3mHuOJ",
+          "sheet_name": "Slimline",
+          "enabled": true,
+          "feishu_key_names": [
+            "规格型号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "物料编码",
+            "HQ规格型号": "规格型号",
+            "优选等级": "优选"
+          }
+        },
+        {
+          "sheet_id": "4fOfTm",
+          "sheet_name": "MCIO",
+          "enabled": true,
+          "feishu_key_names": [
+            "规格型号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "品牌",
+            "HQ料号": "物料编码",
+            "HQ规格型号": "规格型号",
+            "优选等级": "优选"
+          }
+        },
+        {
+          "sheet_id": "6OPKNl",
+          "sheet_name": "DC供电线",
+          "enabled": true,
+          "feishu_key_names": [
+            "规格型号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "物料编码",
+            "HQ规格型号": "规格型号",
+            "优选等级": "优选等级"
+          }
+        },
+        {
+          "sheet_id": "7hyUaF",
+          "sheet_name": "AC电源线",
+          "enabled": true,
+          "feishu_key_names": [
+            "规格型号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "物料编码",
+            "HQ规格型号": "规格型号",
+            "优选等级": "优选等级"
+          }
+        },
+        {
+          "sheet_id": "8IXcTc",
+          "sheet_name": "外部高速线",
+          "enabled": true,
+          "feishu_key_names": [
+            "规格型号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "物料编码",
+            "HQ规格型号": "规格型号",
+            "优选等级": "优选等级"
+          }
+        },
+        {
+          "sheet_id": "9lvClt",
+          "sheet_name": "单板焊线类（如CEM，OCP,GenZ）",
+          "enabled": true,
+          "feishu_key_names": [
+            "规格型号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "物料编码",
+            "HQ规格型号": "规格型号",
+            "优选等级": "优选等级"
+          }
+        },
+        {
+          "sheet_id": "N2SPai",
+          "sheet_name": "网线",
+          "enabled": true,
+          "feishu_key_names": [
+            "规格型号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "供应商",
+            "HQ料号": "物料编码",
+            "HQ规格型号": "规格型号",
+            "优选等级": "优选等级"
+          }
+        }
+      ]
+    },
+    {
+      "name": "客户物料型号与HQ料号对应关系",
+      "token": "shthq1R9G7zSp5hvTISGNDOWjme",
+      "sheets": [
+        {
+          "sheet_id": "0JxtQP",
+          "sheet_name": "字节",
+          "enabled": true,
+          "feishu_key_names": [
+            "厂家型号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "HQ制造商",
+            "HQ料号": "HQ料号",
+            "HQ规格型号": "HQ 规格型号"
+          }
+        },
+        {
+          "sheet_id": "Jrd1iQ",
+          "sheet_name": "阿里",
+          "enabled": true,
+          "feishu_key_names": [
+            "厂家型号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "HQ制造商",
+            "HQ料号": "HQ料号",
+            "HQ规格型号": "HQ 规格型号"
+          }
+        },
+        {
+          "sheet_id": "sPHlc5",
+          "sheet_name": "腾讯",
+          "enabled": true,
+          "feishu_key_names": [
+            "厂家型号"
+          ],
+          "fetch_col_aliases": {
+            "HQ制造商": "HQ制造商",
+            "HQ料号": "HQ料号",
+            "HQ规格型号": "HQ 规格型号"
+          }
+        }
+      ]
+    }
+  ]
+}
