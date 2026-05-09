@@ -805,8 +805,8 @@ async function fsBatchUpdate(){
   for(let i=0;i<fsTables.length;i++){
     const t=fsTables[i];
     if(!t.token) continue;
-    // 只刷新有缓存记录的 Sheet
-    const enabledSids=Object.entries(t.sheet_configs).filter(([,sc])=>sc.enabled&&sc.cache_key).map(([sid])=>sid);
+    // 只刷新有缓存记录的 Sheet（不管是否启用）
+    const enabledSids=Object.entries(t.sheet_configs).filter(([,sc])=>sc.cache_key).map(([sid])=>sid);
     if(!enabledSids.length) continue;
     if(!t._connected){
       $('fsBatchHint').textContent=`连接中：${t.name}`;
