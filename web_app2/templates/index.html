@@ -790,13 +790,16 @@ function fsSelectTable(idx){
         // 全局列别名覆盖（仅当 _fsGlobalFetchMap 非空时显示）
         const validGFM = _fsGlobalFetchMap.filter(r=>r.std_name);
         if(validGFM.length){
-          h+=`<div style="font-size:12px;font-weight:600;margin:8px 0 3px;color:#333">全局列别名覆盖 <span style="font-size:11px;font-weight:400;color:#888">（留空则用默认别名）</span>：</div>`;
+          h+=`<div style="font-size:12px;font-weight:600;margin:8px 0 3px;color:#333">全局列别名覆盖 <span style="font-size:11px;font-weight:400;color:#888">（不选则用默认别名）</span>：</div>`;
           validGFM.forEach((gm, gi)=>{
-            const overrideVal=_escH((sc.fetch_col_aliases||{})[gm.std_name]||'');
+            const overrideVal=(sc.fetch_col_aliases||{})[gm.std_name]||'';
+            const defAlias=gm.default_alias||gm.std_name;
+            // 下拉选项：空（用默认）+ 该 sheet 所有表头
+            let opts=`<option value="">— 默认：${_escH(defAlias)} —</option>`;
+            headers.forEach(h2=>{if(h2) opts+=`<option value="${_escH(h2)}"${h2===overrideVal?' selected':''}>${_escH(h2)}</option>`;});
             h+=`<div class="row" style="margin-bottom:3px">
               <label style="min-width:90px;font-size:12px;color:#444">${_escH(gm.std_name)}：</label>
-              <input type="text" id="fsgfa_${idx}_${sid}_${gi}" value="${overrideVal}"
-                     list="${fkDl}" style="width:180px" placeholder="默认：${_escH(gm.default_alias||gm.std_name)}">
+              <select id="fsgfa_${idx}_${sid}_${gi}" style="width:200px">${opts}</select>
             </div>`;
           });
         }
