@@ -475,7 +475,8 @@ const FS_TABLES = {{ preset_tables | tojson }};
 
 // ── SheetConfig 默认值工厂 ──────────────────────────────────
 function _mkSheetCfg(){
-  return {enabled:false, local_key_names:[''], feishu_key_names:[''],
+  const fkInit=_fsGlobalLocalKeys.map(()=>'');
+  return {enabled:false, local_key_names:_fsGlobalLocalKeys.slice(), feishu_key_names:fkInit,
           fetch_col_names:[], fetch_col_aliases:{}, _headers:[], _expanded:false,
           cache_key:'', cache_row_count:0, cache_fetched_at:0,
           row_count_at_cache:0, _cache_stale:false};
@@ -521,13 +522,19 @@ function fsGLKChange(){
 function fsAddGLK(){
   _fsGlobalLocalKeys=_fsGlobalLocalKeys.map((_,i)=>($(`fsGlk_${i}`)||{value:''}).value.trim());
   _fsGlobalLocalKeys.push('');
+  fsTables.forEach(t=>Object.values(t.sheet_configs).forEach(sc=>sc.feishu_key_names.push('')));
   fsRenderGLKSection(); fsSaveConfig();
+  if(fsCurIdx!==null) fsSelectTable(fsCurIdx);
 }
 
 function fsRemoveGLK(i){
   _fsGlobalLocalKeys=_fsGlobalLocalKeys.map((_,j)=>($(`fsGlk_${j}`)||{value:''}).value.trim());
   _fsGlobalLocalKeys.splice(i,1);
   if(!_fsGlobalLocalKeys.length) _fsGlobalLocalKeys=[''];
+  fsTables.forEach(t=>Object.values(t.sheet_configs).forEach(sc=>{
+    if(sc.feishu_key_names.length>i) sc.feishu_key_names.splice(i,1);
+    if(!sc.feishu_key_names.length) sc.feishu_key_names=[''];
+  }));
   fsRenderGLKSection(); fsSaveConfig();
   if(fsCurIdx!==null) fsSelectTable(fsCurIdx);
 }
@@ -807,8 +814,11 @@ function fsSelectTable(idx){
         // ── 左列：匹配键 ──
         h+=`<div style="flex:0 0 auto;min-width:260px">`;
         h+=`<div style="font-size:12px;font-weight:600;margin-bottom:6px;color:#333">匹配键（飞书侧）</div>`;
-        const fkArr=sc.feishu_key_names.length?sc.feishu_key_names:[''];
-        fkArr.forEach((fv, ki)=>{
+        // feishu key count mirrors local key count
+        const glkCount=_fsGlobalLocalKeys.length;
+        while(sc.feishu_key_names.length<glkCount) sc.feishu_key_names.push('');
+        if(sc.feishu_key_names.length>glkCount) sc.feishu_key_names.splice(glkCount);
+        sc.feishu_key_names.forEach((fv, ki)=>{
           const lkLabel=_fsGlobalLocalKeys[ki]?`<span style="color:#888;font-size:11px"> ← 本地"${_escH(_fsGlobalLocalKeys[ki])}"</span>`:'';
           const req=ki===0?'color:#c00000':'color:#555';
           let opts=`<option value="">${ki===0?'— 选择列 —':'（不使用）'}</option>`;
@@ -817,10 +827,8 @@ function fsSelectTable(idx){
             <span style="min-width:16px;font-size:12px;${req}">${ki+1}</span>
             <select id="fsfk_${idx}_${sid}_${ki}" style="width:190px;font-size:12px">${opts}</select>
             ${lkLabel}
-            ${fkArr.length>1?`<button class="btn btn-sm btn-gray" style="padding:0 6px;font-size:12px;line-height:20px" onclick="fsRemoveMatchKey(${idx},'${sid}',${ki})">×</button>`:''}
           </div>`;
         });
-        h+=`<button class="btn btn-sm btn-gray" style="padding:0 8px;font-size:12px;line-height:20px;margin-top:2px" onclick="fsAddMatchKey(${idx},'${sid}')">+</button>`;
         h+=`</div>`;
         // ── 右列：提取列映射 ──
         const validGFM = _fsGlobalFetchMap.filter(r=>r.std_name);
@@ -894,19 +902,6 @@ function fsSaveSheetCfg(tIdx, sid){
   const hint=$(`fsSaveHint_${tIdx}_${sid}`);if(hint){hint.textContent='✓ 已保存';setTimeout(()=>hint.textContent='',2000);}
 }
 
-function fsAddMatchKey(tIdx, sid){
-  fsSaveSheetCfg(tIdx, sid);
-  fsTables[tIdx].sheet_configs[sid].feishu_key_names.push('');
-  fsSelectTable(tIdx);
-}
-
-function fsRemoveMatchKey(tIdx, sid, ki){
-  fsSaveSheetCfg(tIdx, sid);
-  const arr=fsTables[tIdx].sheet_configs[sid].feishu_key_names;
-  arr.splice(ki,1);
-  if(!arr.length) arr.push('');
-  fsSelectTable(tIdx);
-}
 
 async function fsConnectTable(idx){
   const t=fsTables[idx];
