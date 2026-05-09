@@ -202,6 +202,15 @@ tr:hover td { background:#f7f9fc; }
     <span class="hint">（一次只能匹配一个 Sheet）</span>
     <label>表头行：</label><input type="number" id="fsHdr" value="1" min="1" style="width:60px">
   </div>
+  <div class="row" style="margin-top:6px">
+    <label style="color:#c00000;min-width:70px">本地键 1：</label>
+    <input type="text" id="fsGLk1" style="width:160px" placeholder="本地列名（必填）">
+    <label style="margin-left:16px;min-width:70px">本地键 2：</label>
+    <input type="text" id="fsGLk2" style="width:160px" placeholder="可选">
+    <label style="margin-left:16px;min-width:70px">本地键 3：</label>
+    <input type="text" id="fsGLk3" style="width:160px" placeholder="可选">
+    <span class="hint" style="margin-left:8px">所有飞书表格共用这组本地列名</span>
+  </div>
 </div>
 <div class="section"><h3>表格库</h3>
   <div class="row">
@@ -482,10 +491,16 @@ const _FS_KEY = 'bom-tools-feishu-v2';  // v2: per-sheet config
 function fsSaveConfig(){
   const bu=$('fsBaseUrl'), or_=$('fsOrigin'), ui=$('fsUserId');
   const prev = window._fsSavedCfg || {};
+  const glk1=$('fsGLk1'),glk2=$('fsGLk2'),glk3=$('fsGLk3');
   const cfg = {
     base_url: bu ? bu.value : prev.base_url||'',
     origin:  or_ ? or_.value : prev.origin||'',
     user_id:  ui ? ui.value  : prev.user_id||'',
+    global_local_keys: [
+      glk1?glk1.value:prev.global_local_keys?.[0]||'',
+      glk2?glk2.value:prev.global_local_keys?.[1]||'',
+      glk3?glk3.value:prev.global_local_keys?.[2]||'',
+    ],
     tables: fsTables.map(t=>({
       idx: t.idx, token: t.token||'',
       _sheets: t._sheets||[], _connected: !!t._connected,
@@ -574,11 +589,26 @@ function initFeishu(){
     if(saved.base_url) $('fsBaseUrl').value = saved.base_url;
     if(saved.origin)   $('fsOrigin').value  = saved.origin;
     if(saved.user_id)  $('fsUserId').value  = saved.user_id;
+    if(saved.global_local_keys){
+      if($('fsGLk1'))$('fsGLk1').value=saved.global_local_keys[0]||'';
+      if($('fsGLk2'))$('fsGLk2').value=saved.global_local_keys[1]||'';
+      if($('fsGLk3'))$('fsGLk3').value=saved.global_local_keys[2]||'';
+    }
     $('fsCfgStatus').textContent = '已从本地存储恢复配置';
   }
-  ['fsBaseUrl','fsOrigin','fsUserId'].forEach(id=>{
+  ['fsBaseUrl','fsOrigin','fsUserId','fsGLk1','fsGLk2','fsGLk3'].forEach(id=>{
     const el=$(id); if(el) el.oninput = fsSaveConfig;
   });
+  // 上传文件后更新本地键 datalist
+  const _updateLkList=()=>{
+    let dl='';(window._fsLocalHeaders||[]).forEach(h=>{if(h)dl+=`<option value="${_escH(h)}">`});
+    ['fsGLk1','fsGLk2','fsGLk3'].forEach(id=>{
+      let el=document.getElementById(id+'_list');
+      if(!el){el=document.createElement('datalist');el.id=id+'_list';document.body.appendChild(el);}
+      el.innerHTML=dl;const inp=$(id);if(inp)inp.setAttribute('list',id+'_list');
+    });
+  };
+  window._updateLkList=_updateLkList;
   renderFsTrees();
   $('fsBatchUpdate').onclick=fsBatchUpdate;
   $('fsExportCfg').onclick=fsExportConfig;
@@ -592,6 +622,7 @@ function initFeishu(){
       window._fsLocalHeaders=d.headers||[];
       const sel=$('fsSheet');sel.innerHTML='';
       (d.sheets||[]).forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent=s;sel.appendChild(o);});
+      if(window._updateLkList) window._updateLkList();
     });
   };
 }
@@ -687,15 +718,17 @@ function fsSelectTable(idx){
         let fkOpts='';headers.forEach(h2=>fkOpts+=`<option value="${_escH(h2)}">`);
         h+=`<datalist id="${lkDl}">${lkOpts}</datalist><datalist id="${fkDl}">${fkOpts}</datalist>`;
         h+=`<div style="padding:8px 12px;border-top:1px solid #eee">`;
-        h+=`<div style="font-size:12px;font-weight:600;margin-bottom:6px;color:#333">匹配键（AND 逻辑，第1对必填）：</div>`;
+        // 全局本地键名（从输入框读取）
+        const glk=[($('fsGLk1')||{value:''}).value,($('fsGLk2')||{value:''}).value,($('fsGLk3')||{value:''}).value];
+        h+=`<div style="font-size:12px;font-weight:600;margin-bottom:6px;color:#333">匹配键（飞书侧，AND 逻辑，与左侧本地键一一对应）：</div>`;
         [0,1,2].forEach(ki=>{
-          const lv=_escH(sc.local_key_names[ki]||'');
           const fv=_escH(sc.feishu_key_names[ki]||'');
+          const lkLabel=glk[ki]?`<span style="color:#555;font-size:11px">（本地"${_escH(glk[ki])}"对应）</span>`:'';
           const req=ki===0?'style="color:#c00000"':'';
           h+=`<div class="row" style="margin-bottom:4px">
             <label ${req}>${ki+1}：</label>
-            本地 <input type="text" id="fslk_${idx}_${sid}_${ki}" value="${lv}" list="${lkDl}" style="width:130px" placeholder="本地列名">
-            ↔ 飞书 <input type="text" id="fsfk_${idx}_${sid}_${ki}" value="${fv}" list="${fkDl}" style="width:130px" placeholder="飞书列名">
+            飞书 <input type="text" id="fsfk_${idx}_${sid}_${ki}" value="${fv}" list="${fkDl}" style="width:180px" placeholder="${ki===0?'必填':'可选'}">
+            ${lkLabel}
           </div>`;
         });
         h+=`<div style="font-size:12px;font-weight:600;margin:8px 0 4px;color:#333">需要提取的列：
@@ -748,7 +781,6 @@ function fsSaveSheetCfg(tIdx, sid){
   const t=fsTables[tIdx];
   if(!t.sheet_configs[sid]) t.sheet_configs[sid]=_mkSheetCfg();
   const sc=t.sheet_configs[sid];
-  sc.local_key_names=[0,1,2].map(ki=>($(`fslk_${tIdx}_${sid}_${ki}`)||{value:''}).value.trim());
   sc.feishu_key_names=[0,1,2].map(ki=>($(`fsfk_${tIdx}_${sid}_${ki}`)||{value:''}).value.trim());
   sc.fetch_col_names=[];
   document.querySelectorAll(`.fs-chk-col-${tIdx}-${sid}:checked`).forEach(cb=>sc.fetch_col_names.push(cb.value));
@@ -879,6 +911,10 @@ async function fsBatchUpdate(){
 async function fsRunMatch(){
   const f=$('fsFile').files[0];if(!f){alert('请先上传 BOM 文件');return;}
 
+  // 全局本地键
+  const gLocalKeys=[($('fsGLk1')||{value:''}).value.trim(),($('fsGLk2')||{value:''}).value.trim(),($('fsGLk3')||{value:''}).value.trim()].filter(k=>k);
+  if(!gLocalKeys.length){alert('请先填写本地匹配键（本地 BOM 文件区域）');return;}
+
   // 构建 per-sheet 配置
   const tables=[];
   fsTables.forEach(t=>{
@@ -887,9 +923,10 @@ async function fsRunMatch(){
     (t._sheets||[]).forEach(s=>{
       const sc=t.sheet_configs[s.sheetId];
       if(!sc||!sc.enabled) return;
-      const lk=(sc.local_key_names||[]).filter(k=>k);
       const fk=(sc.feishu_key_names||[]).filter(k=>k);
-      if(!lk.length||!fk.length) return;
+      if(!fk.length) return;
+      // 本地键与飞书键取相同数量
+      const lk=gLocalKeys.slice(0,fk.length);
       enabledSheets.push({
         sheet_id:s.sheetId, sheet_name:s.title,
         enabled:true,
