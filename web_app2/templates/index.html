@@ -1357,9 +1357,13 @@ async function fsRunMatch(){
       const d=await r.json();
       if(d.success){
         $('prStats').innerHTML=
-          `共 <b>${d.total}</b> 行 &nbsp;|&nbsp; 匹配 <b style="color:#2a8a2a">${d.matched}</b> 行 &nbsp;|&nbsp; `+
-          `未匹配 <b style="color:#c00000">${d.unmatched}</b> 行 &nbsp;|&nbsp; `+
-          `优选率 <b style="font-size:18px;color:#1a5ad4">${d.rate}</b>`;
+          `共 <b>${d.total}</b> 行 &nbsp;|&nbsp; `+
+          `匹配到HQ料号 <b style="color:#2a8a2a">${d.matched}</b> 行 &nbsp;|&nbsp; `+
+          `未匹配 <b style="color:#888">${d.unmatched}</b> 行（不参与计算）<br>`+
+          `已匹配中：优选料 <b style="color:#2a8a2a">${d.preferred}</b> 行 &nbsp;|&nbsp; `+
+          `非优选料 <b style="color:#c07000">${d.non_preferred}</b> 行<br>`+
+          `<span style="font-size:13px;color:#555">优选率（优选料/已匹配）= </span>`+
+          `<b style="font-size:20px;color:#1a5ad4">${d.rate}</b>`;
         $('prDl').href=d.download;
         $('prStatus').textContent='';
         show($('prResult'));

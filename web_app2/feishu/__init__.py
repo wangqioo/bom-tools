@@ -525,11 +525,24 @@ def api_pref_rate():
                     if hv and hv not in combined:
                         combined[hv] = {'pref': pv, 'source': tname}
 
+        def _is_preferred(pv):
+            """判断优选等级是否为优选料"""
+            s = str(pv).strip() if pv else ''
+            if not s:
+                return False
+            if '优选' in s:
+                return True
+            try:
+                return float(s) >= 7
+            except ValueError:
+                return False
+
         # Write output
         from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
-        green_fill = PatternFill('solid', fgColor='E8F5E9')
-        red_fill   = PatternFill('solid', fgColor='FFEBEE')
-        hdr_font   = Font(bold=True)
+        pref_fill    = PatternFill('solid', fgColor='E8F5E9')   # 绿：优选
+        nonpref_fill = PatternFill('solid', fgColor='FFF9C4')   # 黄：匹配到但非优选
+        nomatch_fill = PatternFill('solid', fgColor='F5F5F5')   # 灰：未匹配
+        hdr_font = Font(bold=True)
         bdr = Border(
             left=Side(style='thin'), right=Side(style='thin'),
             top=Side(style='thin'),  bottom=Side(style='thin'))
@@ -545,7 +558,7 @@ def api_pref_rate():
             c = ws_out.cell(row=1, column=ci, value=h)
             c.font = hdr_font; c.border = bdr; c.alignment = center
 
-        total = matched = dr = 0
+        total = matched = preferred = dr = 0
         for ri in range(header_row + 1, ws.max_row + 1):
             row_vals = [ws.cell(row=ri, column=ci).value
                         for ci in range(1, ws.max_column + 1)]
@@ -555,10 +568,15 @@ def api_pref_rate():
             dr += 1
             kv = _cell_str(row_vals[key_col_idx]) if key_col_idx < len(row_vals) else ''
             m  = combined.get(kv) if kv else None
-            fill = green_fill if m else red_fill
-            out_row = list(row_vals) + [m['pref'] if m else '', m['source'] if m else '']
             if m:
                 matched += 1
+                is_pref = _is_preferred(m['pref'])
+                if is_pref:
+                    preferred += 1
+                fill = pref_fill if is_pref else nonpref_fill
+            else:
+                fill = nomatch_fill
+            out_row = list(row_vals) + [m['pref'] if m else '', m['source'] if m else '']
             for ci, v in enumerate(out_row, 1):
                 c = ws_out.cell(row=dr + 1, column=ci, value=v)
                 c.fill = fill; c.border = bdr
@@ -574,7 +592,10 @@ def api_pref_rate():
             'total': total,
             'matched': matched,
             'unmatched': total - matched,
-            'rate': f'{matched / total * 100:.1f}%' if total else '0%',
+            'preferred': preferred,
+            'non_preferred': matched - preferred,
+            # 优选率 = 优选料 / 已匹配料（未匹配不参与）
+            'rate': f'{preferred / matched * 100:.1f}%' if matched else 'N/A',
         })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
