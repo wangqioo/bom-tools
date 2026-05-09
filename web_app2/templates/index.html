@@ -211,6 +211,10 @@ tr:hover td { background:#f7f9fc; }
     <input type="text" id="fsGLk3" style="width:160px" placeholder="可选">
     <span class="hint" style="margin-left:8px">所有飞书表格共用这组本地列名</span>
   </div>
+  <div class="row" style="margin-top:6px;align-items:center">
+    <label style="min-width:70px;color:#555">提取列：</label>
+    <div id="fsGFMSection" style="display:inline-flex;flex-wrap:wrap;gap:5px;align-items:center"></div>
+  </div>
 </div>
 <div class="section"><h3>表格库</h3>
   <div class="row">
@@ -227,11 +231,6 @@ tr:hover td { background:#f7f9fc; }
       <span style="color:#888">← 点击左侧表格查看详情</span>
     </div>
   </div>
-</div>
-<div class="section"><h3>提取列映射</h3>
-  <div style="font-size:12px;color:#666;margin-bottom:10px">定义要从飞书 Sheet 中提取的标准列名，连接表格后在下方总览中为每个 Sheet 选择对应的列。</div>
-  <div id="fsGFMSection"></div>
-  <div id="fsMappingSection"></div>
 </div>
 <div class="section"><h3>运行匹配</h3>
   <div id="fsRunStatus" style="font-size:12px;color:#888;margin-bottom:8px"></div>
@@ -831,50 +830,46 @@ function fsSelectTable(idx){
         let lkOpts='';(window._fsLocalHeaders||[]).forEach(h2=>lkOpts+=`<option value="${_escH(h2)}">`);
         let fkOpts='';headers.forEach(h2=>fkOpts+=`<option value="${_escH(h2)}">`);
         h+=`<datalist id="${lkDl}">${lkOpts}</datalist><datalist id="${fkDl}">${fkOpts}</datalist>`;
-        h+=`<div style="padding:8px 12px;border-top:1px solid #eee">`;
-        // 全局本地键名（从输入框读取）
+        h+=`<div style="padding:8px 12px;border-top:1px solid #eee;display:flex;gap:24px;align-items:flex-start">`;
+        // ── 左列：匹配键 ──
         const glk=[($('fsGLk1')||{value:''}).value,($('fsGLk2')||{value:''}).value,($('fsGLk3')||{value:''}).value];
-        h+=`<div style="font-size:12px;font-weight:600;margin-bottom:6px;color:#333">匹配键（飞书侧，AND 逻辑，与左侧本地键一一对应）：</div>`;
+        h+=`<div style="flex:0 0 auto;min-width:260px">`;
+        h+=`<div style="font-size:12px;font-weight:600;margin-bottom:6px;color:#333">匹配键（飞书侧）</div>`;
         [0,1,2].forEach(ki=>{
           const fv=_escH(sc.feishu_key_names[ki]||'');
-          const lkLabel=glk[ki]?`<span style="color:#555;font-size:11px">（本地"${_escH(glk[ki])}"对应）</span>`:'';
-          const req=ki===0?'style="color:#c00000"':'';
-          h+=`<div class="row" style="margin-bottom:4px">
-            <label ${req}>${ki+1}：</label>
-            飞书 <input type="text" id="fsfk_${idx}_${sid}_${ki}" value="${fv}" list="${fkDl}" style="width:180px" placeholder="${ki===0?'必填':'可选'}">
+          const lkLabel=glk[ki]?`<span style="color:#888;font-size:11px"> ← 本地"${_escH(glk[ki])}"</span>`:'';
+          const req=ki===0?'style="color:#c00000"':'style="color:#555"';
+          h+=`<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+            <label ${req} style="min-width:18px;font-size:12px">${ki+1}</label>
+            <input type="text" id="fsfk_${idx}_${sid}_${ki}" value="${fv}" list="${fkDl}" style="width:170px;font-size:12px" placeholder="${ki===0?'必填':'可选'}">
             ${lkLabel}
           </div>`;
         });
-        // 全局列别名覆盖（仅当 _fsGlobalFetchMap 非空时显示）
+        h+=`</div>`;
+        // ── 右列：提取列映射 ──
         const validGFM = _fsGlobalFetchMap.filter(r=>r.std_name);
+        h+=`<div style="flex:1">`;
         if(validGFM.length){
-          h+=`<div style="font-size:12px;font-weight:600;margin:8px 0 3px;color:#333">全局列别名覆盖 <span style="font-size:11px;font-weight:400;color:#888">（不选则用默认别名）</span>：</div>`;
+          h+=`<div style="font-size:12px;font-weight:600;margin-bottom:6px;color:#333">提取列映射</div>`;
           validGFM.forEach((gm, gi)=>{
             const overrideVal=(sc.fetch_col_aliases||{})[gm.std_name]||'';
             const defAlias=gm.default_alias||gm.std_name;
-            // 下拉选项：空（用默认）+ 该 sheet 所有表头
-            let opts=`<option value="">— 默认：${_escH(defAlias)} —</option>`;
+            let opts=`<option value="">— ${_escH(defAlias)} —</option>`;
             headers.forEach(h2=>{if(h2) opts+=`<option value="${_escH(h2)}"${h2===overrideVal?' selected':''}>${_escH(h2)}</option>`;});
-            h+=`<div class="row" style="margin-bottom:3px">
-              <label style="min-width:90px;font-size:12px;color:#444">${_escH(gm.std_name)}：</label>
-              <select id="fsgfa_${idx}_${sid}_${gi}" style="width:200px">${opts}</select>
+            h+=`<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+              <label style="min-width:65px;font-size:12px;color:#444;text-align:right">${_escH(gm.std_name)}：</label>
+              <select id="fsgfa_${idx}_${sid}_${gi}" style="width:190px;font-size:12px">${opts}</select>
             </div>`;
           });
+        } else {
+          h+=`<div style="color:#aaa;font-size:12px">在上方"提取列"中添加标准列后显示</div>`;
         }
-        h+=`<div style="font-size:12px;font-weight:600;margin:8px 0 4px;color:#333">额外提取列（逐列勾选）：
-          <button class="btn btn-sm btn-gray" style="padding:1px 6px;font-size:11px" onclick="fsSelAllCols(${idx},'${sid}',true)">全选</button>
-          <button class="btn btn-sm btn-gray" style="padding:1px 6px;font-size:11px" onclick="fsSelAllCols(${idx},'${sid}',false)">全不选</button>
+        h+=`</div>`;
+        h+=`</div>`;  // end flex row
+        h+=`<div style="padding:4px 12px 10px">
+          <button class="btn btn-sm btn-primary" onclick="fsSaveSheetCfg(${idx},'${sid}')">保存此 Sheet 配置</button>
+          <span id="fsSaveHint_${idx}_${sid}" class="hint"></span>
         </div>`;
-        h+=`<div class="chk-list" style="max-height:140px;font-size:12px">`;
-        headers.forEach(col=>{
-          if(!col)return;
-          const ckd = (sc.fetch_col_names||[]).includes(col)?'checked':'';
-          h+=`<label><input type="checkbox" value="${_escH(col)}" ${ckd} class="fs-chk-col-${idx}-${sid}"> ${_escH(col)}</label>`;
-        });
-        h+=`</div>`;
-        h+=`<button class="btn btn-sm btn-primary" style="margin-top:8px" onclick="fsSaveSheetCfg(${idx},'${sid}')">保存此 Sheet 配置</button>
-            <span id="fsSaveHint_${idx}_${sid}" class="hint"></span>`;
-        h+=`</div>`;
       }
       h+=`</div>`;
     });
@@ -912,8 +907,6 @@ function fsSaveSheetCfg(tIdx, sid){
   if(!t.sheet_configs[sid]) t.sheet_configs[sid]=_mkSheetCfg();
   const sc=t.sheet_configs[sid];
   sc.feishu_key_names=[0,1,2].map(ki=>($(`fsfk_${tIdx}_${sid}_${ki}`)||{value:''}).value.trim());
-  sc.fetch_col_names=[];
-  document.querySelectorAll(`.fs-chk-col-${tIdx}-${sid}:checked`).forEach(cb=>sc.fetch_col_names.push(cb.value));
   // Save per-sheet alias overrides for global fetch map
   sc.fetch_col_aliases={};
   _fsGlobalFetchMap.filter(r=>r.std_name).forEach((gm,gi)=>{
