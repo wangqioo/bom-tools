@@ -602,11 +602,14 @@ function fsExportConfig(){
 
   const json = JSON.stringify(out, null, 2);
   const blob = new Blob([json], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
+  a.href = url;
   a.download = 'bom_config.json';
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(a.href);
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 function fsClearConfig(){
