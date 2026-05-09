@@ -220,18 +220,6 @@ tr:hover td { background:#f7f9fc; }
     </div>
   </div>
 </div>
-<div class="section"><h3>列映射</h3>
-  <div class="row"><label>配置表格：</label><select id="fsMapTable" style="width:220px"><option>请先在表格库加载数据</option></select><button class="btn btn-sm btn-gray" id="fsMapRefresh" style="margin-left:4px">刷新</button></div>
-  <div class="section" style="background:#fafbfc;margin-bottom:0"><h3>匹配键（AND 逻辑，第1对必填）</h3>
-    <div class="row"><label style="color:#c00000">第1对：</label>本地 <input type="text" id="fsLk1" style="width:160px" placeholder="本地列名"> ↔ 飞书 <input type="text" id="fsFk1" style="width:160px" placeholder="飞书列名"></div>
-    <div class="row"><label>第2对：</label>本地 <input type="text" id="fsLk2" style="width:160px" placeholder="可选"> ↔ 飞书 <input type="text" id="fsFk2" style="width:160px" placeholder="可选"> <button class="btn btn-sm btn-gray" id="fsClear2">清除</button></div>
-    <div class="row"><label>第3对：</label>本地 <input type="text" id="fsLk3" style="width:160px" placeholder="可选"> ↔ 飞书 <input type="text" id="fsFk3" style="width:160px" placeholder="可选"> <button class="btn btn-sm btn-gray" id="fsClear3">清除</button></div>
-  </div>
-  <div style="margin-top:10px"><b>要提取的列：</b> <button class="btn btn-sm btn-gray" id="fsSelAll">全选</button> <button class="btn btn-sm btn-gray" id="fsSelNone">全不选</button></div>
-  <div class="chk-list" id="fsChkList" style="margin-top:6px"></div>
-  <button class="btn btn-sm btn-primary" id="fsSaveMap" style="margin-top:8px">保存此表格列映射配置</button> <span id="fsSaveHint" class="hint"></span>
-  <div id="fsMapWarn" style="color:#c00000;font-size:12px;margin-top:4px"></div>
-</div>
 <div class="section"><h3>运行匹配</h3>
   <div id="fsRunStatus" style="font-size:12px;color:#888;margin-bottom:8px"></div>
   <button class="btn btn-primary" id="fsRun">⚡ 开始匹配</button>
@@ -474,18 +462,23 @@ function initPlm(){
 
 // ─── 飞书匹配 ─────────────────────────────────────────
 const FS_TABLES = {{ preset_tables | tojson }};
+
+// ── SheetConfig 默认值工厂 ──────────────────────────────────
+function _mkSheetCfg(){
+  return {enabled:false, local_key_names:['','',''], feishu_key_names:['','',''],
+          fetch_col_names:[], _headers:[], _expanded:false,
+          cache_key:'', cache_row_count:0, cache_fetched_at:0,
+          row_count_at_cache:0, _cache_stale:false};
+}
+
 let fsTables = FS_TABLES.map((t,i)=>({
-  ...t, idx:i,
-  _sheets:[], _headers:[], _connected:false, _loaded:false,
-  enabled:false, active_sheet_ids:[],
-  local_key_names:['','',''], feishu_key_names:['','',''], fetch_col_names:[],
-  cache_key:'', cache_row_count:0, cache_fetched_at:0,
-  _cache_sheet_counts:{}, _cache_stale:false,
+  ...t, idx:i, token:'', _sheets:[], _connected:false,
+  sheet_configs:{},
 }));
 let fsCurIdx = null;
 
 // ─── localStorage 持久化 ──────────────────────────────
-const _FS_KEY = 'bom-tools-feishu-v1';
+const _FS_KEY = 'bom-tools-feishu-v2';  // v2: per-sheet config
 
 function fsSaveConfig(){
   const bu=$('fsBaseUrl'), or_=$('fsOrigin'), ui=$('fsUserId');
@@ -495,16 +488,21 @@ function fsSaveConfig(){
     origin:  or_ ? or_.value : prev.origin||'',
     user_id:  ui ? ui.value  : prev.user_id||'',
     tables: fsTables.map(t=>({
-      idx:t.idx, token:t.token||'', enabled:t.enabled,
-      active_sheet_ids:t.active_sheet_ids||[],
-      local_key_names:t.local_key_names||['','',''],
-      feishu_key_names:t.feishu_key_names||['','',''],
-      fetch_col_names:t.fetch_col_names||[],
-      _sheets:t._sheets||[], _headers:t._headers||[],
-      _connected:!!t._connected, _loaded:!!t._loaded,
-      cache_key:t.cache_key||'', cache_row_count:t.cache_row_count||0,
-      cache_fetched_at:t.cache_fetched_at||0,
-      _cache_sheet_counts:t._cache_sheet_counts||{},
+      idx: t.idx, token: t.token||'',
+      _sheets: t._sheets||[], _connected: !!t._connected,
+      sheet_configs: Object.fromEntries(
+        Object.entries(t.sheet_configs).map(([sid, sc])=>[sid,{
+          enabled: !!sc.enabled,
+          local_key_names: sc.local_key_names||['','',''],
+          feishu_key_names: sc.feishu_key_names||['','',''],
+          fetch_col_names: sc.fetch_col_names||[],
+          _headers: sc._headers||[],
+          cache_key: sc.cache_key||'',
+          cache_row_count: sc.cache_row_count||0,
+          cache_fetched_at: sc.cache_fetched_at||0,
+          row_count_at_cache: sc.row_count_at_cache||0,
+        }])
+      ),
     })),
   };
   try{ localStorage.setItem(_FS_KEY, JSON.stringify(cfg)); window._fsSavedCfg=cfg; }catch(e){}
@@ -514,14 +512,7 @@ function fsClearConfig(){
   if(!confirm('确认清除所有飞书本地配置？（含 Token、列映射、缓存记录）')) return;
   try{ localStorage.removeItem(_FS_KEY); }catch(e){}
   window._fsSavedCfg = null;
-  // reset fsTables
-  fsTables = FS_TABLES.map((t,i)=>({
-    ...t, idx:i,
-    _sheets:[], _headers:[], _connected:false, _loaded:false,
-    enabled:false, active_sheet_ids:[],
-    local_key_names:['','',''], feishu_key_names:['','',''], fetch_col_names:[],
-    cache_key:'', cache_row_count:0, cache_fetched_at:0,
-  }));
+  fsTables = FS_TABLES.map((t,i)=>({...t, idx:i, token:'', _sheets:[], _connected:false, sheet_configs:{}}));
   renderFsTrees();
   $('fsCfgStatus').textContent='配置已清除';
 }
@@ -536,28 +527,19 @@ function fsClearConfig(){
     if(cfg.tables){
       cfg.tables.forEach(st=>{
         const t = fsTables[st.idx]; if(!t) return;
-        t.token           = st.token || t.token || '';
-        t.enabled         = !!st.enabled;
-        t.active_sheet_ids= st.active_sheet_ids || [];
-        t.local_key_names = st.local_key_names  || ['','',''];
-        t.feishu_key_names= st.feishu_key_names || ['','',''];
-        t.fetch_col_names = st.fetch_col_names  || [];
-        t._sheets         = st._sheets  || [];
-        t._headers        = st._headers || [];
-        t._connected      = !!st._connected;
-        t._loaded         = !!st._loaded;
-        t.cache_key          = st.cache_key          || '';
-        t.cache_row_count    = st.cache_row_count    || 0;
-        t.cache_fetched_at   = st.cache_fetched_at   || 0;
-        t._cache_sheet_counts= st._cache_sheet_counts|| {};
-        t._cache_stale       = false;  // re-evaluated on next connect
+        t.token      = st.token || t.token || '';
+        t._sheets    = st._sheets || [];
+        t._connected = !!st._connected;
+        const saved_sc = st.sheet_configs || {};
+        Object.entries(saved_sc).forEach(([sid, sc])=>{
+          t.sheet_configs[sid] = Object.assign(_mkSheetCfg(), sc, {_expanded:false, _cache_stale:false});
+        });
       });
     }
   }catch(e){}
 }());
 
 function initFeishu(){
-  // 恢复网关配置
   const saved = window._fsSavedCfg;
   if(saved){
     if(saved.base_url) $('fsBaseUrl').value = saved.base_url;
@@ -565,7 +547,6 @@ function initFeishu(){
     if(saved.user_id)  $('fsUserId').value  = saved.user_id;
     $('fsCfgStatus').textContent = '已从本地存储恢复配置';
   }
-  // 网关字段变化时自动保存
   ['fsBaseUrl','fsOrigin','fsUserId'].forEach(id=>{
     const el=$(id); if(el) el.oninput = fsSaveConfig;
   });
@@ -574,13 +555,6 @@ function initFeishu(){
   $('fsBatchUpdate').onclick=fsBatchUpdate;
   $('fsClearConfig').onclick=fsClearConfig;
   $('fsRun').onclick=fsRunMatch;
-  $('fsMapRefresh').onclick=renderFsMapTable;
-  $('fsMapTable').onchange=fsOnMapTableChange;
-  $('fsSelAll').onclick=()=>document.querySelectorAll('.fs-chk-col').forEach(cb=>cb.checked=true);
-  $('fsSelNone').onclick=()=>document.querySelectorAll('.fs-chk-col').forEach(cb=>cb.checked=false);
-  $('fsSaveMap').onclick=fsSaveMapping;
-  $('fsClear2').onclick=()=>{$('fsLk2').value='';$('fsFk2').value='';};
-  $('fsClear3').onclick=()=>{$('fsLk3').value='';$('fsFk3').value='';};
   $('fsFile').onchange=function(){
     const f=this.files[0];if(!f)return;
     const fd=new FormData();fd.append('file',f);fd.append('header_row',$('fsHdr').value||1);
@@ -588,17 +562,7 @@ function initFeishu(){
       if(!d.success)return;
       window._fsLocalHeaders=d.headers||[];
       const sel=$('fsSheet');sel.innerHTML='';
-      (d.sheets||[]).forEach(s=>{
-        const o=document.createElement('option');o.value=s;o.textContent=s;sel.appendChild(o);
-      });
-      // update datalists for local key inputs
-      let dl='';
-      (d.headers||[]).forEach(h=>{if(h)dl+=`<option value="${h}">`});
-      ['fsLk1','fsLk2','fsLk3'].forEach(id=>{
-        let el=document.getElementById(id+'_list');
-        if(!el){el=document.createElement('datalist');el.id=id+'_list';document.body.appendChild(el);}
-        el.innerHTML=dl;$(id).setAttribute('list',id+'_list');
-      });
+      (d.sheets||[]).forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent=s;sel.appendChild(o);});
     });
   };
 }
@@ -609,6 +573,17 @@ function _fmtTime(ts){
   return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
 }
 
+function _sheetSummary(t){
+  // returns {enabledCount, cachedCount, staleCount, totalEnabled}
+  let enabled=0, cached=0, stale=0;
+  Object.values(t.sheet_configs).forEach(sc=>{
+    if(sc.enabled){ enabled++;
+      if(sc.cache_key){ cached++; if(sc._cache_stale) stale++; }
+    }
+  });
+  return {enabled, cached, stale};
+}
+
 function renderFsTrees(){
   const cats={'优选库':[],'对应关系库':[]};
   fsTables.forEach(t=>{const c=t.category||'优选库';(cats[c]=cats[c]||[]).push(t);});
@@ -617,60 +592,139 @@ function renderFsTrees(){
     if(!ts.length)continue;
     h+=`<div class="tree-cat${cat==='对应关系库'?' alt':''}">▸ ${cat}</div>`;
     ts.forEach(t=>{
-      // 加载状态：✓=已缓存且最新  ⚠=已缓存但线上数据已变  ◎=仅获取列名  —=未连接
-      const ld = t.cache_key ? (t._cache_stale?'⚠':'✓') : (t._connected||t._loaded?'◎':'—');
-      const mt = t.enabled&&t.cache_key?'●':t.enabled?'！':'○';
-      const ldCls = t.cache_key ? (t._cache_stale?'badge-orange':'badge-green') : (t._connected||t._loaded?'badge-blue':'badge-gray');
-      const mtCls = t.enabled&&t.cache_key?'badge-green':t.enabled?'badge-orange':'badge-gray';
-      const cacheHint = t.cache_key&&t.cache_row_count ? ` <span style="font-size:10px;color:#888">${t.cache_row_count}行</span>` : '';
+      const {enabled, cached, stale} = _sheetSummary(t);
+      // ld badge: ✓=全部启用sheet已缓存  ⚠=有过期缓存  ◎=已连接  —=未连接
+      const ld = cached>0 ? (stale>0?'⚠':'✓') : (t._connected?'◎':'—');
+      const ldCls = cached>0 ? (stale>0?'badge-orange':'badge-green') : (t._connected?'badge-blue':'badge-gray');
+      // mt badge: ●=有启用且有缓存  ！=有启用无缓存  ○=无启用
+      const mt = enabled>0&&cached>0?'●':enabled>0?'！':'○';
+      const mtCls = enabled>0&&cached>0?'badge-green':enabled>0?'badge-orange':'badge-gray';
+      const hint = enabled>0 ? ` <span style="font-size:10px;color:#888">${enabled}Sheet</span>` : '';
       h+=`<div class="tree-item" data-idx="${t.idx}" onclick="fsSelectTable(${t.idx})">
-        <span class="indent"></span><span style="flex:1">${t.name}${cacheHint}</span>
+        <span class="indent"></span><span style="flex:1">${t.name}${hint}</span>
         <span class="badge-sm ${ldCls}">${ld}</span>
         <span class="badge-sm ${mtCls}">${mt}</span>
       </div>`;
     });
   }
   $('fsTreeList').innerHTML=h;
-  renderFsMapTable();
 }
+
+function _escH(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
 
 function fsSelectTable(idx){
   fsCurIdx=idx;
   const t=fsTables[idx];
   document.querySelectorAll('#fsTreeList .tree-item').forEach(el=>el.classList.toggle('selected',parseInt(el.dataset.idx)===idx));
-  let h=`<h4>${t.name} <span style="font-size:11px;color:#888;font-weight:400">(${t.category||'优选库'})</span></h4>`;
-  h+=`<div class="row"><label>名称：</label><input type="text" id="fsDetName" value="${t.name}" style="width:160px">
-    <label>Token：</label><input type="text" id="fsDetToken" value="${t.token||''}" style="width:260px">
-    <label>启用：</label><input type="checkbox" id="fsDetEnable" ${t.enabled?'checked':''} onchange="fsTables[${idx}].enabled=this.checked;renderFsTrees();fsSaveConfig()"></div>`;
+
+  let h=`<h4>${_escH(t.name)} <span style="font-size:11px;color:#888;font-weight:400">(${_escH(t.category||'优选库')})</span></h4>`;
+  h+=`<div class="row"><label>Token：</label><input type="text" id="fsDetToken" value="${_escH(t.token||'')}" style="width:300px" placeholder="飞书表格 Token"></div>`;
   h+=`<div class="row">
     <button class="btn btn-sm btn-primary" onclick="fsConnectTable(${idx})">连接并获取 Sheet 列表</button>
-    <button class="btn btn-sm btn-green"   onclick="fsCacheTable(${idx})">⬇ 加载并缓存全部数据</button>
   </div>`;
+
   if(t._sheets.length){
-    h+=`<div style="margin-top:8px"><b>Sheet 选择（可多选）：</b></div><div class="chk-list" style="max-height:200px">`;
+    h+=`<div style="margin-top:10px;margin-bottom:4px;font-weight:600">Sheets 配置：</div>`;
     t._sheets.forEach(s=>{
-      const ckd=t.active_sheet_ids.includes(s.sheetId)?'checked':'';
-      h+=`<label><input type="checkbox" value="${s.sheetId}" ${ckd} onchange="fsToggleSheet(${idx},'${s.sheetId}',this.checked)"> ${s.title}</label>`;
+      const sid=s.sheetId;
+      const sc = t.sheet_configs[sid] || _mkSheetCfg();
+      const headers = sc._headers||[];
+      const chk = sc.enabled?'checked':'';
+      let cacheTag;
+      if(sc.cache_key){
+        cacheTag = sc._cache_stale
+          ? `<span style="color:#c07000;font-size:11px">⚠过期(${_fmtTime(sc.cache_fetched_at)})</span>`
+          : `<span style="color:#2a8a2a;font-size:11px">✓${sc.cache_row_count}行(${_fmtTime(sc.cache_fetched_at)})</span>`;
+      } else {
+        cacheTag = `<span style="color:#e07000;font-size:11px">无缓存</span>`;
+      }
+      const hdrTag = headers.length ? `<span style="color:#888;font-size:11px">${headers.length}列</span>` : '';
+      const exp = sc._expanded;
+      h+=`<div style="border:1px solid #dde;border-radius:4px;margin-bottom:6px;background:${sc.enabled?'#f8fff8':'#fafafa'}">`;
+      // Sheet header row
+      h+=`<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;cursor:pointer" onclick="fsToggleSheetExpand(${idx},'${sid}')">
+        <input type="checkbox" ${chk} onclick="event.stopPropagation();fsToggleSheetEnable(${idx},'${sid}',this.checked)" title="参与匹配">
+        <span style="flex:1;font-size:13px">${_escH(s.title)}</span>
+        ${hdrTag} ${cacheTag}
+        <button class="btn btn-sm btn-green" style="padding:1px 7px;font-size:12px" onclick="event.stopPropagation();fsCacheSheet(${idx},'${sid}')">⬇ 缓存</button>
+        <span style="font-size:12px;color:#666">${exp?'▲':'▼'}</span>
+      </div>`;
+      // Expanded config section
+      if(exp){
+        // local key datalist
+        const lkDl = `fslk_${idx}_${sid}`;
+        const fkDl = `fsfk_${idx}_${sid}`;
+        let lkOpts='';(window._fsLocalHeaders||[]).forEach(h2=>lkOpts+=`<option value="${_escH(h2)}">`);
+        let fkOpts='';headers.forEach(h2=>fkOpts+=`<option value="${_escH(h2)}">`);
+        h+=`<datalist id="${lkDl}">${lkOpts}</datalist><datalist id="${fkDl}">${fkOpts}</datalist>`;
+        h+=`<div style="padding:8px 12px;border-top:1px solid #eee">`;
+        h+=`<div style="font-size:12px;font-weight:600;margin-bottom:6px;color:#333">匹配键（AND 逻辑，第1对必填）：</div>`;
+        [0,1,2].forEach(ki=>{
+          const lv=_escH(sc.local_key_names[ki]||'');
+          const fv=_escH(sc.feishu_key_names[ki]||'');
+          const req=ki===0?'style="color:#c00000"':'';
+          h+=`<div class="row" style="margin-bottom:4px">
+            <label ${req}>${ki+1}：</label>
+            本地 <input type="text" id="fslk_${idx}_${sid}_${ki}" value="${lv}" list="${lkDl}" style="width:130px" placeholder="本地列名">
+            ↔ 飞书 <input type="text" id="fsfk_${idx}_${sid}_${ki}" value="${fv}" list="${fkDl}" style="width:130px" placeholder="飞书列名">
+          </div>`;
+        });
+        h+=`<div style="font-size:12px;font-weight:600;margin:8px 0 4px;color:#333">需要提取的列：
+          <button class="btn btn-sm btn-gray" style="padding:1px 6px;font-size:11px" onclick="fsSelAllCols(${idx},'${sid}',true)">全选</button>
+          <button class="btn btn-sm btn-gray" style="padding:1px 6px;font-size:11px" onclick="fsSelAllCols(${idx},'${sid}',false)">全不选</button>
+        </div>`;
+        h+=`<div class="chk-list" style="max-height:140px;font-size:12px">`;
+        headers.forEach(col=>{
+          if(!col)return;
+          const ckd = (sc.fetch_col_names||[]).includes(col)?'checked':'';
+          h+=`<label><input type="checkbox" value="${_escH(col)}" ${ckd} class="fs-chk-col-${idx}-${sid}"> ${_escH(col)}</label>`;
+        });
+        h+=`</div>`;
+        h+=`<button class="btn btn-sm btn-primary" style="margin-top:8px" onclick="fsSaveSheetCfg(${idx},'${sid}')">保存此 Sheet 配置</button>
+            <span id="fsSaveHint_${idx}_${sid}" class="hint"></span>`;
+        h+=`</div>`;
+      }
+      h+=`</div>`;
     });
-    h+='</div>';
+  } else if(t._connected){
+    h+=`<div style="color:#888;font-size:12px;margin-top:10px">该在线表格无 Sheet 或 Token 失效</div>`;
+  } else {
+    h+=`<div style="color:#888;font-size:12px;margin-top:10px">填写 Token 后点击「连接」获取 Sheet 列表</div>`;
   }
-  const cacheInfo = t.cache_key
-    ? (t._cache_stale
-        ? `<span style="color:#c07000">⚠ 线上行数已变化，缓存可能过期（${_fmtTime(t.cache_fetched_at)}，${t.cache_row_count} 行）——建议重新缓存</span>`
-        : `<span style="color:#2a8a2a">✓ 已缓存 ${t.cache_row_count} 行数据（${_fmtTime(t.cache_fetched_at)}）</span>`)
-    : '<span style="color:#e07000">无服务端缓存，匹配时将实时拉取（较慢）</span>';
-  const connInfo = t._loaded
-    ? `已连接并获取列标题（${t._headers.length} 列）`
-    : t._connected ? '已连接' : '未连接';
-  h+=`<div style="margin-top:6px;font-size:12px">${cacheInfo}<br><span style="color:#888">${connInfo}</span></div>`;
+
   $('fsDetail').innerHTML=h;
 }
 
-function fsToggleSheet(idx,sid,val){
-  const t=fsTables[idx];
-  if(val){if(!t.active_sheet_ids.includes(sid))t.active_sheet_ids.push(sid);}
-  else t.active_sheet_ids=t.active_sheet_ids.filter(x=>x!==sid);
+function fsToggleSheetEnable(tIdx, sid, val){
+  const t=fsTables[tIdx];
+  if(!t.sheet_configs[sid]) t.sheet_configs[sid]=_mkSheetCfg();
+  t.sheet_configs[sid].enabled=val;
+  renderFsTrees();fsSaveConfig();
+  // re-render without collapsing current expand state
+  fsSelectTable(tIdx);
+}
+
+function fsToggleSheetExpand(tIdx, sid){
+  const t=fsTables[tIdx];
+  if(!t.sheet_configs[sid]) t.sheet_configs[sid]=_mkSheetCfg();
+  t.sheet_configs[sid]._expanded = !t.sheet_configs[sid]._expanded;
+  fsSelectTable(tIdx);
+}
+
+function fsSelAllCols(tIdx, sid, val){
+  document.querySelectorAll(`.fs-chk-col-${tIdx}-${sid}`).forEach(cb=>cb.checked=val);
+}
+
+function fsSaveSheetCfg(tIdx, sid){
+  const t=fsTables[tIdx];
+  if(!t.sheet_configs[sid]) t.sheet_configs[sid]=_mkSheetCfg();
+  const sc=t.sheet_configs[sid];
+  sc.local_key_names=[0,1,2].map(ki=>($(`fslk_${tIdx}_${sid}_${ki}`)||{value:''}).value.trim());
+  sc.feishu_key_names=[0,1,2].map(ki=>($(`fsfk_${tIdx}_${sid}_${ki}`)||{value:''}).value.trim());
+  sc.fetch_col_names=[];
+  document.querySelectorAll(`.fs-chk-col-${tIdx}-${sid}:checked`).forEach(cb=>sc.fetch_col_names.push(cb.value));
   fsSaveConfig();
+  const hint=$(`fsSaveHint_${tIdx}_${sid}`);if(hint){hint.textContent='✓ 已保存';setTimeout(()=>hint.textContent='',2000);}
 }
 
 async function fsConnectTable(idx){
@@ -686,141 +740,131 @@ async function fsConnectTable(idx){
     const d=await r.json();
     if(d.success){
       t._sheets=d.sheets;t._connected=true;
-      if(!t.active_sheet_ids.length)t.active_sheet_ids=d.sheets.map(s=>s.sheetId);
-      // 连接时顺带返回表头
-      if(d.headers&&d.headers.length){
-        t._headers=d.headers.filter(h=>h);
-        t._loaded=true;
-        let dl='';t._headers.forEach(h=>dl+=`<option value="${h}">`);
-        ['fsFk1','fsFk2','fsFk3'].forEach(id=>{
-          let el=document.getElementById(id+'_flist');
-          if(!el){el=document.createElement('datalist');el.id=id+'_flist';document.body.appendChild(el);}
-          el.innerHTML=dl;
-          const inp=document.getElementById(id);if(inp)inp.setAttribute('list',id+'_flist');
-        });
-      }
-      // 检测缓存是否与线上一致（行数比对）
-      if(t.cache_key && Object.keys(t._cache_sheet_counts||{}).length>0){
-        const live={};d.sheets.forEach(s=>live[s.sheetId]=s.rowCount||0);
-        t._cache_stale=Object.entries(t._cache_sheet_counts).some(
-          ([sid,cnt])=>t.active_sheet_ids.includes(sid)&&live[sid]!==undefined&&live[sid]!==cnt
-        );
-      } else {
-        t._cache_stale=false;
-      }
-      fsSelectTable(idx);renderFsTrees();renderFsMapTable();fsSaveConfig();
+      const sheetHeaders=d.sheet_headers||{};
+      // 更新每个 sheet 的表头，并检测缓存是否过期
+      d.sheets.forEach(s=>{
+        const sid=s.sheetId;
+        if(!t.sheet_configs[sid]) t.sheet_configs[sid]=_mkSheetCfg();
+        const sc=t.sheet_configs[sid];
+        const hdrs=(sheetHeaders[sid]||[]).filter(h=>h);
+        if(hdrs.length) sc._headers=hdrs;
+        // 检测缓存是否过期（行数比对）
+        if(sc.cache_key && sc.row_count_at_cache>0){
+          sc._cache_stale = (s.rowCount||0) !== sc.row_count_at_cache;
+        }
+      });
+      fsSelectTable(idx);renderFsTrees();fsSaveConfig();
     } else alert(d.error);
   }catch(e){alert(e.message);}
   btns.forEach(b=>b.disabled=false);
 }
 
-// 加载并缓存全部数据到服务端（用于匹配）
-async function fsCacheTable(idx){
-  const t=fsTables[idx];
+// 缓存单个 Sheet 数据到服务端
+async function fsCacheSheet(tIdx, sid){
+  const t=fsTables[tIdx];
   if(!t.token){alert('请先填写并连接 Token');return;}
   const btns=$('fsDetail').querySelectorAll('button');btns.forEach(b=>b.disabled=true);
-  const statusEl=$('fsDetail').querySelector('div[style*="margin-top:6px"]');
-  if(statusEl) statusEl.innerHTML='<span style="color:#888">⏳ 正在拉取全部数据，请稍候...</span>';
   try{
     const r=await fetch('/api/feishu/load',{method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({base_url:$('fsBaseUrl').value,origin:$('fsOrigin').value,user_id:$('fsUserId').value,
-        token:t.token,active_sheet_ids:t.active_sheet_ids})});
+        token:t.token, sheet_id:sid})});
     const d=await r.json();
     if(d.success){
-      t.cache_key            = d.cache_key;
-      t.cache_row_count      = d.row_count;
-      t.cache_fetched_at     = d.fetched_at;
-      t._cache_sheet_counts  = d.sheet_counts || {};
-      t._cache_stale         = false;  // 刚缓存，肯定最新
-      if(d.headers&&d.headers.length){ t._headers=d.headers.filter(h=>h); t._loaded=true; }
-      fsSelectTable(idx);renderFsTrees();renderFsMapTable();fsSaveConfig();
-    } else { alert('缓存失败：'+d.error); fsSelectTable(idx); }
-  }catch(e){alert(e.message);fsSelectTable(idx);}
+      if(!t.sheet_configs[sid]) t.sheet_configs[sid]=_mkSheetCfg();
+      const sc=t.sheet_configs[sid];
+      sc.cache_key          = d.cache_key;
+      sc.cache_row_count    = d.row_count;
+      sc.cache_fetched_at   = d.fetched_at;
+      sc.row_count_at_cache = d.row_count_at_cache||0;
+      sc._cache_stale       = false;
+      if(d.headers&&d.headers.length) sc._headers=d.headers.filter(h=>h);
+      fsSelectTable(tIdx);renderFsTrees();fsSaveConfig();
+    } else { alert('缓存失败：'+d.error); }
+  }catch(e){alert(e.message);}
   btns.forEach(b=>b.disabled=false);
 }
 
-// 一键缓存所有启用的表格
+// 一键缓存所有启用的 Sheet
 async function fsBatchUpdate(){
   $('fsBatchUpdate').disabled=true;$('fsBatchHint').textContent='缓存中...';
   let count=0;
   for(let i=0;i<fsTables.length;i++){
     const t=fsTables[i];
-    if(!t.enabled||!t.token)continue;
-    $('fsBatchHint').textContent=`缓存中 (${count+1})：${t.name}`;
-    try{
-      if(!t._connected) await fsConnectTable(i);
-      await fsCacheTable(i);
-      count++;
-    }catch(e){console.error(e);}
+    if(!t.token) continue;
+    const enabledSids=Object.entries(t.sheet_configs).filter(([,sc])=>sc.enabled).map(([sid])=>sid);
+    if(!enabledSids.length) continue;
+    if(!t._connected){
+      $('fsBatchHint').textContent=`连接中：${t.name}`;
+      // silently connect to get sheets+headers
+      try{
+        const r=await fetch('/api/feishu/sheets',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({base_url:$('fsBaseUrl').value,origin:$('fsOrigin').value,user_id:$('fsUserId').value,token:t.token})});
+        const d=await r.json();
+        if(d.success){ t._sheets=d.sheets;t._connected=true;
+          const sh=d.sheet_headers||{};
+          d.sheets.forEach(s=>{if(!t.sheet_configs[s.sheetId])t.sheet_configs[s.sheetId]=_mkSheetCfg();
+            const hdrs=(sh[s.sheetId]||[]).filter(h=>h);if(hdrs.length)t.sheet_configs[s.sheetId]._headers=hdrs;});
+        }
+      }catch(e){console.error(e);}
+    }
+    for(const sid of enabledSids){
+      $('fsBatchHint').textContent=`缓存 ${t.name}/${t._sheets.find(s=>s.sheetId===sid)?.title||sid}`;
+      try{
+        const r=await fetch('/api/feishu/load',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({base_url:$('fsBaseUrl').value,origin:$('fsOrigin').value,user_id:$('fsUserId').value,token:t.token,sheet_id:sid})});
+        const d=await r.json();
+        if(d.success){
+          if(!t.sheet_configs[sid])t.sheet_configs[sid]=_mkSheetCfg();
+          const sc=t.sheet_configs[sid];
+          sc.cache_key=d.cache_key;sc.cache_row_count=d.row_count;
+          sc.cache_fetched_at=d.fetched_at;sc.row_count_at_cache=d.row_count_at_cache||0;
+          sc._cache_stale=false;if(d.headers&&d.headers.length)sc._headers=d.headers.filter(h=>h);
+          count++;
+        }
+      }catch(e){console.error(e);}
+    }
   }
-  $('fsBatchUpdate').disabled=false;$('fsBatchHint').textContent=`✓ 完成 ${count} 个`;
-  renderFsTrees();
-}
-
-function renderFsMapTable(){
-  const loaded=fsTables.filter(t=>t._loaded);
-  let opts='<option value="">请选择已加载表格</option>';
-  loaded.forEach(t=>opts+=`<option value="${t.idx}">${t.name}（${t._headers.length} 列）</option>`);
-  $('fsMapTable').innerHTML=opts;
-}
-
-function fsOnMapTableChange(){
-  const idx=parseInt($('fsMapTable').value);if(isNaN(idx))return;
-  const t=fsTables[idx];
-  $('fsLk1').value=t.local_key_names[0]||'';$('fsFk1').value=t.feishu_key_names[0]||'';
-  $('fsLk2').value=t.local_key_names[1]||'';$('fsFk2').value=t.feishu_key_names[1]||'';
-  $('fsLk3').value=t.local_key_names[2]||'';$('fsFk3').value=t.feishu_key_names[2]||'';
-  let h='';
-  (t._headers||[]).forEach(col=>{
-    if(!col)return;
-    const ckd=t.fetch_col_names.includes(col)?'checked':'';
-    h+=`<label><input type="checkbox" value="${col}" ${ckd} class="fs-chk-col"> ${col}</label>`;
-  });
-  $('fsChkList').innerHTML=h;
-  // Update feishu key datalists
-  let dl='';(t._headers||[]).forEach(h=>dl+=`<option value="${h}">`);
-  ['fsFk1','fsFk2','fsFk3'].forEach(id=>{
-    let el=document.getElementById(id+'_flist');
-    if(!el){el=document.createElement('datalist');el.id=id+'_flist';document.body.appendChild(el);}
-    el.innerHTML=dl;$(id).setAttribute('list',id+'_flist');
-  });
-}
-
-function fsSaveMapping(){
-  const idx=parseInt($('fsMapTable').value);if(isNaN(idx)){alert('请先选择表格');return;}
-  const t=fsTables[idx];
-  t.local_key_names=[$('fsLk1').value,$('fsLk2').value,$('fsLk3').value];
-  t.feishu_key_names=[$('fsFk1').value,$('fsFk2').value,$('fsFk3').value];
-  t.fetch_col_names=[];
-  document.querySelectorAll('.fs-chk-col:checked').forEach(cb=>t.fetch_col_names.push(cb.value));
-  fsSaveConfig();
-  $('fsSaveHint').textContent='✓ 已保存';setTimeout(()=>$('fsSaveHint').textContent='',2000);
+  $('fsBatchUpdate').disabled=false;$('fsBatchHint').textContent=`✓ 完成 ${count} 个 Sheet`;
+  renderFsTrees();fsSaveConfig();
+  if(fsCurIdx!==null)fsSelectTable(fsCurIdx);
 }
 
 async function fsRunMatch(){
   const f=$('fsFile').files[0];if(!f){alert('请先上传 BOM 文件');return;}
-  const enabled=fsTables.filter(t=>t.enabled&&t.token);
-  if(!enabled.length){alert('请先在表格库中启用至少一个表格');return;}
+
+  // 构建 per-sheet 配置
+  const tables=[];
+  fsTables.forEach(t=>{
+    if(!t.token) return;
+    const enabledSheets=[];
+    (t._sheets||[]).forEach(s=>{
+      const sc=t.sheet_configs[s.sheetId];
+      if(!sc||!sc.enabled) return;
+      const lk=(sc.local_key_names||[]).filter(k=>k);
+      const fk=(sc.feishu_key_names||[]).filter(k=>k);
+      if(!lk.length||!fk.length) return;
+      enabledSheets.push({
+        sheet_id:s.sheetId, sheet_name:s.title,
+        enabled:true,
+        local_key_names:lk, feishu_key_names:fk,
+        fetch_col_names:sc.fetch_col_names||[],
+        cache_key:sc.cache_key||'',
+      });
+    });
+    if(enabledSheets.length) tables.push({name:t.name, token:t.token, sheets:enabledSheets});
+  });
+
+  if(!tables.length){alert('没有启用的 Sheet，请先在表格库中勾选并配置列映射');return;}
 
   $('fsRun').disabled=true;$('fsBatchUpdate').disabled=true;
   $('fsRunStatus2').textContent='匹配中...';
   hide($('fsResult'));hide($('fsError'));hide($('fsLogBox'));
 
   const config={
-    base_url:$('fsBaseUrl').value,
-    origin:$('fsOrigin').value,
-    user_id:$('fsUserId').value,
-    sheet_name:$('fsSheet').value,
-    header_row:parseInt($('fsHdr').value)||1,
-    tables:enabled.map(t=>({
-      name:t.name,token:t.token,enabled:true,
-      active_sheet_ids:t.active_sheet_ids,
-      local_key_names:t.local_key_names.filter(k=>k),
-      feishu_key_names:t.feishu_key_names.filter(k=>k),
-      fetch_col_names:t.fetch_col_names,
-      cache_key:t.cache_key||'',
-    })),
+    base_url:$('fsBaseUrl').value, origin:$('fsOrigin').value, user_id:$('fsUserId').value,
+    sheet_name:$('fsSheet').value, header_row:parseInt($('fsHdr').value)||1,
+    tables,
   };
   const fd=new FormData();fd.append('file',f);fd.append('config',JSON.stringify(config));
   try{
