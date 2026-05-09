@@ -807,6 +807,7 @@ function fsSelectTable(idx){
         <span style="flex:1;font-size:13px">${_escH(s.title)}</span>
         ${hdrTag} ${cacheTag}
         <button class="btn btn-sm btn-green" style="padding:1px 7px;font-size:12px" onclick="event.stopPropagation();fsCacheSheet(${idx},'${sid}')">⬇ 缓存</button>
+        ${sc.cache_key?`<button class="btn btn-sm btn-gray" style="padding:1px 7px;font-size:12px;color:#c00000" onclick="event.stopPropagation();fsClearSheetCache(${idx},'${sid}')">✕ 清除</button>`:''}
         <span style="font-size:12px;color:#666">${exp?'▲':'▼'}</span>
       </div>`;
       // Expanded config section
@@ -975,6 +976,15 @@ async function fsCacheSheet(tIdx, sid){
     } else { alert('缓存失败：'+d.error); }
   }catch(e){alert(e.message);}
   btns.forEach(b=>b.disabled=false);
+}
+
+function fsClearSheetCache(tIdx, sid){
+  const sc=fsTables[tIdx].sheet_configs[sid];
+  if(!sc) return;
+  sc.cache_key=''; sc.cache_row_count=0; sc.cache_fetched_at=0;
+  sc.row_count_at_cache=0; sc._cache_stale=false;
+  fsSaveConfig();
+  fsSelectTable(tIdx); renderFsTrees();
 }
 
 // 一键缓存所有启用的 Sheet
