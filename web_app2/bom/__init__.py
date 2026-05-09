@@ -2,6 +2,7 @@
 """BOM 转换工具 — Blueprint"""
 
 import os, uuid, re
+from zipfile import BadZipFile
 from flask import Blueprint, render_template
 from shared import (
     openpyxl, Workbook, Font, PatternFill, Alignment, Border, Side,
@@ -309,11 +310,16 @@ def api_bom_detect():
     file = request.files.get('file')
     if not file:
         return jsonify({'success': False, 'error': '请上传文件'})
+    if file.filename and file.filename.lower().endswith('.xls') and not file.filename.lower().endswith('.xlsx'):
+        return jsonify({'success': False, 'error': '不支持 .xls 格式，请在 Excel 中另存为 .xlsx 后重试'})
     uid = str(uuid.uuid4())[:8]
     in_path = os.path.join(UPLOAD_DIR, f"bom_pre_{uid}.xlsx")
     file.save(in_path)
 
-    wb = openpyxl.load_workbook(in_path, read_only=True, data_only=True)
+    try:
+        wb = openpyxl.load_workbook(in_path, read_only=True, data_only=True)
+    except BadZipFile:
+        return jsonify({'success': False, 'error': '无法读取文件，可能原因：① 文件是 .xls 旧格式（请另存为 .xlsx）；② 公司加解密软件未启动导致文件被加密，请检查后重试'})
     sheets = wb.sheetnames
     wb.close()
 
@@ -376,6 +382,8 @@ def api_bom_convert():
     if not file:
         return jsonify({'success': False, 'error': '请上传文件'})
 
+    if file.filename and file.filename.lower().endswith('.xls') and not file.filename.lower().endswith('.xlsx'):
+        return jsonify({'success': False, 'error': '不支持 .xls 格式，请在 Excel 中另存为 .xlsx 后重试'})
     uid = str(uuid.uuid4())[:8]
     in_path = os.path.join(UPLOAD_DIR, f"bom_in_{uid}.xlsx")
     file.save(in_path)
@@ -390,7 +398,10 @@ def api_bom_convert():
     output_mode = request.form.get('output_mode', 'expand')
     project_name = request.form.get('project_name', '')
 
-    wb = openpyxl.load_workbook(in_path, read_only=True, data_only=True)
+    try:
+        wb = openpyxl.load_workbook(in_path, read_only=True, data_only=True)
+    except BadZipFile:
+        return jsonify({'success': False, 'error': '无法读取文件，可能原因：① 文件是 .xls 旧格式（请另存为 .xlsx）；② 公司加解密软件未启动导致文件被加密，请检查后重试'})
     sheets = wb.sheetnames
     wb.close()
     if not sheet_name or sheet_name not in sheets:
