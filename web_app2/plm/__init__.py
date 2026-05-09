@@ -272,3 +272,64 @@ def api_plm_convert():
         'skipped': skipped,
         'skip_logs': skip_logs,
     })
+
+@plm_bp.route('/api/plm/spec_extract', methods=['POST'])
+def api_spec_extract():
+    """提取单列规格型号，去除空格，输出单列 Excel"""
+    import json as _json
+    f = request.files.get('file')
+    if not f:
+        return jsonify({'success': False, 'error': '未上传文件'})
+    cfg_str = request.form.get('config', '{}')
+    try:
+        cfg = _json.loads(cfg_str)
+    except Exception:
+        return jsonify({'success': False, 'error': 'config 格式错误'})
+
+    header_row = int(cfg.get('header_row', 1))
+    sheet_name = cfg.get('sheet_name', '')
+    col_name   = (cfg.get('col_name') or '').strip()
+    if not col_name:
+        return jsonify({'success': False, 'error': '未指定提取列'})
+
+    uid = str(uuid.uuid4())[:8]
+    path = os.path.join(UPLOAD_DIR, f'se_{uid}.xlsx')
+    f.save(path)
+
+    try:
+        from shared import _cell_str
+        wb = openpyxl.load_workbook(path, data_only=True)
+        sheets = wb.sheetnames
+        if not sheet_name or sheet_name not in sheets:
+            sheet_name = sheets[0]
+        ws = wb[sheet_name]
+
+        headers = [_cell_str(ws.cell(row=header_row, column=ci).value)
+                   for ci in range(1, ws.max_column + 1)]
+        if col_name not in headers:
+            return jsonify({'success': False,
+                            'error': f'列 "{col_name}" 不存在，请检查表头行设置'})
+        col_idx = headers.index(col_name) + 1  # 1-based
+
+        values = []
+        for ri in range(header_row + 1, ws.max_row + 1):
+            v = _cell_str(ws.cell(row=ri, column=col_idx).value)
+            if v:
+                values.append(v.replace(' ', '').replace('\u3000', ''))
+        wb.close()
+
+        # Write output
+        wb_out = Workbook()
+        ws_out = wb_out.active
+        ws_out.title = '规格型号'
+        ws_out.cell(row=1, column=1, value='规格型号').font = Font(bold=True)
+        for i, v in enumerate(values, 2):
+            ws_out.cell(row=i, column=1, value=v)
+        ws_out.column_dimensions['A'].width = 40
+
+        out_name = f'spec_{uid}.xlsx'
+        wb_out.save(os.path.join(OUTPUT_DIR, out_name))
+        return jsonify({'success': True, 'download': f'/download/{out_name}',
+                        'count': len(values)})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})

@@ -164,6 +164,14 @@ tr:hover td { background:#f7f9fc; }
 
 <!-- ── PLM 工具 ── -->
 <script type="text/html" id="tpl-plm">
+<!-- 子功能 Tab -->
+<div style="display:flex;gap:8px;margin-bottom:18px;border-bottom:2px solid #e0e4ef;padding-bottom:0">
+  <button class="plm-tab-btn active" data-plm-tab="bom-cfg" style="padding:6px 18px;border:none;background:none;font-size:13px;font-weight:600;color:#1a5ad4;border-bottom:2px solid #1a5ad4;margin-bottom:-2px;cursor:pointer">整机BOM配置表转换</button>
+  <button class="plm-tab-btn" data-plm-tab="spec-extract" style="padding:6px 18px;border:none;background:none;font-size:13px;font-weight:600;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer">规格型号提取</button>
+</div>
+
+<!-- 整机BOM配置表转换 -->
+<div id="plm-tab-bom-cfg">
 <div class="section"><h3>第一步：选择整机BOM配置表</h3>
   <div class="row"><label>文件路径：</label><input type="file" id="plmFile" accept=".xlsx,.xlsm,.xls" style="width:320px"><button class="btn btn-outline btn-sm" id="plmBrowse">浏览...</button></div>
   <div class="row"><label>Sheet：</label><select id="plmSheet" style="width:180px"><option>先选择文件</option></select><label>表头行：</label><input type="text" id="plmHdr" value="4" style="width:50px"><button class="btn btn-sm btn-gray" id="plmRefresh">加载 / 刷新</button></div>
@@ -184,6 +192,36 @@ tr:hover td { background:#f7f9fc; }
 <div class="result" id="plmResult"><span class="title">✅ 转换完成</span><br><span id="plmStats" style="display:inline-block;margin-top:6px"></span><br><a class="download" id="plmDl" href="#">📥 下载 PLM 导入文件</a></div>
 <div class="error" id="plmError"></div>
 <div id="plmLogBox" style="display:none;margin-top:10px"><h4 style="margin:0 0 6px;font-size:13px">📋 处理日志</h4><pre id="plmLog" style="font-size:12px;background:#1a1a2e;color:#e0e0e0;padding:10px;border-radius:6px;max-height:200px;overflow:auto;white-space:pre-wrap;font-family:Consolas,'Courier New',monospace"></pre></div>
+</div>
+
+<!-- 规格型号提取 -->
+<div id="plm-tab-spec-extract" style="display:none">
+<div class="section"><h3>第一步：上传BOM文件</h3>
+  <div class="row"><label>文件路径：</label><input type="file" id="seFile" accept=".xlsx,.xlsm,.xls" style="width:320px"></div>
+  <div class="row">
+    <label>Sheet：</label><select id="seSheet" style="width:180px"><option>先选择文件</option></select>
+    <label style="margin-left:12px">表头行：</label><input type="number" id="seHdr" value="1" min="1" style="width:55px">
+    <button class="btn btn-sm btn-gray" id="seRefresh" style="margin-left:8px">刷新列表</button>
+  </div>
+</div>
+<div class="section"><h3>第二步：选择提取列</h3>
+  <div class="row">
+    <label>提取列：</label>
+    <select id="seCol" style="width:220px"><option>先刷新列表</option></select>
+    <span style="font-size:12px;color:#888;margin-left:10px">提取后将去除所有空格</span>
+  </div>
+</div>
+<div class="section">
+  <button class="btn btn-primary" id="seRun">⚡ 开始提取</button>
+  <span id="seStatus" style="font-size:13px;margin-left:10px;color:#888"></span>
+</div>
+<div class="result" id="seResult">
+  <span class="title">✅ 提取完成</span>
+  <div id="seStats" style="margin-top:6px;font-size:13px"></div>
+  <a class="download" id="seDl" href="#">📥 下载规格型号列表</a>
+</div>
+<div class="error" id="seError"></div>
+</div>
 </script>
 
 <!-- ── 查询BOM优选率 ── -->
@@ -455,6 +493,23 @@ function updatePlmFromApi(d){
 }
 
 function initPlm(){
+  // ── PLM sub-tab switching ──
+  document.querySelectorAll('.plm-tab-btn').forEach(btn=>{
+    btn.onclick=function(){
+      document.querySelectorAll('.plm-tab-btn').forEach(b=>{
+        b.style.color='#888'; b.style.borderBottomColor='transparent';
+      });
+      this.style.color='#1a5ad4'; this.style.borderBottomColor='#1a5ad4';
+      document.querySelectorAll('#plm-tab-bom-cfg,#plm-tab-spec-extract').forEach(el=>el.style.display='none');
+      $('plm-tab-'+this.dataset.plmTab).style.display='block';
+    };
+  });
+
+  // ── 规格型号提取 ──
+  $('seFile').onchange = seLoadFile;
+  $('seRefresh').onclick = ()=>{ if($('seFile').files[0]) seLoadFile(); };
+  $('seRun').onclick = seRun;
+
   $('plmBrowse').onclick=()=>$('plmFile').click();
   $('plmFile').onchange=function(){
     const f=this.files[0];if(!f)return;
@@ -496,6 +551,62 @@ function initPlm(){
     }catch(e){$('plmError').textContent=e.message;show($('plmError'));}
     btn.disabled=false;
   };
+}
+
+// ─── 规格型号提取 ─────────────────────────────────────
+async function seLoadFile(){
+  const f=$('seFile').files[0]; if(!f) return;
+  const fd=new FormData();
+  fd.append('file',f);
+  fd.append('header_row',$('seHdr').value||1);
+  const cur=$('seSheet').value;
+  if(cur&&cur!=='先选择文件') fd.append('sheet_name',cur);
+  $('seStatus').textContent='加载中...';
+  try{
+    const r=await fetch('/api/feishu/local_sheets',{method:'POST',body:fd});
+    const d=await r.json();
+    if(!d.success){$('seStatus').textContent='加载失败：'+d.error;return;}
+    const ss=$('seSheet');
+    ss.innerHTML=d.sheets.map(s=>`<option${s===d.current_sheet?' selected':''}>${_escH(s)}</option>`).join('');
+    ss.onchange=seLoadFile;
+    const kc=$('seCol');
+    kc.innerHTML=d.headers.map(h=>`<option value="${_escH(h)}">${_escH(h)}</option>`).join('');
+    // auto-select column containing 规格型号
+    const auto=d.headers.find(h=>h.includes('规格型号'));
+    if(auto) kc.value=auto;
+    $('seStatus').textContent=`已加载 ${d.headers.length} 列`;
+  }catch(e){$('seStatus').textContent='错误：'+e.message;}
+}
+
+async function seRun(){
+  const f=$('seFile').files[0];
+  if(!f){alert('请先上传文件');return;}
+  const col=$('seCol').value;
+  if(!col||col==='先刷新列表'){alert('请先刷新列表并选择提取列');return;}
+  $('seRun').disabled=true; $('seStatus').style.color='#1a8a1a'; $('seStatus').textContent='提取中...';
+  $('seResult').style.display='none'; $('seError').style.display='none';
+  const fd=new FormData();
+  fd.append('file',f);
+  fd.append('config',JSON.stringify({
+    header_row:parseInt($('seHdr').value)||1,
+    sheet_name:$('seSheet').value,
+    col_name:col,
+  }));
+  try{
+    const r=await fetch('/api/plm/spec_extract',{method:'POST',body:fd});
+    const d=await r.json();
+    if(d.success){
+      $('seStats').textContent=`共提取 ${d.count} 条规格型号`;
+      $('seDl').href=d.download;
+      $('seStatus').textContent='';
+      $('seResult').style.display='block';
+    }else{
+      $('seError').textContent='错误：'+d.error;
+      $('seError').style.display='block';
+      $('seStatus').textContent='';
+    }
+  }catch(e){$('seError').textContent=e.message;$('seError').style.display='block';$('seStatus').textContent='';}
+  $('seRun').disabled=false;
 }
 
 // ─── 飞书匹配 ─────────────────────────────────────────
