@@ -1066,6 +1066,7 @@ async function fsBatchUpdate(){
         }
       }catch(e){console.error(e);}
     }
+    renderFsTrees(); // 每完成一个在线库立即更新左侧状态
   }
   $('fsBatchUpdate').disabled=false;$('fsBatchHint').textContent=`✓ 完成 ${count} 个 Sheet`;
   renderFsTrees();fsSaveConfig();
