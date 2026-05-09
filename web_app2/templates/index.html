@@ -733,6 +733,13 @@ async function fsConnectTable(idx){
   if(tokenEl)t.token=tokenEl.value.trim();
   if(!t.token){alert('请先填写 Token');return;}
   const btns=$('fsDetail').querySelectorAll('button');btns.forEach(b=>b.disabled=true);
+  // 加载提示
+  let hint=$('fsConnectHint_'+idx);
+  if(!hint){
+    const btn=$('fsDetail').querySelector('button.btn-primary');
+    if(btn){hint=document.createElement('span');hint.id='fsConnectHint_'+idx;hint.className='hint';btn.after(hint);}
+  }
+  if(hint) hint.textContent='⏳ 连接中，正在获取 Sheet 列表及表头...';
   try{
     const r=await fetch('/api/feishu/sheets',{method:'POST',
       headers:{'Content-Type':'application/json'},
@@ -754,8 +761,8 @@ async function fsConnectTable(idx){
         }
       });
       fsSelectTable(idx);renderFsTrees();fsSaveConfig();
-    } else alert(d.error);
-  }catch(e){alert(e.message);}
+    } else { if(hint)hint.textContent=''; alert(d.error); }
+  }catch(e){ if(hint)hint.textContent=''; alert(e.message); }
   btns.forEach(b=>b.disabled=false);
 }
 
@@ -764,6 +771,15 @@ async function fsCacheSheet(tIdx, sid){
   const t=fsTables[tIdx];
   if(!t.token){alert('请先填写并连接 Token');return;}
   const btns=$('fsDetail').querySelectorAll('button');btns.forEach(b=>b.disabled=true);
+  // 找到该 sheet 的缓存按钮，在旁边插入提示
+  let cHint=document.getElementById(`fsCacheHint_${tIdx}_${sid}`);
+  if(!cHint){
+    const allBtns=[...$('fsDetail').querySelectorAll('button')];
+    const cBtn=allBtns.find(b=>b.getAttribute('onclick')||'');  // 先占位，fsSelectTable 会重绘
+    cHint=document.createElement('span');cHint.id=`fsCacheHint_${tIdx}_${sid}`;cHint.className='hint';
+    $('fsDetail').appendChild(cHint);
+  }
+  cHint.textContent='⏳ 正在拉取全部数据，请稍候...';
   try{
     const r=await fetch('/api/feishu/load',{method:'POST',
       headers:{'Content-Type':'application/json'},
