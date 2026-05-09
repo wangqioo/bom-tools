@@ -587,7 +587,9 @@ function fsClearConfig(){
     if(!raw) return;
     const cfg = JSON.parse(raw);
     window._fsSavedCfg = cfg;
-    if(cfg.global_fetch_map && cfg.global_fetch_map.length) _fsGlobalFetchMap = cfg.global_fetch_map;
+    // Only restore if saved map has at least one non-empty entry
+    if(cfg.global_fetch_map && cfg.global_fetch_map.some(r=>r.std_name))
+      _fsGlobalFetchMap = cfg.global_fetch_map.filter(r=>r.std_name);
     if(cfg.tables){
       cfg.tables.forEach(st=>{
         const t = fsTables[st.idx]; if(!t) return;
