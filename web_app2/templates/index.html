@@ -829,7 +829,7 @@ function fsSelectTable(idx){
           headers.forEach(h2=>{if(h2) opts+=`<option value="${_escH(h2)}"${h2===fv?' selected':''}>${_escH(h2)}</option>`;});
           h+=`<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
             <label style="min-width:65px;font-size:12px;${req};text-align:right">${_escH(lkName)}：</label>
-            <select id="fsfk_${idx}_${sid}_${ki}" style="width:190px;font-size:12px">${opts}</select>
+            <select id="fsfk_${idx}_${sid}_${ki}" style="width:190px;font-size:12px" onchange="fsSaveSheetCfg(${idx},'${sid}')">${opts}</select>
           </div>`;
         });
         h+=`</div>`;
@@ -845,7 +845,7 @@ function fsSelectTable(idx){
             headers.forEach(h2=>{if(h2) opts+=`<option value="${_escH(h2)}"${h2===overrideVal?' selected':''}>${_escH(h2)}</option>`;});
             h+=`<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
               <label style="min-width:65px;font-size:12px;color:#444;text-align:right">${_escH(gm.std_name)}：</label>
-              <select id="fsgfa_${idx}_${sid}_${gi}" style="width:190px;font-size:12px">${opts}</select>
+              <select id="fsgfa_${idx}_${sid}_${gi}" style="width:190px;font-size:12px" onchange="fsSaveSheetCfg(${idx},'${sid}')">${opts}</select>
             </div>`;
           });
         } else {
@@ -853,10 +853,6 @@ function fsSelectTable(idx){
         }
         h+=`</div>`;
         h+=`</div>`;  // end flex row
-        h+=`<div style="padding:4px 12px 10px">
-          <button class="btn btn-sm btn-primary" onclick="fsSaveSheetCfg(${idx},'${sid}')">保存此 Sheet 配置</button>
-          <span id="fsSaveHint_${idx}_${sid}" class="hint"></span>
-        </div>`;
       }
       h+=`</div>`;
     });
@@ -899,7 +895,6 @@ function fsSaveSheetCfg(tIdx, sid){
     if(el && el.value.trim()) sc.fetch_col_aliases[gm.std_name]=el.value.trim();
   });
   fsSaveConfig();
-  const hint=$(`fsSaveHint_${tIdx}_${sid}`);if(hint){hint.textContent='✓ 已保存';setTimeout(()=>hint.textContent='',2000);}
 }
 
 
