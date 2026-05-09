@@ -819,14 +819,13 @@ function fsSelectTable(idx){
         while(sc.feishu_key_names.length<glkCount) sc.feishu_key_names.push('');
         if(sc.feishu_key_names.length>glkCount) sc.feishu_key_names.splice(glkCount);
         sc.feishu_key_names.forEach((fv, ki)=>{
-          const lkLabel=_fsGlobalLocalKeys[ki]?`<span style="color:#888;font-size:11px"> ← 本地"${_escH(_fsGlobalLocalKeys[ki])}"</span>`:'';
+          const lkName=_fsGlobalLocalKeys[ki]||`键${ki+1}`;
           const req=ki===0?'color:#c00000':'color:#555';
           let opts=`<option value="">${ki===0?'— 选择列 —':'（不使用）'}</option>`;
           headers.forEach(h2=>{if(h2) opts+=`<option value="${_escH(h2)}"${h2===fv?' selected':''}>${_escH(h2)}</option>`;});
-          h+=`<div style="display:flex;align-items:center;gap:4px;margin-bottom:4px">
-            <span style="min-width:16px;font-size:12px;${req}">${ki+1}</span>
+          h+=`<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+            <label style="min-width:65px;font-size:12px;${req};text-align:right">${_escH(lkName)}：</label>
             <select id="fsfk_${idx}_${sid}_${ki}" style="width:190px;font-size:12px">${opts}</select>
-            ${lkLabel}
           </div>`;
         });
         h+=`</div>`;
