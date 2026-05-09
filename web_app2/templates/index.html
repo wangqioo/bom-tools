@@ -601,15 +601,12 @@ function fsExportConfig(){
   };
 
   const json = JSON.stringify(out, null, 2);
-  navigator.clipboard.writeText(json).then(()=>{
-    alert('已复制到剪贴板，请粘贴给开发者写入服务端默认值。');
-  }).catch(()=>{
-    const ta=document.createElement('textarea');
-    ta.value=json;ta.style.cssText='position:fixed;top:10px;left:10px;width:80vw;height:70vh;z-index:9999;font-size:12px;font-family:monospace';
-    document.body.appendChild(ta);ta.select();
-    alert('无法自动复制，请手动全选复制后关闭此框。');
-    ta.onblur=()=>ta.remove();
-  });
+  const blob = new Blob([json], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'bom_config.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
 
 function fsClearConfig(){
