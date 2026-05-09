@@ -213,8 +213,9 @@ tr:hover td { background:#f7f9fc; }
   </div>
 </div>
 <div class="section"><h3>全局输出列映射 <span style="font-size:11px;font-weight:400;color:#888">（可选）</span></h3>
-  <div style="font-size:12px;color:#666;margin-bottom:8px">定义统一的输出列名（标准名），以及在飞书表中对应的默认列表头（别名）。每个 Sheet 可单独覆盖别名。此功能与下方各 Sheet 的"提取列"复选框并列，输出时标准名列在前。</div>
+  <div style="font-size:12px;color:#666;margin-bottom:8px">① 添加标准名+默认别名后，② 连接表格获取 Sheet 列表，③ 在下方总览表中为每个 Sheet 逐列选择对应的列名。</div>
   <div id="fsGFMSection"></div>
+  <div id="fsMappingSection"></div>
 </div>
 <div class="section"><h3>表格库</h3>
   <div class="row">
@@ -622,12 +623,12 @@ function fsRenderGFMSection(){
 
 function fsAddGFMRow(){
   _fsGlobalFetchMap.push({std_name:'',default_alias:''});
-  fsRenderGFMSection(); fsSaveConfig();
+  fsRenderGFMSection(); fsRenderMappingTable(); fsSaveConfig();
 }
 
 function fsRemoveGFMRow(i){
   _fsGlobalFetchMap.splice(i,1);
-  fsRenderGFMSection(); fsSaveConfig();
+  fsRenderGFMSection(); fsRenderMappingTable(); fsSaveConfig();
   if(fsCurIdx!==null) fsSelectTable(fsCurIdx);
 }
 
@@ -635,6 +636,61 @@ function fsUpdateGFMRow(i){
   const s=$(`gfm_std_${i}`), a=$(`gfm_alias_${i}`);
   if(s) _fsGlobalFetchMap[i].std_name=s.value;
   if(a) _fsGlobalFetchMap[i].default_alias=a.value;
+  fsSaveConfig();
+}
+
+function fsRenderMappingTable(){
+  const el=$('fsMappingSection'); if(!el) return;
+  const validGFM=_fsGlobalFetchMap.filter(r=>r.std_name);
+  if(!validGFM.length){el.innerHTML='';return;}
+  // Collect all sheets that have headers loaded
+  const sheetRows=[];
+  fsTables.forEach(t=>{
+    (t._sheets||[]).forEach(s=>{
+      const sc=t.sheet_configs[s.sheetId];
+      if(!sc||!sc._headers||!sc._headers.length) return;
+      sheetRows.push({tIdx:t.idx, sid:s.sheetId, label:`${t.name} / ${s.title}`, sc, headers:sc._headers});
+    });
+  });
+  if(!sheetRows.length){
+    el.innerHTML='<div style="color:#aaa;font-size:12px;margin-top:10px">列映射总览：请先连接表格获取 Sheet 列表（含表头）</div>';
+    return;
+  }
+  let h='<div style="margin-top:14px">';
+  h+='<div style="font-size:12px;font-weight:600;color:#333;margin-bottom:6px">列映射总览 <span style="font-size:11px;font-weight:400;color:#888">（为每个 Sheet 选择对应列名，选"默认"则用默认别名）</span></div>';
+  h+='<div style="overflow-x:auto"><table style="font-size:12px;border-collapse:collapse">';
+  // Header
+  h+='<tr style="background:#e8f0fe"><th style="padding:5px 10px;text-align:left;border:1px solid #b8cef0;white-space:nowrap;font-weight:600">Sheet</th>';
+  validGFM.forEach(gm=>{
+    h+=`<th style="padding:5px 10px;text-align:center;border:1px solid #b8cef0;white-space:nowrap;font-weight:600">${_escH(gm.std_name)}<br><span style="font-size:10px;font-weight:400;color:#888">默认：${_escH(gm.default_alias||gm.std_name)}</span></th>`;
+  });
+  h+='</tr>';
+  // Rows
+  sheetRows.forEach((row,ri)=>{
+    const bg=ri%2===0?'#fff':'#f9f9fb';
+    h+=`<tr style="background:${bg}"><td style="padding:4px 10px;border:1px solid #dde;white-space:nowrap;color:#333;font-size:11px">${_escH(row.label)}</td>`;
+    validGFM.forEach((gm,gi)=>{
+      const cur=(row.sc.fetch_col_aliases||{})[gm.std_name]||'';
+      const def=gm.default_alias||gm.std_name;
+      let opts=`<option value="">— 默认：${_escH(def)} —</option>`;
+      row.headers.forEach(hdr=>{if(hdr) opts+=`<option value="${_escH(hdr)}"${hdr===cur?' selected':''}>${_escH(hdr)}</option>`;});
+      h+=`<td style="padding:2px 5px;border:1px solid #dde"><select style="width:150px;font-size:11px" onchange="fsMTChange(${row.tIdx},'${row.sid}',${gi},this.value)">${opts}</select></td>`;
+    });
+    h+='</tr>';
+  });
+  h+='</table></div></div>';
+  el.innerHTML=h;
+}
+
+function fsMTChange(tIdx, sid, gi, val){
+  const t=fsTables[tIdx];
+  if(!t.sheet_configs[sid]) t.sheet_configs[sid]=_mkSheetCfg();
+  const sc=t.sheet_configs[sid];
+  if(!sc.fetch_col_aliases) sc.fetch_col_aliases={};
+  const gm=_fsGlobalFetchMap.filter(r=>r.std_name)[gi];
+  if(!gm) return;
+  if(val) sc.fetch_col_aliases[gm.std_name]=val;
+  else delete sc.fetch_col_aliases[gm.std_name];
   fsSaveConfig();
 }
 
@@ -654,7 +710,7 @@ function initFeishu(){
   ['fsBaseUrl','fsOrigin','fsUserId','fsGLk1','fsGLk2','fsGLk3'].forEach(id=>{
     const el=$(id); if(el) el.oninput = fsSaveConfig;
   });
-  fsRenderGFMSection();
+  fsRenderGFMSection(); fsRenderMappingTable();
   // 上传文件后更新本地键 datalist
   const _updateLkList=()=>{
     let dl='';(window._fsLocalHeaders||[]).forEach(h=>{if(h)dl+=`<option value="${_escH(h)}">`});
@@ -899,7 +955,7 @@ async function fsConnectTable(idx){
           sc._cache_stale = (s.rowCount||0) !== sc.row_count_at_cache;
         }
       });
-      fsSelectTable(idx);renderFsTrees();fsSaveConfig();
+      fsSelectTable(idx);renderFsTrees();fsRenderMappingTable();fsSaveConfig();
     } else { if(hint)hint.textContent=''; alert(d.error); }
   }catch(e){ if(hint)hint.textContent=''; alert(e.message); }
   btns.forEach(b=>b.disabled=false);
@@ -982,7 +1038,7 @@ async function fsBatchUpdate(){
     }
   }
   $('fsBatchUpdate').disabled=false;$('fsBatchHint').textContent=`✓ 完成 ${count} 个 Sheet`;
-  renderFsTrees();fsSaveConfig();
+  renderFsTrees();fsRenderMappingTable();fsSaveConfig();
   if(fsCurIdx!==null)fsSelectTable(fsCurIdx);
 }
 
