@@ -490,10 +490,10 @@ let fsTables = FS_TABLES.map((t,i)=>({
 }));
 let fsCurIdx = null;
 let _fsGlobalFetchMap = [  // [{std_name, default_alias}]  pre-populated defaults
-  {std_name:'HQ料号',  default_alias:'HQ料号'},
-  {std_name:'规格型号', default_alias:'规格型号'},
-  {std_name:'厂商名称', default_alias:'厂商名称'},
-  {std_name:'优选等级', default_alias:'优选等级'},
+  {std_name:'HQ料号',    default_alias:'HQ料号'},
+  {std_name:'HQ规格型号', default_alias:'HQ规格型号'},
+  {std_name:'HQ制造商',  default_alias:'HQ制造商'},
+  {std_name:'优选等级',  default_alias:'优选等级'},
 ];
 let _fsGlobalLocalKeys = [''];  // dynamic local-side match keys
 
@@ -635,7 +635,7 @@ function fsRestoreDefault(){
     ? FS_DEFAULT_CONFIG.global_local_keys.slice() : [''];
   // 恢复全局提取列
   _fsGlobalFetchMap = (FS_DEFAULT_CONFIG.global_fetch_map||[]).map(n=>({std_name:n,default_alias:n}));
-  if(!_fsGlobalFetchMap.length) _fsGlobalFetchMap=[{std_name:'HQ料号',default_alias:'HQ料号'},{std_name:'规格型号',default_alias:'规格型号'},{std_name:'厂商名称',default_alias:'厂商名称'},{std_name:'优选等级',default_alias:'优选等级'}];
+  if(!_fsGlobalFetchMap.length) _fsGlobalFetchMap=[{std_name:'HQ料号',default_alias:'HQ料号'},{std_name:'HQ规格型号',default_alias:'HQ规格型号'},{std_name:'HQ制造商',default_alias:'HQ制造商'},{std_name:'优选等级',default_alias:'优选等级'}];
   // 重建 fsTables，注入默认 sheet configs
   const defByToken = {};
   (FS_DEFAULT_CONFIG.tables||[]).forEach(dt=>{ defByToken[dt.token] = dt; });
