@@ -205,9 +205,7 @@ tr:hover td { background:#f7f9fc; }
 </div>
 <div class="section"><h3>表格库</h3>
   <div class="row">
-    <button class="btn btn-sm btn-gray" id="fsReloadTables">⟳ 刷新表格列表</button>
-    <span id="fsReloadHint" class="hint"></span>
-    <button class="btn btn-sm btn-gray" id="fsBatchUpdate" style="margin-left:8px">⟳ 一键缓存全部启用表格</button>
+    <button class="btn btn-sm btn-gray" id="fsBatchUpdate">⟳ 一键缓存全部启用表格</button>
     <span id="fsBatchHint" class="hint"></span>
     <button class="btn btn-sm btn-gray" id="fsClearConfig" style="margin-left:8px;color:#c00000">🗑 清除本地配置</button>
   </div>
@@ -551,7 +549,6 @@ function initFeishu(){
     const el=$(id); if(el) el.oninput = fsSaveConfig;
   });
   renderFsTrees();
-  $('fsReloadTables').onclick=renderFsTrees;
   $('fsBatchUpdate').onclick=fsBatchUpdate;
   $('fsClearConfig').onclick=fsClearConfig;
   $('fsRun').onclick=fsRunMatch;
