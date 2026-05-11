@@ -2,7 +2,8 @@
 """BOM Tools Web v2.0 — 全新清洁版入口"""
 
 import os, json, threading, time
-from flask import Flask, render_template, send_file
+from flask import Flask, render_template, send_file, abort
+from werkzeug.utils import safe_join
 from shared import UPLOAD_DIR, OUTPUT_DIR, CACHE_DIR, FEISHU_PRESET_TABLES, _cleanup_old_files
 
 _DEFAULT_CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'default_config.json')
@@ -37,9 +38,9 @@ def index():
 
 @app.route('/download/<filename>')
 def download(filename):
-    path = os.path.join(OUTPUT_DIR, filename)
-    if not os.path.exists(path):
-        return "文件不存在或已过期", 404
+    path = safe_join(OUTPUT_DIR, filename)
+    if not path or not os.path.exists(path):
+        abort(404)
     return send_file(path, as_attachment=True, download_name=filename)
 
 
