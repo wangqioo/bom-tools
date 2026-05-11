@@ -2,6 +2,7 @@
 """飞书多表格匹配 — Blueprint"""
 
 import os, uuid, json, hashlib, time
+from zipfile import BadZipFile
 from flask import Blueprint
 from shared import (
     requests as _requests,
@@ -12,6 +13,18 @@ from shared import (
 )
 
 os.makedirs(CACHE_DIR, exist_ok=True)
+
+BAD_EXCEL_ERROR = "无法读取文件，可能原因：① 文件是 .xls 旧格式（请另存为 .xlsx）；② 公司加解密软件未启动导致文件被加密，请检查后重试"
+
+
+def _to_int(value, default=1, min_value=1):
+    try:
+        result = int(value)
+    except (TypeError, ValueError):
+        return None
+    if min_value is not None and result < min_value:
+        return None
+    return result
 
 
 # ── 服务端数据缓存（以 token + sheet_id 为粒度）─────────────────
@@ -274,7 +287,9 @@ def api_feishu_match():
     origin     = config.get('origin', '')
     user_id    = config.get('user_id', '')
     sheet_name = config.get('sheet_name', '')
-    header_row = int(config.get('header_row', 1))
+    header_row = _to_int(config.get('header_row', 1), 1)
+    if header_row is None:
+        return jsonify({'success': False, 'error': '表头行必须是大于等于 1 的数字'})
     tables_cfg = config.get('tables', [])
 
     uid = str(uuid.uuid4())[:8]
@@ -443,14 +458,21 @@ def api_feishu_local_sheets():
     uid = str(uuid.uuid4())[:8]
     path = os.path.join(UPLOAD_DIR, f"fs_pre_{uid}.xlsx")
     file.save(path)
-    wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
-    sheets = wb.sheetnames
-    wb.close()
+    try:
+        wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+        sheets = wb.sheetnames
+        wb.close()
+    except BadZipFile:
+        return jsonify({'success': False, 'error': BAD_EXCEL_ERROR})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
 
     sheet_name = request.form.get('sheet_name', '')
     if not sheet_name or sheet_name not in sheets:
         sheet_name = sheets[0] if sheets else ''
-    header_row = int(request.form.get('header_row', 1))
+    header_row = _to_int(request.form.get('header_row', 1), 1)
+    if header_row is None:
+        return jsonify({'success': False, 'error': '表头行必须是大于等于 1 的数字'})
 
     wb2 = openpyxl.load_workbook(path, data_only=True)
     ws = wb2[sheet_name] if sheet_name else wb2[wb2.sheetnames[0]]
@@ -485,7 +507,10 @@ def api_pref_rate():
     local_file.save(local_path)
 
     try:
-        wb = openpyxl.load_workbook(local_path, data_only=True)
+        try:
+            wb = openpyxl.load_workbook(local_path, data_only=True)
+        except BadZipFile:
+            return jsonify({'success': False, 'error': BAD_EXCEL_ERROR})
         sheets = wb.sheetnames
         if not sheet_name or sheet_name not in sheets:
             sheet_name = sheets[0]

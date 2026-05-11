@@ -15,6 +15,20 @@ bom_bp = Blueprint('bom', __name__)
 
 SUPPLIER_LABELS = ["主供","二供","三供","四供","五供","六供","七供","八供","九供","十供"]
 
+BAD_EXCEL_ERROR = '无法读取文件，可能原因：① 文件是 .xls 旧格式（请另存为 .xlsx）；② 公司加解密软件未启动导致文件被加密，请检查后重试'
+
+
+def _request_int(name, default=1, min_value=1):
+    try:
+        value = int(request.form.get(name, default))
+    except (TypeError, ValueError):
+        return None
+    if min_value is not None and value < min_value:
+        return None
+    return value
+
+
+
 
 # ── 供应商解析 ─────────────────────────────────────────────────
 
@@ -327,7 +341,9 @@ def api_bom_detect():
     if not sheet_name or sheet_name not in sheets:
         sheet_name = sheets[0] if sheets else ''
 
-    header_row = int(request.form.get('header_row', 1))
+    header_row = _request_int('header_row', 1)
+    if header_row is None:
+        return jsonify({'success': False, 'error': '表头行必须是大于等于 1 的数字'})
     wb2 = openpyxl.load_workbook(in_path, data_only=True)
     ws = wb2[sheet_name] if sheet_name else wb2[wb2.sheetnames[0]]
 
@@ -389,7 +405,9 @@ def api_bom_convert():
     file.save(in_path)
 
     sheet_name = request.form.get('sheet', '')
-    header_row = int(request.form.get('header_row', 1))
+    header_row = _request_int('header_row', 1)
+    if header_row is None:
+        return jsonify({'success': False, 'error': '表头行必须是大于等于 1 的数字'})
     fmt = request.form.get('fmt', 'A')
     col_brand_str = request.form.get('col_brand', '')
     col_model_str = request.form.get('col_model', '')

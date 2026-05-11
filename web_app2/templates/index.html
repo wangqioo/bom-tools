@@ -96,6 +96,46 @@ tr:hover td { background:#f7f9fc; }
 /* === 加载遮罩 === */
 .spinner { display:inline-block; animation:spin .8s linear infinite; }
 @keyframes spin { 100% { transform:rotate(360deg); } }
+/* === PLM 流程卡片 === */
+.workflow-shell,.plm-shell { display:flex; flex-direction:column; gap:0; }
+.workflow-hero,.plm-hero {
+  background:linear-gradient(135deg,#eef5ff 0%,#f8fbff 100%);
+  border:1px solid #d9e6ff;
+  border-radius:12px;
+  padding:14px 16px;
+  box-shadow:0 1px 3px rgba(0,0,0,.04);
+}
+.workflow-hero h4,.plm-hero h4 { font-size:15px; color:#163a6b; margin-bottom:4px; }
+.workflow-hero p,.plm-hero p { font-size:12px; color:#5f6d82; line-height:1.6; }
+.plm-step { border:1px solid #e2e8f3; box-shadow:0 1px 3px rgba(18,38,63,.05); }
+.plm-step h3 { display:flex; align-items:center; gap:8px; }
+.plm-step-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:10px; }
+.workflow-step-desc,.plm-step-desc { font-size:12px; color:#697586; line-height:1.5; margin:-4px 0 10px; }
+.plm-info {
+  background:#f7f9fc;
+  border:1px dashed #d7deea;
+  border-radius:8px;
+  padding:8px 10px;
+  font-size:12px;
+  color:#5d6676;
+}
+.plm-table-card { background:#fff; border:1px solid #e3e8f2; border-radius:8px; overflow:hidden; }
+.plm-actions { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
+.plm-actions .hint { margin-left:2px; }
+.plm-result-list { font-size:12px; line-height:1.8; color:#475063; }
+.plm-result-list span { display:block; }
+.workflow-shell > .section,.plm-shell > .section { border:1px solid #e2e8f3; box-shadow:0 1px 3px rgba(18,38,63,.05); margin-bottom:12px; }
+.workflow-shell > .section h3,.plm-shell > .section h3 { display:flex; align-items:center; gap:8px; }
+.workflow-shell .workflow-hero,.plm-shell .plm-hero { margin-bottom:12px; }
+#plm-tab-bom-cfg #plmDetectLog {
+  border:1px dashed #d7deea;
+  border-radius:8px;
+  color:#5d6676;
+}
+#plm-tab-bom-cfg #plmColMap,
+#plm-tab-bom-cfg #plmQtyCfgTable { border-radius:8px; }
+#plm-tab-bom-cfg #plmQtyCfgBody input { border-color:#d7deea; }
+#plm-tab-bom-cfg #plmQtyCfgBody tr:hover td { background:#f6f9ff; }
 </style>
 </head>
 <body>
@@ -124,12 +164,19 @@ tr:hover td { background:#f7f9fc; }
 
 <!-- ── BOM 工具 ── -->
 <script type="text/html" id="tpl-bom">
+<div class="workflow-shell">
+<div class="workflow-hero">
+  <h4>BOM 格式转换</h4>
+  <p>按“选文件 - 列映射 - 输出设置”的顺序处理。系统会自动识别常用列，也可以手动填写列字母覆盖识别结果。</p>
+</div>
 <div class="section"><h3>第一步：选择文件</h3>
+  <div class="workflow-step-desc">上传待转换的 BOM，并确认 Sheet 和表头行，下面会显示预览方便核对。</div>
   <div class="row"><label>文件路径：</label><input type="file" id="bomFile" accept=".xlsx,.xlsm,.xls" style="width:320px"><button class="btn btn-outline btn-sm" id="bomBrowse">浏览...</button></div>
   <div class="row"><label>Sheet：</label><select id="bomSheet" style="width:180px"><option>先选择文件</option></select><label>表头行：</label><input type="number" id="bomHdr" value="1" min="1" style="width:60px"><button class="btn btn-sm btn-gray" id="bomRefresh">刷新预览</button></div>
   <div id="bomPreview" class="table-wrap" style="margin-top:8px"></div>
 </div>
 <div class="section"><h3>第二步：列映射（自动识别，可手动调整）</h3>
+  <div class="workflow-step-desc">选择原始 BOM 的格式，并确认物料名称、用量、品牌/厂家、型号等关键列。</div>
   <div class="row">
     <label>格式：</label>
     <select id="bomFmt">
@@ -148,6 +195,7 @@ tr:hover td { background:#f7f9fc; }
   <div id="bomDetected" style="font-size:12px;color:#555;background:#f7f9fc;padding:8px;border-radius:6px;margin-top:4px"></div>
 </div>
 <div class="section"><h3>第三步：输出设置</h3>
+  <div class="workflow-step-desc">选择输出为供应商展开表，或输出为 HQ 整机 BOM 配置表。</div>
   <div class="row">
     <label>输出模式：</label>
     <select id="bomOutputMode">
@@ -160,6 +208,7 @@ tr:hover td { background:#f7f9fc; }
 </div>
 <div class="result" id="bomResult"><span class="title">✅ 转换完成</span><br><span id="bomStats" style="display:inline-block;margin-top:6px"></span><br><a class="download" id="bomDl" href="#">📥 下载结果文件</a></div>
 <div class="error" id="bomError"></div>
+</div>
 </script>
 
 <!-- ── PLM 工具 ── -->
@@ -171,22 +220,48 @@ tr:hover td { background:#f7f9fc; }
 </div>
 
 <!-- 整机BOM配置表转换 -->
-<div id="plm-tab-bom-cfg">
+<div id="plm-tab-bom-cfg" class="plm-shell">
+<div class="plm-hero">
+  <h4>整机 BOM 配置表转换</h4>
+  <p>按“选文件 - 基础映射 - 用量配置 - 输出设置”的顺序处理。每条用量配置都会单独生成一个 PLM 导入文件，多个配置自动打包为 ZIP。</p>
+</div>
 <div class="section"><h3>第一步：选择整机BOM配置表</h3>
+  <div class="workflow-step-desc">上传整机 BOM 配置表，并确认 Sheet 和表头行。默认表头行为第 4 行。</div>
   <div class="row"><label>文件路径：</label><input type="file" id="plmFile" accept=".xlsx,.xlsm,.xls" style="width:320px"><button class="btn btn-outline btn-sm" id="plmBrowse">浏览...</button></div>
   <div class="row"><label>Sheet：</label><select id="plmSheet" style="width:180px"><option>先选择文件</option></select><label>表头行：</label><input type="text" id="plmHdr" value="4" style="width:50px"><button class="btn btn-sm btn-gray" id="plmRefresh">加载 / 刷新</button></div>
 </div>
-<div class="section"><h3>第二步：列映射（自动识别，可手动填列字母覆盖）</h3>
+<div class="section"><h3>第二步：基础列映射（自动识别，可手动填列字母覆盖）</h3>
+  <div class="workflow-step-desc">确认整张 BOM 共用的 HQ PN 和主二供列；用量列不在这里配置。</div>
   <div id="plmDetectLog" style="font-size:12px;color:#555;background:#f7f9fc;padding:8px;border-radius:6px;margin-bottom:8px"></div>
   <div id="plmColMap" class="table-wrap" style="margin-bottom:10px;max-height:200px"></div>
   <div class="row">
     <label>HQ PN 列：</label><input type="text" id="plmColHqpn" style="width:60px" placeholder="如 E">
     <label>主二供列：</label><input type="text" id="plmColStype" style="width:60px" placeholder="如 I">
-    <label>用量列：</label><input type="text" id="plmColQty" style="width:60px" placeholder="如 K">
+  </div>
+  <div class="row" style="margin-top:8px">
+    <span class="hint">这里只放整张 BOM 共用的基础列。每个输出配置的用量列和配置名在下一步单独设置。</span>
   </div>
 </div>
-<div class="section"><h3>第三步：输出设置</h3>
-  <div class="row"><label>项目配置名：</label><input type="text" id="plmProjName" style="width:240px" placeholder="写入PLM文件头部（可留空）"></div>
+<div class="section"><h3>第三步：用量配置</h3>
+  <div class="workflow-step-desc">为每个项目配置单独设置用量列和配置名来源，每一行会生成一个独立的 PLM 导入文件。</div>
+  <div style="margin-top:10px">
+    <div class="row" style="margin-bottom:6px">
+      <label style="min-width:92px">用量配置：</label>
+      <button class="btn btn-sm btn-gray" id="plmAddQtyCfg" type="button">+ 添加配置</button>
+      <button class="btn btn-sm btn-gray" id="plmUsePrevRow" type="button">从表头上一行读取配置名</button>
+      <button class="btn btn-sm btn-gray" id="plmUseHeaderRow" type="button">从表头行读取配置名</button>
+      <span class="hint">每行会生成一个 PLM 导入文件，多个文件自动打包 ZIP</span>
+    </div>
+    <div class="table-wrap" style="max-height:220px">
+      <table id="plmQtyCfgTable">
+        <thead><tr><th style="width:110px">配置名来源行</th><th>配置名</th><th style="width:90px">用量列</th><th style="width:70px">操作</th></tr></thead>
+        <tbody id="plmQtyCfgBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+<div class="section"><h3>第四步：输出设置</h3>
+  <div class="workflow-step-desc">开始转换并下载结果。多个配置会自动打包为 ZIP。</div>
   <button class="btn btn-primary" id="plmRun">⚡ 开始转换</button> <span id="plmStatus" style="font-size:13px;color:#888"></span>
 </div>
 <div class="result" id="plmResult"><span class="title">✅ 转换完成</span><br><span id="plmStats" style="display:inline-block;margin-top:6px"></span><br><a class="download" id="plmDl" href="#">📥 下载 PLM 导入文件</a></div>
@@ -196,7 +271,13 @@ tr:hover td { background:#f7f9fc; }
 
 <!-- 规格型号提取 -->
 <div id="plm-tab-spec-extract" style="display:none">
+<div class="workflow-shell">
+<div class="workflow-hero">
+  <h4>规格型号提取</h4>
+  <p>按“上传文件 - 选择列 - 开始提取”的顺序处理。提取结果会自动清理空格并导出为 Excel。</p>
+</div>
 <div class="section"><h3>第一步：上传BOM文件</h3>
+  <div class="workflow-step-desc">选择需要提取规格型号的 BOM 文件，并确认 Sheet 和表头行。</div>
   <div class="row"><label>文件路径：</label><input type="file" id="seFile" accept=".xlsx,.xlsm,.xls" style="width:320px"></div>
   <div class="row">
     <label>Sheet：</label><select id="seSheet" style="width:180px"><option>先选择文件</option></select>
@@ -205,6 +286,7 @@ tr:hover td { background:#f7f9fc; }
   </div>
 </div>
 <div class="section"><h3>第二步：选择提取列</h3>
+  <div class="workflow-step-desc">选择包含规格型号的列，系统会从这一列提取并去除空格。</div>
   <div class="row">
     <label>提取列：</label>
     <select id="seCol" style="width:220px"><option>先刷新列表</option></select>
@@ -212,6 +294,7 @@ tr:hover td { background:#f7f9fc; }
   </div>
 </div>
 <div class="section">
+  <div class="workflow-step-desc">确认列选择无误后开始提取，并下载生成的规格型号列表。</div>
   <button class="btn btn-primary" id="seRun">⚡ 开始提取</button>
   <span id="seStatus" style="font-size:13px;margin-left:10px;color:#888"></span>
 </div>
@@ -222,11 +305,18 @@ tr:hover td { background:#f7f9fc; }
 </div>
 <div class="error" id="seError"></div>
 </div>
+</div>
 </script>
 
 <!-- ── 查询BOM优选率 ── -->
 <script type="text/html" id="tpl-pref-rate">
+<div class="workflow-shell">
+<div class="workflow-hero">
+  <h4>查询 BOM 优选率</h4>
+  <p>按“上传 BOM - 选择 HQ 料号列 - 查询优选库”的顺序处理。查询依赖飞书优选库缓存，请先在飞书工具中完成缓存。</p>
+</div>
 <div class="section"><h3>第一步：上传BOM文件</h3>
+  <div class="workflow-step-desc">上传需要计算优选率的 BOM，并选择 HQ 料号所在列。</div>
   <div class="row"><label>文件路径：</label><input type="file" id="prFile" accept=".xlsx,.xlsm,.xls" style="width:320px"></div>
   <div class="row"><label>Sheet：</label><select id="prSheet" style="width:200px"><option>先选择文件</option></select>
     <label style="margin-left:16px">表头行：</label><input type="number" id="prHdr" value="1" min="1" style="width:55px">
@@ -235,6 +325,7 @@ tr:hover td { background:#f7f9fc; }
   <div class="row"><label>HQ料号列：</label><select id="prKeyCol" style="width:200px"><option>先刷新列表</option></select></div>
 </div>
 <div class="section"><h3>第二步：查询</h3>
+  <div class="workflow-step-desc">系统会按 HQ 料号在已缓存的优选库中查询等级，并输出统计结果。</div>
   <p style="font-size:12px;color:#666;margin:0 0 10px">将从所有已缓存的<b>优选库</b> sheet 中按 HQ料号 查找对应的优选等级。请确保已在「飞书优选库+关系库匹配」中完成缓存。</p>
   <button class="btn btn-primary" id="prRun">⚡ 开始查询</button>
   <span id="prStatus" style="font-size:13px;margin-left:10px"></span>
@@ -245,11 +336,18 @@ tr:hover td { background:#f7f9fc; }
   <a class="download" id="prDl" href="#">📥 下载查询结果</a>
 </div>
 <div class="error" id="prError"></div>
+</div>
 </script>
 
 <!-- ── 飞书工具 ── -->
 <script type="text/html" id="tpl-feishu">
+<div class="workflow-shell">
+<div class="workflow-hero">
+  <h4>飞书优选库 + 关系库匹配</h4>
+  <p>按“配置网关 - 选择本地 BOM - 缓存/选择表格库 - 运行匹配”的顺序处理。表格库配置会保存在本地，后续可复用。</p>
+</div>
 <div class="section"><h3>网关设置</h3>
+  <div class="workflow-step-desc">设置内部接口网关、Origin 和工号，用于读取飞书表格数据。</div>
   <div class="row">
     <label>网关地址：</label><input type="text" id="fsBaseUrl" value="https://mcenter.huaqin.com" style="width:260px">
     <label>Origin：</label><input type="text" id="fsOrigin" value="cli_a96ac38049f8d0e5" style="width:200px">
@@ -258,6 +356,7 @@ tr:hover td { background:#f7f9fc; }
   <div style="font-size:11px;color:#888" id="fsCfgStatus"></div>
 </div>
 <div class="section"><h3>本地 BOM 文件</h3>
+  <div class="workflow-step-desc">上传本地 BOM，选择 Sheet、表头行，并配置用于匹配的本地键和需要提取的字段。</div>
   <div class="row">
     <label>文件路径：</label><input type="file" id="fsFile" accept=".xlsx,.xlsm,.xls" style="width:300px">
     <label>Sheet：</label><select id="fsSheet" style="width:180px"><option>先选择文件</option></select>
@@ -277,6 +376,7 @@ tr:hover td { background:#f7f9fc; }
   </div>
 </div>
 <div class="section"><h3>表格库</h3>
+  <div class="workflow-step-desc">管理优选库和关系库配置，可缓存启用的 Sheet，也可以导出或恢复本地配置。</div>
   <div class="row">
     <button class="btn btn-sm btn-gray" id="fsBatchUpdate">⟳ 一键缓存所有启用 Sheet</button>
     <span id="fsBatchHint" class="hint"></span>
@@ -294,6 +394,7 @@ tr:hover td { background:#f7f9fc; }
   </div>
 </div>
 <div class="section"><h3>运行匹配</h3>
+  <div class="workflow-step-desc">确认上面的本地 BOM 和表格库配置后开始匹配，结果会导出为 Excel。</div>
   <div id="fsRunStatus" style="font-size:12px;color:#888;margin-bottom:8px"></div>
   <button class="btn btn-primary" id="fsRun">⚡ 开始匹配</button>
   <span id="fsRunStatus2" style="font-size:13px;color:#888;margin-left:8px"></span>
@@ -301,13 +402,14 @@ tr:hover td { background:#f7f9fc; }
 <div class="result" id="fsResult"><span class="title">✅ 匹配完成</span><br><span id="fsStats" style="display:inline-block;margin-top:6px"></span><br><a class="download" id="fsDl" href="#">📥 下载匹配结果</a></div>
 <div class="error" id="fsError"></div>
 <div id="fsLogBox" style="display:none;margin-top:10px"><h4 style="margin:0 0 6px;font-size:13px">📋 处理日志</h4><pre id="fsLog" style="font-size:12px;background:#1a1a2e;color:#e0e0e0;padding:10px;border-radius:6px;max-height:200px;overflow:auto;white-space:pre-wrap;font-family:Consolas,'Courier New',monospace"></pre></div>
+</div>
 </script>
 
 <script>
 // ═══════════════════ 通用函数 ═══════════════════
 function $(id){return document.getElementById(id);}
-function show(el){el.style.display='block';}
-function hide(el){el.style.display='none';}
+function show(el){if(el) el.style.display='block';}
+function hide(el){if(el) el.style.display='none';}
 
 // ═══════════════════ 左侧导航切换 ═══════════════════
 const TOOLS = {
@@ -378,12 +480,12 @@ function updateBomPreview(headers, previewRows){
   h+='</tr>';
   // 表头行
   h+='<tr>';
-  headers.forEach(hd=>h+=`<th>${hd||''}</th>`);
+  headers.forEach(hd=>h+=`<th>${_escH(hd||'')}</th>`);
   h+='</tr>';
   // 数据行
   (previewRows||[]).forEach(r=>{
     h+='<tr>';
-    r.forEach(c=>h+=`<td>${c||''}</td>`);
+    r.forEach(c=>h+=`<td>${_escH(c||'')}</td>`);
     h+='</tr>';
   });
   h+='</table>';
@@ -471,8 +573,8 @@ function buildColMapTable(headers){
   let h='<table><tr style="background:#e8f0fe"><th style="width:50px">列</th><th>列名</th></tr>';
   headers.forEach(e=>{
     const m=e.match(/^([A-Z]+):(.+)/);
-    if(m) h+=`<tr><td style="font-weight:700;color:#1a5ad4">${m[1]}</td><td>${m[2]}</td></tr>`;
-    else  h+=`<tr><td></td><td>${e}</td></tr>`;
+    if(m) h+=`<tr><td style="font-weight:700;color:#1a5ad4">${_escH(m[1])}</td><td>${_escH(m[2])}</td></tr>`;
+    else  h+=`<tr><td></td><td>${_escH(e)}</td></tr>`;
   });
   h+='</table>';
   $('plmColMap').innerHTML=h;
@@ -480,16 +582,138 @@ function buildColMapTable(headers){
 
 function updatePlmFromApi(d){
   if(!d.success) return;
+  window._plmPreviewHeaders = d.preview_headers || [];
   let opts='';
   d.sheets.forEach(s=>opts+=`<option${s===d.current_sheet?' selected':''}>${s}</option>`);
   $('plmSheet').innerHTML=opts;
   if(d.detected){
     if(d.detected.hq_pn)       $('plmColHqpn').value=d.detected.hq_pn;
     if(d.detected.supply_type) $('plmColStype').value=d.detected.supply_type;
-    if(d.detected.qty)         $('plmColQty').value=d.detected.qty;
+    if(d.detected.qty && !window._plmQtyConfigs?.length) plmSetQtyConfigs([{qty_col:d.detected.qty}]);
   }
   $('plmDetectLog').textContent='自动识别：'+(d.headers||[]).join(' | ');
   buildColMapTable(d.headers);
+  plmRefreshQtyConfigNames(false);
+}
+
+function plmColToIndex(col){
+  const s=String(col||'').trim().toUpperCase();
+  if(!s) return null;
+  if(/^\d+$/.test(s)) return parseInt(s,10);
+  let n=0;
+  for(const ch of s){
+    if(ch<'A'||ch>'Z') return null;
+    n=n*26+(ch.charCodeAt(0)-64);
+  }
+  return n;
+}
+
+function plmIndexToCol(n){
+  n=parseInt(n,10);
+  let s='';
+  while(n>0){
+    const m=(n-1)%26;
+    s=String.fromCharCode(65+m)+s;
+    n=Math.floor((n-1)/26);
+  }
+  return s;
+}
+
+function plmGetCellText(row, col){
+  const idx=plmColToIndex(col);
+  if(!idx || !window._plmPreviewHeaders) return '';
+  return window._plmPreviewHeaders[idx-1] || '';
+}
+
+function plmDefaultNameRow(){
+  const hdr=parseInt($('plmHdr')?.value)||4;
+  return Math.max(1, hdr-1);
+}
+
+function plmSetQtyConfigs(configs){
+  window._plmQtyConfigs=(configs||[]).map(cfg=>({
+    name_row: cfg.name_row || plmDefaultNameRow(),
+    name: cfg.name || '',
+    qty_col: cfg.qty_col || '',
+  }));
+  plmRenderQtyConfigs();
+  plmRefreshQtyConfigNames(false);
+}
+
+function plmRenderQtyConfigs(){
+  const body=$('plmQtyCfgBody');
+  if(!body) return;
+  const cfgs=window._plmQtyConfigs||[];
+  body.innerHTML=cfgs.map((cfg,i)=>`
+    <tr>
+      <td><input type="number" min="1" value="${cfg.name_row||plmDefaultNameRow()}" style="width:80px" onchange="plmUpdateQtyCfg(${i},'name_row',this.value);plmRefreshOneQtyName(${i},true)"></td>
+      <td><input type="text" value="${_escH(cfg.name||'')}" style="width:100%" placeholder="自动读取，可手动修改" onchange="plmUpdateQtyCfg(${i},'name',this.value)"></td>
+      <td><input type="text" value="${_escH(cfg.qty_col||'')}" style="width:64px" placeholder="如 K" onchange="plmUpdateQtyCfg(${i},'qty_col',this.value);plmRefreshOneQtyName(${i},true)"></td>
+      <td><button class="btn btn-sm btn-gray" type="button" onclick="plmRemoveQtyCfg(${i})">删除</button></td>
+    </tr>`).join('');
+}
+
+function plmUpdateQtyCfg(i,key,val){
+  window._plmQtyConfigs=window._plmQtyConfigs||[];
+  if(!window._plmQtyConfigs[i]) return;
+  window._plmQtyConfigs[i][key]=key==='qty_col'?String(val||'').trim().toUpperCase():val;
+}
+
+function plmRefreshOneQtyName(i,force){
+  const cfg=(window._plmQtyConfigs||[])[i];
+  if(!cfg || (!force && cfg.name)) return;
+  const row=parseInt(cfg.name_row)||plmDefaultNameRow();
+  const col=cfg.qty_col;
+  const f=$('plmFile')?.files?.[0];
+  if(!f || !col) {
+    cfg.name = cfg.name || (col ? `用量${col}` : '');
+    plmRenderQtyConfigs();
+    return;
+  }
+  const fd=new FormData();
+  fd.append('file',f);
+  fd.append('sheet_name',$('plmSheet').value);
+  fd.append('header_row',row);
+  fetch('/api/plm/detect',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{
+    if(d.success){
+      const idx=plmColToIndex(col);
+      const name=(d.preview_headers||[])[idx-1] || '';
+      cfg.name = name || `用量${col}`;
+      plmRenderQtyConfigs();
+    }
+  });
+}
+
+function plmRefreshQtyConfigNames(force){
+  (window._plmQtyConfigs||[]).forEach((_,i)=>plmRefreshOneQtyName(i,force));
+}
+
+function plmAddQtyCfg(){
+  window._plmQtyConfigs=window._plmQtyConfigs||[];
+  const last=window._plmQtyConfigs[window._plmQtyConfigs.length-1];
+  const lastIdx=plmColToIndex(last?.qty_col);
+  const nextCol=lastIdx?plmIndexToCol(lastIdx+1):'';
+  window._plmQtyConfigs.push({name_row:plmDefaultNameRow(),name:'',qty_col:nextCol});
+  plmRenderQtyConfigs();
+  plmRefreshOneQtyName(window._plmQtyConfigs.length-1,true);
+}
+
+function plmRemoveQtyCfg(i){
+  window._plmQtyConfigs=(window._plmQtyConfigs||[]).filter((_,idx)=>idx!==i);
+  plmRenderQtyConfigs();
+}
+
+function plmSetQtyNameRow(row){
+  window._plmQtyConfigs=window._plmQtyConfigs||[];
+  window._plmQtyConfigs.forEach(cfg=>{cfg.name_row=row; cfg.name='';});
+  plmRenderQtyConfigs();
+  plmRefreshQtyConfigNames(true);
+}
+
+function plmCollectQtyConfigs(){
+  return (window._plmQtyConfigs||[])
+    .map(cfg=>({name_row:parseInt(cfg.name_row)||plmDefaultNameRow(), name:String(cfg.name||'').trim(), qty_col:String(cfg.qty_col||'').trim().toUpperCase()}))
+    .filter(cfg=>cfg.qty_col);
 }
 
 function initPlm(){
@@ -511,6 +735,12 @@ function initPlm(){
   $('seRun').onclick = seRun;
 
   $('plmBrowse').onclick=()=>$('plmFile').click();
+  window._plmQtyConfigs=[];
+  window._plmPreviewHeaders=[];
+  plmRenderQtyConfigs();
+  $('plmAddQtyCfg').onclick=plmAddQtyCfg;
+  $('plmUsePrevRow').onclick=()=>plmSetQtyNameRow(plmDefaultNameRow());
+  $('plmUseHeaderRow').onclick=()=>plmSetQtyNameRow(parseInt($('plmHdr').value)||4);
   $('plmFile').onchange=function(){
     const f=this.files[0];if(!f)return;
     const fd=new FormData();fd.append('file',f);fd.append('header_row',$('plmHdr').value||4);
@@ -535,14 +765,20 @@ function initPlm(){
     fd.append('header_row',$('plmHdr').value);
     fd.append('col_hqpn',$('plmColHqpn').value);
     fd.append('col_stype',$('plmColStype').value);
-    fd.append('col_qty',$('plmColQty').value);
-    fd.append('project_name',$('plmProjName').value);
+    fd.append('qty_configs',JSON.stringify(plmCollectQtyConfigs()));
     try{
       const r=await fetch('/api/plm/convert',{method:'POST',body:fd});
       const d=await r.json();
       if(d.success){
-        $('plmStats').innerHTML=`写入 <b>${d.total}</b> 行${d.skipped?`，跳过 ${d.skipped} 行（用量为空）`:''}`;
+        let stats=`写入 <b>${d.total}</b> 行${d.skipped?`，跳过 ${d.skipped} 行（用量为空）`:''}`;
+        if(d.files&&d.files.length){
+          stats += '<div style="margin-top:6px;font-size:12px;line-height:1.8">';
+          stats += d.files.map(f=>`${f.project_name}（${f.qty_col}列）：${f.total} 行${f.skipped?`，跳过 ${f.skipped} 行`:''}`).join('<br>');
+          stats += '</div>';
+        }
+        $('plmStats').innerHTML=stats;
         $('plmDl').href=d.download;
+        $('plmDl').textContent=d.is_zip?'📦 下载 PLM 导入文件包':'📥 下载 PLM 导入文件';
         show($('plmResult'));$('plmStatus').textContent='完成！';
         if(d.skip_logs&&d.skip_logs.length){$('plmLog').textContent=d.skip_logs.join('\n');show($('plmLogBox'));}else hide($('plmLogBox'));
       } else {

@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """PLM 上传工具 — Blueprint"""
 
-import os, uuid, re
-from zipfile import BadZipFile
+import os, uuid, re, json
+from zipfile import BadZipFile, ZipFile, ZIP_DEFLATED
 from flask import Blueprint
 from shared import (
     openpyxl, Workbook, Font, PatternFill, Alignment, Border, Side,
@@ -27,6 +27,20 @@ PLM_IDX_SEQ  = 0
 PLM_IDX_HQPN = 1
 PLM_IDX_QTY  = 4
 PLM_IDX_MARK = 11  # 主辅BOM标记
+
+BAD_EXCEL_ERROR = '无法读取文件，可能原因：① 文件是 .xls 旧格式（请另存为 .xlsx）；② 公司加解密软件未启动导致文件被加密，请检查后重试'
+
+
+def _request_int(name, default=1, min_value=1):
+    try:
+        value = int(request.form.get(name, default))
+    except (TypeError, ValueError):
+        return None
+    if min_value is not None and value < min_value:
+        return None
+    return value
+
+
 
 
 def _detect_columns(ws, header_row):
@@ -62,6 +76,20 @@ def _safe_qty(v):
         return float(s)
     except ValueError:
         return None
+
+
+def _split_col_refs(raw):
+    refs = []
+    for part in re.split(r'[\s,\uFF0C;\uFF1B]+', str(raw or '').strip()):
+        part = part.strip()
+        if part:
+            refs.append(part)
+    return refs
+
+
+def _safe_filename_part(value):
+    text = str(value or '').strip() or '\u672a\u547d\u540d'
+    return re.sub(r'[\\/*?:"<>|]', '_', text)
 
 
 def _do_convert(in_file, sheet_name, header_row,
@@ -177,7 +205,9 @@ def api_plm_detect():
     sheet_name = request.form.get('sheet_name', '')
     if not sheet_name or sheet_name not in sheets:
         sheet_name = sheets[0] if sheets else ''
-    header_row = int(request.form.get('header_row', 4))
+    header_row = _request_int('header_row', 4)
+    if header_row is None:
+        return jsonify({'success': False, 'error': '表头行必须是大于等于 1 的数字'})
 
     wb2 = openpyxl.load_workbook(in_path, data_only=True)
     ws = wb2[sheet_name] if sheet_name else wb2[wb2.sheetnames[0]]
@@ -218,10 +248,13 @@ def api_plm_convert():
     file.save(in_path)
 
     sheet_name = request.form.get('sheet', '')
-    header_row = int(request.form.get('header_row', 4))
+    header_row = _request_int('header_row', 4)
+    if header_row is None:
+        return jsonify({'success': False, 'error': '表头行必须是大于等于 1 的数字'})
     col_hqpn_str = request.form.get('col_hqpn', '')
     col_stype_str = request.form.get('col_stype', '')
     col_qty_str = request.form.get('col_qty', '')
+    qty_configs_str = request.form.get('qty_configs', '')
     project_name = request.form.get('project_name', '')
 
     try:
@@ -234,7 +267,7 @@ def api_plm_convert():
         sheet_name = sheets[0]
 
     # Auto-detect if columns not specified
-    if not all([col_hqpn_str, col_stype_str, col_qty_str]):
+    if not all([col_hqpn_str, col_stype_str]) or (not col_qty_str and not qty_configs_str):
         wb2 = openpyxl.load_workbook(in_path, data_only=True)
         ws = wb2[sheet_name]
         detected, raw_headers = _detect_columns(ws, header_row)
@@ -248,29 +281,102 @@ def api_plm_convert():
 
     col_hqpn = _col_int(col_hqpn_str)
     col_stype = _col_int(col_stype_str)
-    col_qty = _col_int(col_qty_str)
 
-    if not all([col_hqpn, col_stype, col_qty]):
+    qty_jobs = []
+    if qty_configs_str.strip():
+        try:
+            qty_configs = json.loads(qty_configs_str)
+        except Exception:
+            return jsonify({'success': False, 'error': '\u7528\u91cf\u914d\u7f6e\u683c\u5f0f\u9519\u8bef'})
+        for cfg in qty_configs if isinstance(qty_configs, list) else []:
+            col_qty = _col_int((cfg or {}).get('qty_col', ''))
+            if not col_qty:
+                continue
+            qty_project_name = str((cfg or {}).get('name') or '').strip()
+            if not qty_project_name:
+                qty_project_name = f"\u7528\u91cf{get_column_letter(col_qty)}"
+            qty_jobs.append((col_qty, qty_project_name))
+    else:
+        col_qty_refs = _split_col_refs(col_qty_str)
+        if not col_qty_refs and col_qty_str.strip():
+            col_qty_refs = [col_qty_str.strip()]
+        col_qty_list = [_col_int(ref) for ref in col_qty_refs]
+        col_qty_list = [ci for ci in col_qty_list if ci]
+
+        wb_hdr = openpyxl.load_workbook(in_path, read_only=True, data_only=True)
+        ws_hdr = wb_hdr[sheet_name]
+        for col_qty in col_qty_list:
+            header_val = ws_hdr.cell(row=header_row, column=col_qty).value
+            qty_project_name = str(header_val or '').strip() or f"\u7528\u91cf{get_column_letter(col_qty)}"
+            if project_name.strip() and len(col_qty_list) == 1:
+                qty_project_name = project_name.strip()
+            qty_jobs.append((col_qty, qty_project_name))
+        wb_hdr.close()
+
+    if not all([col_hqpn, col_stype]) or not qty_jobs:
         return jsonify({
             'success': False,
-            'error': '请指定有效的 HQ PN 列、主二供列、用量列',
+            'error': '\u8bf7\u6307\u5b9a\u6709\u6548\u7684 HQ PN \u5217\u3001\u4e3b\u4e8c\u4f9b\u5217\u3001\u7528\u91cf\u5217\uff08\u53ef\u6dfb\u52a0\u591a\u4e2a\u7528\u91cf\u914d\u7f6e\uff09',
         })
 
-    safe_proj = re.sub(r'[\\/*?:"<>|]', '_', project_name or '未命名')
-    out_name = f"PLM导入_{safe_proj}_{uid}.xlsx"
-    out_path = os.path.join(OUTPUT_DIR, out_name)
+    if len(qty_jobs) == 1:
+        col_qty, qty_project_name = qty_jobs[0]
+        safe_proj = _safe_filename_part(qty_project_name)
+        out_name = f"PLM\u5bfc\u5165_{safe_proj}_{uid}.xlsx"
+        out_path = os.path.join(OUTPUT_DIR, out_name)
+        total, skipped, skip_logs = _do_convert(
+            in_path, sheet_name, header_row,
+            col_hqpn, col_stype, col_qty, qty_project_name, out_path,
+        )
+        return jsonify({
+            'success': True,
+            'download': f'/download/{out_name}',
+            'total': total,
+            'skipped': skipped,
+            'skip_logs': skip_logs,
+            'files': [{'name': out_name, 'project_name': qty_project_name,
+                       'qty_col': get_column_letter(col_qty),
+                       'total': total, 'skipped': skipped}],
+        })
 
-    total, skipped, skip_logs = _do_convert(
-        in_path, sheet_name, header_row,
-        col_hqpn, col_stype, col_qty, project_name, out_path,
-    )
+    results = []
+    all_skip_logs = []
+    zip_name = f"PLM\u5bfc\u5165\u6279\u91cf_{uid}.zip"
+    zip_path = os.path.join(OUTPUT_DIR, zip_name)
+    used_names = set()
+    with ZipFile(zip_path, 'w', ZIP_DEFLATED) as zf:
+        for col_qty, qty_project_name in qty_jobs:
+            safe_proj = _safe_filename_part(qty_project_name)
+            out_name = f"PLM\u5bfc\u5165_{safe_proj}_{uid}.xlsx"
+            n = 2
+            while out_name in used_names:
+                out_name = f"PLM\u5bfc\u5165_{safe_proj}_{uid}_{n}.xlsx"
+                n += 1
+            used_names.add(out_name)
+
+            out_path = os.path.join(OUTPUT_DIR, out_name)
+            total, skipped, skip_logs = _do_convert(
+                in_path, sheet_name, header_row,
+                col_hqpn, col_stype, col_qty, qty_project_name, out_path,
+            )
+            zf.write(out_path, arcname=out_name)
+            results.append({
+                'name': out_name,
+                'project_name': qty_project_name,
+                'qty_col': get_column_letter(col_qty),
+                'total': total,
+                'skipped': skipped,
+            })
+            all_skip_logs.extend([f"[{qty_project_name}] {msg}" for msg in skip_logs])
 
     return jsonify({
         'success': True,
-        'download': f'/download/{out_name}',
-        'total': total,
-        'skipped': skipped,
-        'skip_logs': skip_logs,
+        'download': f'/download/{zip_name}',
+        'total': sum(r['total'] for r in results),
+        'skipped': sum(r['skipped'] for r in results),
+        'skip_logs': all_skip_logs,
+        'files': results,
+        'is_zip': True,
     })
 
 @plm_bp.route('/api/plm/spec_extract', methods=['POST'])
@@ -286,7 +392,12 @@ def api_spec_extract():
     except Exception:
         return jsonify({'success': False, 'error': 'config 格式错误'})
 
-    header_row = int(cfg.get('header_row', 1))
+    try:
+        header_row = int(cfg.get('header_row', 1))
+    except (TypeError, ValueError):
+        return jsonify({'success': False, 'error': '表头行必须是大于等于 1 的数字'})
+    if header_row < 1:
+        return jsonify({'success': False, 'error': '表头行必须是大于等于 1 的数字'})
     sheet_name = cfg.get('sheet_name', '')
     col_name   = (cfg.get('col_name') or '').strip()
     if not col_name:
