@@ -56,7 +56,7 @@ if exist venv\ (
 :: Install dependencies
 echo [2/3] Installing packages (offline mode)...
 call venv\Scripts\activate.bat
-pip install --no-index --find-links wheels -r requirements.txt
+venv\Scripts\python.exe -m pip install --no-index --find-links wheels -r requirements.txt
 if %errorlevel% neq 0 (
     echo ****************************************************
     echo * ERROR: Offline install failed.
@@ -81,7 +81,7 @@ cd web_app2
 echo.
 echo Starting Flask server...
 echo If this fails, copy the error text above.
-%PYTHON_CMD% app.py
+..\venv\Scripts\python.exe app.py
 echo.
 echo Server has stopped.
 pause

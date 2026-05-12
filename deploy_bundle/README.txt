@@ -22,6 +22,15 @@ HOW TO USE
      - Start the web server at http://localhost:5000
   4. Open http://localhost:5000 in a browser
 
+SERVER CONFIGURATION
+  - Default bind address: 0.0.0.0
+  - Default port: 5000
+  - To use another port, set PORT before starting:
+      set PORT=8080
+      install_and_run.bat
+  - If other computers need to access this service, allow the selected port
+    through Windows Defender Firewall.
+
 WHAT'S INCLUDED
   - Flask web application (web_app2/)
   - All Python dependencies as .whl files (wheels/)

@@ -171,7 +171,7 @@ tr:hover td { background:#f7f9fc; }
 </div>
 <div class="section"><h3>第一步：选择文件</h3>
   <div class="workflow-step-desc">上传待转换的 BOM，并确认 Sheet 和表头行，下面会显示预览方便核对。</div>
-  <div class="row"><label>文件路径：</label><input type="file" id="bomFile" accept=".xlsx,.xlsm,.xls" style="width:320px"><button class="btn btn-outline btn-sm" id="bomBrowse">浏览...</button></div>
+  <div class="row"><label>文件路径：</label><input type="file" id="bomFile" accept=".xlsx,.xlsm,.xls" style="width:320px"></div>
   <div class="row"><label>Sheet：</label><select id="bomSheet" style="width:180px"><option>先选择文件</option></select><label>表头行：</label><input type="number" id="bomHdr" value="1" min="1" style="width:60px"><button class="btn btn-sm btn-gray" id="bomRefresh">刷新预览</button></div>
   <div id="bomPreview" class="table-wrap" style="margin-top:8px"></div>
 </div>
@@ -195,15 +195,13 @@ tr:hover td { background:#f7f9fc; }
   <div id="bomDetected" style="font-size:12px;color:#555;background:#f7f9fc;padding:8px;border-radius:6px;margin-top:4px"></div>
 </div>
 <div class="section"><h3>第三步：输出设置</h3>
-  <div class="workflow-step-desc">选择输出为供应商展开表，或输出为 HQ 整机 BOM 配置表。</div>
+  <div class="workflow-step-desc">输出为供应商展开表，保留原列并将供应商拆分为独立行。</div>
   <div class="row">
     <label>输出模式：</label>
     <select id="bomOutputMode">
       <option value="expand">原格式展开（保留原列，供应商拆多行，新增厂商/型号/是否独供列）</option>
-      <option value="hq">HQ 整机BOM配置表（绿色表头，含序号/HQ PN/厂商型号/主二供/用量）</option>
     </select>
   </div>
-  <div class="row" id="bomProjRow" style="display:none"><label>项目名称：</label><input type="text" id="bomProjName" style="width:240px" placeholder="写入BOM表头（可留空）"></div>
   <button class="btn btn-primary" id="bomRun">⚡ 开始转换</button> <span id="bomStatus" style="font-size:13px;color:#888"></span>
 </div>
 <div class="result" id="bomResult"><span class="title">✅ 转换完成</span><br><span id="bomStats" style="display:inline-block;margin-top:6px"></span><br><a class="download" id="bomDl" href="#">📥 下载结果文件</a></div>
@@ -227,7 +225,7 @@ tr:hover td { background:#f7f9fc; }
 </div>
 <div class="section"><h3>第一步：选择整机BOM配置表</h3>
   <div class="workflow-step-desc">上传整机 BOM 配置表，并确认 Sheet 和表头行。默认表头行为第 4 行。</div>
-  <div class="row"><label>文件路径：</label><input type="file" id="plmFile" accept=".xlsx,.xlsm,.xls" style="width:320px"><button class="btn btn-outline btn-sm" id="plmBrowse">浏览...</button></div>
+  <div class="row"><label>文件路径：</label><input type="file" id="plmFile" accept=".xlsx,.xlsm,.xls" style="width:320px"></div>
   <div class="row"><label>Sheet：</label><select id="plmSheet" style="width:180px"><option>先选择文件</option></select><label>表头行：</label><input type="text" id="plmHdr" value="4" style="width:50px"><button class="btn btn-sm btn-gray" id="plmRefresh">加载 / 刷新</button></div>
 </div>
 <div class="section"><h3>第二步：基础列映射（自动识别，可手动填列字母覆盖）</h3>
@@ -451,7 +449,7 @@ async function postFormJson(url, fd){
 // ═══════════════════ 左侧导航切换 ═══════════════════
 const TOOLS = {
   bom:    {title:'BOM 格式转换',        badge:'v5.10', tpl:'tpl-bom',
-           desc:'将客户提供的多种格式 BOM 表自动识别列映射，支持品牌型号合并列/分开列（格式A/B/C），展开为多供应商独立行，或输出 HQ 标准整机BOM配置表。'},
+           desc:'将客户提供的多种格式 BOM 表自动识别列映射，支持品牌型号合并列/分开列（格式A/B/C），展开为多供应商独立行。'},
   feishu: {title:'飞书优选库+关系库匹配', badge:'v3.0',  tpl:'tpl-feishu',
            desc:'连接飞书内部 API 网关，支持 15 个预置库（优选库 + 对应关系库），多键 AND 匹配（最多 3 对），批量提取字段，输出含来源表格的匹配结果。'},
   'pref-rate': {title:'查询BOM优选率', badge:'v1.0', tpl:'tpl-pref-rate',
@@ -552,10 +550,6 @@ function updateBomFromApi(d){
 }
 
 function initBom(){
-  $('bomBrowse').onclick=()=>$('bomFile').click();
-  $('bomOutputMode').onchange=function(){
-    $('bomProjRow').style.display=this.value==='hq'?'flex':'none';
-  };
   $('bomSheet').onchange=function(){
     const f=$('bomFile').files[0];if(!f)return;
     hide($('bomResult'));hide($('bomError'));
@@ -586,7 +580,6 @@ function initBom(){
     fd.append('col_brand',$('bomColBrand').value);
     fd.append('col_model',$('bomColModel').value);
     fd.append('output_mode',$('bomOutputMode').value);
-    fd.append('project_name',$('bomProjName')?$('bomProjName').value:'');
     try{
       const r=await fetch('/api/bom/convert',{method:'POST',body:fd});
       const d=await r.json();
@@ -772,7 +765,6 @@ function initPlm(){
   $('seRefresh').onclick = ()=>{ if($('seFile').files[0]) seLoadFile(); };
   $('seRun').onclick = seRun;
 
-  $('plmBrowse').onclick=()=>$('plmFile').click();
   window._plmQtyConfigs=[];
   window._plmPreviewHeaders=[];
   plmRenderQtyConfigs();
@@ -1450,6 +1442,7 @@ function fsClearSheetCache(tIdx, sid){
 
 // 一键缓存所有启用的 Sheet
 async function fsBatchUpdate(){
+  if(!confirm('即将开始缓存所有启用的 Sheet。\n\n缓存过程中请勿离开或刷新当前页面，否则缓存任务会停止，需要重新开始。\n\n确认开始缓存？')) return;
   $('fsBatchUpdate').disabled=true;
   const _bh=$('fsBatchHint'); _bh.style.color='#1a8a1a'; _bh.textContent='缓存中...';
   let count=0;
