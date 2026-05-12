@@ -231,10 +231,11 @@ tr:hover td { background:#f7f9fc; }
   <div class="row"><label>Sheet：</label><select id="plmSheet" style="width:180px"><option>先选择文件</option></select><label>表头行：</label><input type="text" id="plmHdr" value="4" style="width:50px"><button class="btn btn-sm btn-gray" id="plmRefresh">加载 / 刷新</button></div>
 </div>
 <div class="section"><h3>第二步：基础列映射（自动识别，可手动填列字母覆盖）</h3>
-  <div class="workflow-step-desc">确认整张 BOM 共用的 HQ PN 和主二供列；用量列不在这里配置。</div>
+  <div class="workflow-step-desc">确认整张 BOM 共用的序号、HQ PN 和主二供列。筛选只看序号列；导出保留原序号，HQ PN 和主二供只用于输出。</div>
   <div id="plmDetectLog" style="font-size:12px;color:#555;background:#f7f9fc;padding:8px;border-radius:6px;margin-bottom:8px"></div>
   <div id="plmColMap" class="table-wrap" style="margin-bottom:10px;max-height:200px"></div>
   <div class="row">
+    <label>序号列：</label><input type="text" id="plmColSeq" style="width:60px" placeholder="如 A">
     <label>HQ PN 列：</label><input type="text" id="plmColHqpn" style="width:60px" placeholder="如 E">
     <label>主二供列：</label><input type="text" id="plmColStype" style="width:60px" placeholder="如 I">
   </div>
@@ -243,7 +244,7 @@ tr:hover td { background:#f7f9fc; }
   </div>
 </div>
 <div class="section"><h3>第三步：用量配置</h3>
-  <div class="workflow-step-desc">为每个项目配置单独设置用量列和配置名来源，每一行会生成一个独立的 PLM 导入文件。</div>
+  <div class="workflow-step-desc">为每个项目配置单独设置用量列和配置名来源。用量为空不输出，用量为 0 时输出但单耗留空。</div>
   <div style="margin-top:10px">
     <div class="row" style="margin-bottom:6px">
       <label style="min-width:92px">用量配置：</label>
@@ -285,13 +286,18 @@ tr:hover td { background:#f7f9fc; }
     <button class="btn btn-sm btn-gray" id="seRefresh" style="margin-left:8px">刷新列表</button>
   </div>
 </div>
-<div class="section"><h3>第二步：选择提取列</h3>
-  <div class="workflow-step-desc">选择包含规格型号的列，系统会从这一列提取并去除空格。</div>
+<div class="section"><h3>第二步：选择提取列和剔除列</h3>
+  <div class="workflow-step-desc">选择包含规格型号的列，并选择用于剔除的列。剔除列有内容的行不会导出。</div>
   <div class="row">
     <label>提取列：</label>
     <select id="seCol" style="width:220px"><option>先刷新列表</option></select>
-    <span style="font-size:12px;color:#888;margin-left:10px">提取后将去除所有空格</span>
   </div>
+  <div class="row">
+    <label>剔除列：</label>
+    <select id="seExcludeCol" style="width:220px"><option>先刷新列表</option></select>
+    <span style="font-size:12px;color:#888;margin-left:10px">该列有内容的行不导出，默认优先选择 HQ料号</span>
+  </div>
+  <div class="row"><span style="font-size:12px;color:#888">提取结果会去除所有空格。</span></div>
 </div>
 <div class="section">
   <div class="workflow-step-desc">确认列选择无误后开始提取，并下载生成的规格型号列表。</div>
@@ -410,6 +416,37 @@ tr:hover td { background:#f7f9fc; }
 function $(id){return document.getElementById(id);}
 function show(el){if(el) el.style.display='block';}
 function hide(el){if(el) el.style.display='none';}
+function setStatus(id, msg, color){
+  const el=$(id);
+  if(!el) return;
+  el.textContent=msg||'';
+  if(color) el.style.color=color;
+}
+function showInlineError(errorId, msg, statusId){
+  const el=$(errorId);
+  if(el){
+    el.textContent=msg||'操作失败';
+    show(el);
+  }
+  if(statusId) setStatus(statusId,'');
+}
+function clearInlineError(errorId){
+  const el=$(errorId);
+  if(!el) return;
+  el.textContent='';
+  hide(el);
+}
+async function postFormJson(url, fd){
+  const r=await fetch(url,{method:'POST',body:fd});
+  let d;
+  try{
+    d=await r.json();
+  }catch(e){
+    throw new Error('服务器返回格式异常');
+  }
+  if(!r.ok && d && !d.error) d.error='请求失败：HTTP '+r.status;
+  return d;
+}
 
 // ═══════════════════ 左侧导航切换 ═══════════════════
 const TOOLS = {
@@ -537,9 +574,9 @@ function initBom(){
     fetch('/api/bom/detect',{method:'POST',body:fd}).then(r=>r.json()).then(updateBomFromApi);
   };
   $('bomRun').onclick=async function(){
-    const f=$('bomFile').files[0];if(!f){alert('请选择文件');return;}
+    const f=$('bomFile').files[0];if(!f){showInlineError('bomError','请选择文件','bomStatus');return;}
     const btn=$('bomRun');btn.disabled=true;$('bomStatus').textContent='处理中...';
-    hide($('bomResult'));hide($('bomError'));
+    hide($('bomResult'));clearInlineError('bomError');
     const fd=new FormData();fd.append('file',f);
     fd.append('fmt',$('bomFmt').value);
     fd.append('sheet',$('bomSheet').value);
@@ -587,6 +624,7 @@ function updatePlmFromApi(d){
   d.sheets.forEach(s=>opts+=`<option${s===d.current_sheet?' selected':''}>${s}</option>`);
   $('plmSheet').innerHTML=opts;
   if(d.detected){
+    if(d.detected.seq)         $('plmColSeq').value=d.detected.seq;
     if(d.detected.hq_pn)       $('plmColHqpn').value=d.detected.hq_pn;
     if(d.detected.supply_type) $('plmColStype').value=d.detected.supply_type;
     if(d.detected.qty && !window._plmQtyConfigs?.length) plmSetQtyConfigs([{qty_col:d.detected.qty}]);
@@ -757,12 +795,13 @@ function initPlm(){
     fetch('/api/plm/detect',{method:'POST',body:fd}).then(r=>r.json()).then(updatePlmFromApi);
   };
   $('plmRun').onclick=async function(){
-    const f=$('plmFile').files[0];if(!f){alert('请选择文件');return;}
+    const f=$('plmFile').files[0];if(!f){showInlineError('plmError','请选择文件','plmStatus');return;}
     const btn=$('plmRun');btn.disabled=true;$('plmStatus').textContent='处理中...';
-    hide($('plmResult'));hide($('plmError'));hide($('plmLogBox'));
+    hide($('plmResult'));clearInlineError('plmError');hide($('plmLogBox'));
     const fd=new FormData();fd.append('file',f);
     fd.append('sheet',$('plmSheet').value);
     fd.append('header_row',$('plmHdr').value);
+    fd.append('col_seq',$('plmColSeq').value);
     fd.append('col_hqpn',$('plmColHqpn').value);
     fd.append('col_stype',$('plmColStype').value);
     fd.append('qty_configs',JSON.stringify(plmCollectQtyConfigs()));
@@ -770,7 +809,7 @@ function initPlm(){
       const r=await fetch('/api/plm/convert',{method:'POST',body:fd});
       const d=await r.json();
       if(d.success){
-        let stats=`写入 <b>${d.total}</b> 行${d.skipped?`，跳过 ${d.skipped} 行（用量为空）`:''}`;
+        let stats=`写入 <b>${d.total}</b> 行${d.skipped?`，跳过 ${d.skipped} 行`:''}`;
         if(d.files&&d.files.length){
           stats += '<div style="margin-top:6px;font-size:12px;line-height:1.8">';
           stats += d.files.map(f=>`${f.project_name}（${f.qty_col}列）：${f.total} 行${f.skipped?`，跳过 ${f.skipped} 行`:''}`).join('<br>');
@@ -810,29 +849,35 @@ async function seLoadFile(){
     // auto-select column containing 规格型号
     const auto=d.headers.find(h=>h.includes('规格型号'));
     if(auto) kc.value=auto;
+    const ex=$('seExcludeCol');
+    ex.innerHTML='<option value="">不启用剔除规则</option>'+d.headers.map(h=>`<option value="${_escH(h)}">${_escH(h)}</option>`).join('');
+    const autoEx=d.headers.find(h=>h.includes('HQ料号')||h==='HQ料号'||h.includes('料号'));
+    if(autoEx) ex.value=autoEx;
     $('seStatus').textContent=`已加载 ${d.headers.length} 列`;
   }catch(e){$('seStatus').textContent='错误：'+e.message;}
 }
 
 async function seRun(){
   const f=$('seFile').files[0];
-  if(!f){alert('请先上传文件');return;}
+  if(!f){showInlineError('seError','请先上传文件','seStatus');return;}
   const col=$('seCol').value;
-  if(!col||col==='先刷新列表'){alert('请先刷新列表并选择提取列');return;}
+  if(!col||col==='先刷新列表'){showInlineError('seError','请先刷新列表并选择提取列','seStatus');return;}
+  const excludeCol=$('seExcludeCol').value;
   $('seRun').disabled=true; $('seStatus').style.color='#1a8a1a'; $('seStatus').textContent='提取中...';
-  $('seResult').style.display='none'; $('seError').style.display='none';
+  $('seResult').style.display='none'; clearInlineError('seError');
   const fd=new FormData();
   fd.append('file',f);
   fd.append('config',JSON.stringify({
     header_row:parseInt($('seHdr').value)||1,
     sheet_name:$('seSheet').value,
     col_name:col,
+    exclude_col_name:excludeCol,
   }));
   try{
     const r=await fetch('/api/plm/spec_extract',{method:'POST',body:fd});
     const d=await r.json();
     if(d.success){
-      $('seStats').textContent=`共提取 ${d.count} 条规格型号`;
+      $('seStats').textContent=`共提取 ${d.count} 条规格型号${d.skipped_excluded?`，按剔除列跳过 ${d.skipped_excluded} 行`:''}`;
       $('seDl').href=d.download;
       $('seStatus').textContent='';
       $('seResult').style.display='block';
@@ -1003,7 +1048,7 @@ function fsClearConfig(){
 }
 
 function fsRestoreDefault(){
-  if(!FS_DEFAULT_CONFIG || !FS_DEFAULT_CONFIG.tables) { alert('没有内置默认配置'); return; }
+  if(!FS_DEFAULT_CONFIG || !FS_DEFAULT_CONFIG.tables) { setStatus('fsCfgStatus','没有内置默认配置','#c00000'); return; }
   if(!confirm('将用内置默认配置覆盖当前所有设置（本地键、提取列、所有 Sheet 映射），确定？')) return;
   // 恢复全局本地键
   _fsGlobalLocalKeys = (FS_DEFAULT_CONFIG.global_local_keys||[]).length
@@ -1322,7 +1367,8 @@ async function fsConnectTable(idx){
   const t=fsTables[idx];
   const tokenEl=$('fsDetToken');
   if(tokenEl)t.token=tokenEl.value.trim();
-  if(!t.token){alert('请先填写 Token');return;}
+  if(!t.token){showInlineError('fsError','请先填写 Token','fsRunStatus2');return;}
+  clearInlineError('fsError');
   const btns=$('fsDetail').querySelectorAll('button');btns.forEach(b=>b.disabled=true);
   // 加载提示
   let hint=$('fsConnectHint_'+idx);
@@ -1352,15 +1398,16 @@ async function fsConnectTable(idx){
         }
       });
       fsSelectTable(idx);renderFsTrees();fsSaveConfig();
-    } else { if(hint)hint.textContent=''; alert(d.error); }
-  }catch(e){ if(hint)hint.textContent=''; alert(e.message); }
+    } else { if(hint)hint.textContent=''; showInlineError('fsError',d.error||'连接失败','fsRunStatus2'); }
+  }catch(e){ if(hint)hint.textContent=''; showInlineError('fsError',e.message,'fsRunStatus2'); }
   btns.forEach(b=>b.disabled=false);
 }
 
 // 缓存单个 Sheet 数据到服务端
 async function fsCacheSheet(tIdx, sid){
   const t=fsTables[tIdx];
-  if(!t.token){alert('请先填写并连接 Token');return;}
+  if(!t.token){showInlineError('fsError','请先填写并连接 Token','fsRunStatus2');return;}
+  clearInlineError('fsError');
   const btns=$('fsDetail').querySelectorAll('button');btns.forEach(b=>b.disabled=true);
   // 找到该 sheet 的缓存按钮，在旁边插入提示
   let cHint=document.getElementById(`fsCacheHint_${tIdx}_${sid}`);
@@ -1387,8 +1434,8 @@ async function fsCacheSheet(tIdx, sid){
       sc._cache_stale       = false;
       if(d.headers&&d.headers.length) sc._headers=d.headers.filter(h=>h);
       fsSelectTable(tIdx);renderFsTrees();fsSaveConfig();
-    } else { alert('缓存失败：'+d.error); }
-  }catch(e){alert(e.message);}
+    } else { showInlineError('fsError','缓存失败：'+(d.error||'未知错误'),'fsRunStatus2'); }
+  }catch(e){showInlineError('fsError',e.message,'fsRunStatus2');}
   btns.forEach(b=>b.disabled=false);
 }
 
@@ -1456,11 +1503,11 @@ async function fsBatchUpdate(){
 }
 
 async function fsRunMatch(){
-  const f=$('fsFile').files[0];if(!f){alert('请先上传 BOM 文件');return;}
+  const f=$('fsFile').files[0];if(!f){showInlineError('fsError','请先上传 BOM 文件','fsRunStatus2');return;}
 
   // 全局本地键
   const gLocalKeys=_fsGlobalLocalKeys.map(k=>k.trim()).filter(k=>k);
-  if(!gLocalKeys.length){alert('请先填写本地匹配键（本地 BOM 文件区域）');return;}
+  if(!gLocalKeys.length){showInlineError('fsError','请先填写本地匹配键（本地 BOM 文件区域）','fsRunStatus2');return;}
 
   // 构建 per-sheet 配置
   const tables=[];
@@ -1493,11 +1540,11 @@ async function fsRunMatch(){
     if(enabledSheets.length) tables.push({name:t.name, token:t.token, sheets:enabledSheets});
   });
 
-  if(!tables.length){alert('没有启用的 Sheet，请先在表格库中勾选并配置列映射');return;}
+  if(!tables.length){showInlineError('fsError','没有启用的 Sheet，请先在表格库中勾选并配置列映射','fsRunStatus2');return;}
 
   $('fsRun').disabled=true;$('fsBatchUpdate').disabled=true;
   $('fsRunStatus2').textContent='匹配中...';
-  hide($('fsResult'));hide($('fsError'));hide($('fsLogBox'));
+  hide($('fsResult'));clearInlineError('fsError');hide($('fsLogBox'));
 
   const config={
     base_url:$('fsBaseUrl').value, origin:$('fsOrigin').value, user_id:$('fsUserId').value,
@@ -1557,9 +1604,9 @@ async function fsRunMatch(){
 
   async function prRun(){
     const f=$('prFile').files[0];
-    if(!f){alert('请先上传BOM文件');return;}
+    if(!f){showInlineError('prError','请先上传 BOM 文件','prStatus');return;}
     const keyCol=$('prKeyCol').value;
-    if(!keyCol||keyCol==='先刷新列表'){alert('请先刷新列表并选择HQ料号列');return;}
+    if(!keyCol||keyCol==='先刷新列表'){showInlineError('prError','请先刷新列表并选择 HQ料号 列','prStatus');return;}
 
     // Build tables config: 优选库 only, enabled sheets with cache
     const tables=[];
@@ -1577,13 +1624,13 @@ async function fsRunMatch(){
     });
 
     if(!tables.length){
-      alert('没有找到已缓存的优选库 sheet。请先在「飞书优选库+关系库匹配」中缓存相关 sheet。');
+      showInlineError('prError','没有找到已缓存的优选库 sheet。请先在「飞书优选库+关系库匹配」中缓存相关 sheet。','prStatus');
       return;
     }
 
     $('prRun').disabled=true; $('prStatus').style.color='#1a8a1a';
     $('prStatus').textContent='查询中...';
-    hide($('prResult')); hide($('prError'));
+    hide($('prResult')); clearInlineError('prError');
 
     const cfg={
       header_row: parseInt($('prHdr').value)||1,

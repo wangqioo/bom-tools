@@ -93,7 +93,7 @@ def _safe_filename_part(value):
 
 
 def _do_convert(in_file, sheet_name, header_row,
-                col_hqpn, col_stype, col_qty, project_name, out_file):
+                col_seq, col_hqpn, col_stype, col_qty, project_name, out_file):
     wb_in = openpyxl.load_workbook(in_file, data_only=True)
     ws_in = wb_in[sheet_name]
     max_col = ws_in.max_column
@@ -116,9 +116,9 @@ def _do_convert(in_file, sheet_name, header_row,
 
     # Rows 1-2: metadata
     ws_out.cell(row=1, column=1, value="料号:").font = meta_font
+    ws_out.cell(row=1, column=2, value=project_name or "").font = Font(size=10)
     ws_out.cell(row=1, column=3, value="描述:").font = meta_font
     ws_out.cell(row=1, column=5, value="项目配置名:").font = meta_font
-    ws_out.cell(row=1, column=6, value=project_name or "").font = Font(size=10)
     ws_out.cell(row=1, column=7, value="工程师:").font = meta_font
     ws_out.cell(row=2, column=1, value="版本:").font = meta_font
     ws_out.cell(row=2, column=3, value="替代项").font = meta_font
@@ -140,38 +140,42 @@ def _do_convert(in_file, sheet_name, header_row,
     total = 0
     skipped = 0
     skip_logs = []
-    seq = 0
-
     for rv in data_rows:
-        hqpn = rv.get(col_hqpn)
-        if not hqpn or str(hqpn).strip() == "":
+        source_seq = rv.get(col_seq)
+        if not source_seq or str(source_seq).strip() == "":
+            skipped += 1
+            skip_logs.append("  跳过（序号为空）")
             continue
 
-        qty = _safe_qty(rv.get(col_qty))
+        qty_raw = rv.get(col_qty)
+        if qty_raw is None or str(qty_raw).strip() == "":
+            skipped += 1
+            skip_logs.append(f"  跳过（用量为空）: 序号 {str(source_seq).strip()}")
+            continue
+
+        qty = _safe_qty(qty_raw)
         if qty is None:
             skipped += 1
-            skip_logs.append(f"  跳过（用量为空）: {str(hqpn).strip()}")
+            skip_logs.append(f"  跳过（用量非数字）: 序号 {str(source_seq).strip()}")
             continue
 
+        hqpn = rv.get(col_hqpn)
+        hqpn_str = str(hqpn).strip() if hqpn is not None else ""
         stype_str = str(rv.get(col_stype) or "").strip()
-        is_primary = (stype_str == "主供" or stype_str == "")
 
-        if is_primary:
-            seq += 1
 
         def wc(idx, val, row=dr):
             cc = ws_out.cell(row=row, column=idx + 1, value=val)
             cc.alignment = Alignment(horizontal="left", vertical="center")
             cc.border = bdr
 
-        wc(PLM_IDX_SEQ, seq)
-        wc(PLM_IDX_HQPN, str(hqpn).strip())
+        wc(PLM_IDX_SEQ, source_seq)
+        wc(PLM_IDX_HQPN, hqpn_str)
 
-        if is_primary and qty > 0:
+        if qty != 0:
             wc(PLM_IDX_QTY, qty)
 
-        # For secondary/tertiary supply, fill 主辅BOM标记
-        if not is_primary and stype_str:
+        if stype_str and stype_str != "主供":
             wc(PLM_IDX_MARK, stype_str)
 
         dr += 1
@@ -251,6 +255,7 @@ def api_plm_convert():
     header_row = _request_int('header_row', 4)
     if header_row is None:
         return jsonify({'success': False, 'error': '表头行必须是大于等于 1 的数字'})
+    col_seq_str = request.form.get('col_seq', '')
     col_hqpn_str = request.form.get('col_hqpn', '')
     col_stype_str = request.form.get('col_stype', '')
     col_qty_str = request.form.get('col_qty', '')
@@ -267,11 +272,13 @@ def api_plm_convert():
         sheet_name = sheets[0]
 
     # Auto-detect if columns not specified
-    if not all([col_hqpn_str, col_stype_str]) or (not col_qty_str and not qty_configs_str):
+    if not all([col_seq_str, col_hqpn_str, col_stype_str]) or (not col_qty_str and not qty_configs_str):
         wb2 = openpyxl.load_workbook(in_path, data_only=True)
         ws = wb2[sheet_name]
         detected, raw_headers = _detect_columns(ws, header_row)
         wb2.close()
+        if not col_seq_str and 'seq' in detected:
+            col_seq_str = get_column_letter(detected['seq'])
         if not col_hqpn_str and 'hq_pn' in detected:
             col_hqpn_str = get_column_letter(detected['hq_pn'])
         if not col_stype_str and 'supply_type' in detected:
@@ -279,6 +286,7 @@ def api_plm_convert():
         if not col_qty_str and 'qty' in detected:
             col_qty_str = get_column_letter(detected['qty'])
 
+    col_seq = _col_int(col_seq_str)
     col_hqpn = _col_int(col_hqpn_str)
     col_stype = _col_int(col_stype_str)
 
@@ -313,10 +321,10 @@ def api_plm_convert():
             qty_jobs.append((col_qty, qty_project_name))
         wb_hdr.close()
 
-    if not all([col_hqpn, col_stype]) or not qty_jobs:
+    if not all([col_seq, col_hqpn, col_stype]) or not qty_jobs:
         return jsonify({
             'success': False,
-            'error': '\u8bf7\u6307\u5b9a\u6709\u6548\u7684 HQ PN \u5217\u3001\u4e3b\u4e8c\u4f9b\u5217\u3001\u7528\u91cf\u5217\uff08\u53ef\u6dfb\u52a0\u591a\u4e2a\u7528\u91cf\u914d\u7f6e\uff09',
+            'error': '\u8bf7\u6307\u5b9a\u6709\u6548\u7684\u5e8f\u53f7\u5217\u3001HQ PN \u5217\u3001\u4e3b\u4e8c\u4f9b\u5217\u3001\u7528\u91cf\u5217\uff08\u53ef\u6dfb\u52a0\u591a\u4e2a\u7528\u91cf\u914d\u7f6e\uff09',
         })
 
     if len(qty_jobs) == 1:
@@ -326,7 +334,7 @@ def api_plm_convert():
         out_path = os.path.join(OUTPUT_DIR, out_name)
         total, skipped, skip_logs = _do_convert(
             in_path, sheet_name, header_row,
-            col_hqpn, col_stype, col_qty, qty_project_name, out_path,
+            col_seq, col_hqpn, col_stype, col_qty, qty_project_name, out_path,
         )
         return jsonify({
             'success': True,
@@ -357,7 +365,7 @@ def api_plm_convert():
             out_path = os.path.join(OUTPUT_DIR, out_name)
             total, skipped, skip_logs = _do_convert(
                 in_path, sheet_name, header_row,
-                col_hqpn, col_stype, col_qty, qty_project_name, out_path,
+                col_seq, col_hqpn, col_stype, col_qty, qty_project_name, out_path,
             )
             zf.write(out_path, arcname=out_name)
             results.append({
@@ -399,7 +407,8 @@ def api_spec_extract():
     if header_row < 1:
         return jsonify({'success': False, 'error': '表头行必须是大于等于 1 的数字'})
     sheet_name = cfg.get('sheet_name', '')
-    col_name   = (cfg.get('col_name') or '').strip()
+    col_name = (cfg.get('col_name') or '').strip()
+    exclude_col_name = (cfg.get('exclude_col_name') or cfg.get('hq_col_name') or '').strip()
     if not col_name:
         return jsonify({'success': False, 'error': '未指定提取列'})
 
@@ -421,9 +430,19 @@ def api_spec_extract():
             return jsonify({'success': False,
                             'error': f'列 "{col_name}" 不存在，请检查表头行设置'})
         col_idx = headers.index(col_name) + 1  # 1-based
+        exclude_col_idx = None
+        if exclude_col_name:
+            if exclude_col_name not in headers:
+                return jsonify({'success': False,
+                                'error': f'剔除列 "{exclude_col_name}" 不存在，请检查表头行设置'})
+            exclude_col_idx = headers.index(exclude_col_name) + 1
 
         values = []
+        skipped_excluded = 0
         for ri in range(header_row + 1, ws.max_row + 1):
+            if exclude_col_idx is not None and _cell_str(ws.cell(row=ri, column=exclude_col_idx).value):
+                skipped_excluded += 1
+                continue
             v = _cell_str(ws.cell(row=ri, column=col_idx).value)
             if v:
                 values.append(v.replace(' ', '').replace('\u3000', ''))
@@ -441,6 +460,6 @@ def api_spec_extract():
         out_name = f'spec_{uid}.xlsx'
         wb_out.save(os.path.join(OUTPUT_DIR, out_name))
         return jsonify({'success': True, 'download': f'/download/{out_name}',
-                        'count': len(values)})
+                        'count': len(values), 'skipped_excluded': skipped_excluded})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
