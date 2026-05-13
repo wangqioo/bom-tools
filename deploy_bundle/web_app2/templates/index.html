@@ -148,6 +148,8 @@ tr:hover td { background:#f7f9fc; }
     <a href="#" data-tool="feishu"><span class="icon">🔍</span>飞书优选库+关系库匹配</a>
     <a href="#" data-tool="pref-rate"><span class="icon">📊</span>查询BOM优选率</a>
     <a href="#" data-tool="plm"><span class="icon">📤</span>转换为上传PLM系统格式</a>
+    <a href="#" data-tool="bom-compare"><span class="icon">🧾</span>BOM比对工具合集</a>
+    <a href="#" data-tool="bug-report"><span class="icon">🐞</span>Bug提交栏目</a>
   </nav>
 </aside>
 
@@ -312,6 +314,132 @@ tr:hover td { background:#f7f9fc; }
 </div>
 </script>
 
+<!-- ── Bug 提交栏目 ── -->
+<script type="text/html" id="tpl-bug-report">
+<div class="workflow-shell">
+<div class="workflow-hero">
+  <h4>Bug 提交栏目</h4>
+  <p>提交工具使用中遇到的问题、附件和复现信息。所有提交记录会保存在服务端，团队成员打开页面即可查看。</p>
+</div>
+<div style="display:grid;grid-template-columns:minmax(360px,430px) 1fr;gap:14px;align-items:start">
+  <div class="section"><h3>提交问题</h3>
+    <div class="workflow-step-desc">请尽量写清楚问题发生在哪个工具、怎么复现、期望结果是什么。截图、Excel、日志或压缩包可多选上传。</div>
+    <div class="row" style="display:grid;grid-template-columns:minmax(180px,220px) minmax(160px,200px);gap:12px;align-items:end">
+      <label style="display:flex;flex-direction:column;gap:6px">姓名：<input type="text" id="bugReporter" style="width:100%"></label>
+      <label style="display:flex;flex-direction:column;gap:6px">工号：<input type="text" id="bugEmployeeId" style="width:100%"></label>
+    </div>
+    <div class="row">
+      <label>影响模块：</label>
+      <select id="bugModule" style="width:220px">
+        <option>BOM 格式转换</option>
+        <option>飞书优选库+关系库匹配</option>
+        <option>查询BOM优选率</option>
+        <option>转换为上传PLM系统格式</option>
+        <option>BOM比对工具合集</option>
+        <option>其他</option>
+      </select>
+      <label>严重程度：</label>
+      <select id="bugSeverity" style="width:100px">
+        <option>一般</option>
+        <option>阻塞</option>
+        <option>严重</option>
+        <option>建议</option>
+      </select>
+    </div>
+    <div class="row"><label>问题标题：</label><input type="text" id="bugTitle" style="width:100%" placeholder="一句话描述问题"></div>
+    <div class="row" style="align-items:flex-start"><label>问题描述：</label><textarea id="bugDesc" style="width:100%;height:100px;padding:8px;border:1px solid #c8ccd0;border-radius:6px;font-family:inherit" placeholder="实际发生了什么？报错信息是什么？"></textarea></div>
+    <div class="row" style="align-items:flex-start"><label>复现步骤：</label><textarea id="bugSteps" style="width:100%;height:84px;padding:8px;border:1px solid #c8ccd0;border-radius:6px;font-family:inherit" placeholder="例如：1. 上传文件... 2. 点击... 3. 出现..."></textarea></div>
+    <div class="row" style="align-items:flex-start"><label>期望结果：</label><textarea id="bugExpected" style="width:100%;height:64px;padding:8px;border:1px solid #c8ccd0;border-radius:6px;font-family:inherit" placeholder="你期望系统怎么处理？"></textarea></div>
+    <div class="row"><label>附件：</label><input type="file" id="bugImages" accept="image/*,.xlsx,.xlsm,.xls,.csv,.txt,.log,.zip,.rar,.7z" multiple style="width:300px"><span class="hint">支持截图、Excel、CSV、日志文本和压缩包</span></div>
+    <button class="btn btn-primary" id="bugSubmit" type="button">提交问题</button>
+    <span id="bugStatus" style="font-size:13px;color:#888;margin-left:8px"></span>
+    <div class="error" id="bugError"></div>
+  </div>
+  <div class="section"><h3>问题记录</h3>
+    <div class="workflow-step-desc">按提交时间倒序展示。截图可直接打开查看。</div>
+    <div class="row">
+      <button class="btn btn-sm btn-gray" id="bugRefresh" type="button">刷新记录</button>
+      <span id="bugListStatus" style="font-size:12px;color:#888"></span>
+    </div>
+    <div id="bugList" style="display:flex;flex-direction:column;gap:10px"></div>
+  </div>
+</div>
+</div>
+</script>
+
+<!-- ── BOM 比对工具 ── -->
+<script type="text/html" id="tpl-bom-compare">
+<!-- 子功能 Tab -->
+<div style="display:flex;gap:8px;margin-bottom:18px;border-bottom:2px solid #e0e4ef;padding-bottom:0">
+  <button class="bomcmp-tab-btn active" data-bomcmp-tab="customer-hq" style="padding:6px 18px;border:none;background:none;font-size:13px;font-weight:600;color:#1a5ad4;border-bottom:2px solid #1a5ad4;margin-bottom:-2px;cursor:pointer">客户BOM对比HQ BOM</button>
+  <button class="bomcmp-tab-btn" data-bomcmp-tab="hq-version" style="padding:6px 18px;border:none;background:none;font-size:13px;font-weight:600;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer">同项目HQ BOM版本对比</button>
+  <button class="bomcmp-tab-btn" data-bomcmp-tab="cadence-hq" style="padding:6px 18px;border:none;background:none;font-size:13px;font-weight:600;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer">Cadence导出BOM对比HQ BOM</button>
+</div>
+
+<div id="bomcmp-tab-customer-hq" class="workflow-shell">
+  <div class="workflow-hero">
+    <h4>客户BOM对比HQ BOM</h4>
+    <p>用于客户 BOM 与 HQ BOM 的差异比对。具体比对规则、输入列映射和输出格式待补充。</p>
+  </div>
+  <div class="section"><h3>功能待补充</h3>
+    <div class="workflow-step-desc">这里后续会放上传文件、列映射、比对规则和导出结果。</div>
+  </div>
+</div>
+
+<div id="bomcmp-tab-hq-version" class="workflow-shell" style="display:none">
+  <div class="workflow-hero">
+    <h4>同项目HQ BOM版本对比</h4>
+    <p>上传同一个项目的基准版本和对比版本 HQ BOM，按匹配键定位物料，并对选定字段输出新增、删除、变更和未变更差异报告。</p>
+  </div>
+  <div class="section"><h3>第一步：上传基准版本和对比版本</h3>
+    <div class="workflow-step-desc">选择基准版本和对比版本 HQ BOM，确认 Sheet 和表头行。两份文件建议使用同一套表头。</div>
+    <div class="row"><label>基准版本 BOM：</label><input type="file" id="hqvOldFile" accept=".xlsx,.xlsm,.xls" style="width:320px"></div>
+    <div class="row"><label>对比版本 BOM：</label><input type="file" id="hqvNewFile" accept=".xlsx,.xlsm,.xls" style="width:320px"></div>
+    <div class="row">
+      <label>基准版本 Sheet：</label><select id="hqvOldSheet" style="width:180px"><option>先选择文件</option></select>
+      <label>对比版本 Sheet：</label><select id="hqvNewSheet" style="width:180px"><option>先选择文件</option></select>
+      <label>表头行：</label><input type="number" id="hqvHdr" value="3" min="1" style="width:60px">
+      <button class="btn btn-sm btn-gray" id="hqvRefresh" type="button">刷新列</button>
+    </div>
+    <div id="hqvLoadStatus" style="font-size:12px;color:#888"></div>
+  </div>
+  <div class="section"><h3>第二步：确认比对规则</h3>
+    <div class="workflow-step-desc">系统默认按「料号」匹配同一物料。下面勾选的是需要检查变化的字段，不是匹配键候选。</div>
+    <div class="plm-info" id="hqvRuleSummary">匹配规则：按「料号」匹配同一物料</div>
+    <div class="row">
+      <label style="min-width:120px">需要检查变化的字段：</label>
+      <button class="btn btn-sm btn-gray" id="hqvSelectAll" type="button">全选字段</button>
+      <button class="btn btn-sm btn-gray" id="hqvSelectNone" type="button">清空字段</button>
+    </div>
+    <div id="hqvCompareCols" class="chk-list" style="max-height:220px"></div>
+    <details style="margin-top:10px">
+      <summary style="cursor:pointer;font-size:12px;color:#1a5ad4;font-weight:600">高级设置：修改匹配键</summary>
+      <div class="row" style="margin-top:10px">
+        <label>匹配键：</label><select id="hqvKeyCol" style="width:220px"><option>先刷新列</option></select>
+        <span class="hint">匹配键用于判定两份 BOM 中哪两行是同一个物料。系统导出 HQ BOM 通常使用「料号」。</span>
+      </div>
+    </details>
+  </div>
+  <div class="section"><h3>第三步：输出差异报告</h3>
+    <div class="workflow-step-desc">报告包含差异明细和统计 Sheet。重复匹配键会在统计页列出，重复项只取第一次参与比对。</div>
+    <button class="btn btn-primary" id="hqvRun" type="button">⚡ 开始比对</button>
+    <span id="hqvStatus" style="font-size:13px;color:#888;margin-left:8px"></span>
+  </div>
+  <div class="result" id="hqvResult"><span class="title">✅ 比对完成</span><br><span id="hqvStats" style="display:inline-block;margin-top:6px"></span><br><a class="download" id="hqvDl" href="#">📥 下载差异报告</a></div>
+  <div class="error" id="hqvError"></div>
+</div>
+
+<div id="bomcmp-tab-cadence-hq" class="workflow-shell" style="display:none">
+  <div class="workflow-hero">
+    <h4>Cadence导出BOM对比HQ BOM</h4>
+    <p>用于 Cadence Archive BOM 导出结果与 HQ BOM 的差异比对。具体输入格式、匹配键和输出格式待补充。</p>
+  </div>
+  <div class="section"><h3>功能待补充</h3>
+    <div class="workflow-step-desc">这里后续会放 Cadence 导出 BOM、HQ BOM 上传、字段映射和差异报告。</div>
+  </div>
+</div>
+</script>
+
 <!-- ── 查询BOM优选率 ── -->
 <script type="text/html" id="tpl-pref-rate">
 <div class="workflow-shell">
@@ -456,12 +584,16 @@ const TOOLS = {
                desc:'按 HQ料号 在所有优选库缓存中查找优选等级，输出含优选率统计的 Excel 结果文件。'},
   plm:    {title:'转换为上传PLM系统格式', badge:'v1.6',  tpl:'tpl-plm',
            desc:'将整机 BOM 配置表转换为 PLM 系统可导入的标准格式：序号、料号、单耗等25列，主供行填单耗，替代料自动标记主辅BOM标记。'},
+  'bom-compare': {title:'BOM比对工具合集', badge:'v0.1', tpl:'tpl-bom-compare',
+           desc:'提供客户BOM对比HQ BOM、同项目HQ BOM版本对比、Cadence导出BOM对比HQ BOM三个比对子功能。'},
+  'bug-report': {title:'Bug提交栏目', badge:'反馈', tpl:'tpl-bug-report',
+           desc:'提交工具问题、附件和复现信息，所有记录保存在服务端，团队成员均可查看。'},
 };
 let curTool = null;
 
 function showOverview(){
   curTool = null;
-  document.querySelectorAll('.sidebar nav a').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.sidebar nav a[data-tool]').forEach(x=>x.classList.remove('active'));
   $('toolTitle').textContent = 'BOM Tools';
   $('toolBadge').textContent = '硬件设计辅助平台';
   let html = '<div class="overview-grid">';
@@ -484,10 +616,10 @@ function switchTool(key){
   if(a) a.click();
 }
 
-document.querySelectorAll('.sidebar nav a').forEach(a=>{
+document.querySelectorAll('.sidebar nav a[data-tool]').forEach(a=>{
   a.onclick=function(e){
     e.preventDefault();
-    document.querySelectorAll('.sidebar nav a').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.sidebar nav a[data-tool]').forEach(x=>x.classList.remove('active'));
     this.classList.add('active');
     curTool = this.dataset.tool;
     const t=TOOLS[curTool];
@@ -502,7 +634,191 @@ function initTool(tool){
   if(tool==='bom') initBom();
   else if(tool==='feishu') initFeishu();
   else if(tool==='plm') initPlm();
+  else if(tool==='bom-compare') initBomCompare();
+  else if(tool==='bug-report') initBugReport();
   else if(window._toolInits&&window._toolInits[tool]) window._toolInits[tool]();
+}
+
+function bugFmtTime(ts){
+  if(!ts) return '';
+  const d=new Date(ts*1000);
+  const pad=n=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+async function bugLoadReports(){
+  $('bugListStatus').textContent='加载中...';
+  try{
+    const r=await fetch('/api/bug_reports');
+    const d=await r.json();
+    if(!d.success) throw new Error(d.error||'加载失败');
+    const reports=d.reports||[];
+    $('bugListStatus').textContent=`共 ${reports.length} 条记录`;
+    if(!reports.length){
+      $('bugList').innerHTML='<div style="font-size:13px;color:#888;padding:16px;background:#f7f9fc;border-radius:8px">暂无问题记录</div>';
+      return;
+    }
+    $('bugList').innerHTML=reports.map(item=>{
+      const imgs=(item.attachments||[]).map(a=>`<a href="${_escH(a.url)}" target="_blank" style="font-size:12px;color:#1a5ad4;margin-right:8px">${_escH(a.name||'截图')}</a>`).join('');
+      return `<div style="border:1px solid #e2e8f3;border-radius:8px;padding:12px;background:#fff">
+        <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start">
+          <div style="font-weight:700;color:#1a3a5c">${_escH(item.title)}</div>
+          <span class="badge-sm badge-blue">${_escH(item.status||'待处理')}</span>
+        </div>
+        <div style="font-size:12px;color:#667085;margin-top:5px">${_escH(item.module)} | ${_escH(item.severity)} | ${_escH(item.reporter)}（${_escH(item.employee_id)}） | ${bugFmtTime(item.submitted_at)}</div>
+        <div style="font-size:13px;color:#333;line-height:1.6;margin-top:8px;white-space:pre-wrap">${_escH(item.description)}</div>
+        ${item.steps?`<div style="font-size:12px;color:#555;margin-top:8px"><b>复现步骤：</b><div style="white-space:pre-wrap">${_escH(item.steps)}</div></div>`:''}
+        ${item.expected?`<div style="font-size:12px;color:#555;margin-top:8px"><b>期望结果：</b><div style="white-space:pre-wrap">${_escH(item.expected)}</div></div>`:''}
+        ${imgs?`<div style="margin-top:8px"><b style="font-size:12px;color:#555">附件：</b>${imgs}</div>`:''}
+      </div>`;
+    }).join('');
+  }catch(e){
+    $('bugListStatus').textContent='';
+    $('bugList').innerHTML=`<div class="error show">${_escH(e.message)}</div>`;
+  }
+}
+
+function initBugReport(){
+  bugLoadReports();
+  $('bugRefresh').onclick=bugLoadReports;
+  $('bugSubmit').onclick=async function(){
+    const fd=new FormData();
+    fd.append('reporter',$('bugReporter').value.trim());
+    fd.append('employee_id',$('bugEmployeeId').value.trim());
+    fd.append('module',$('bugModule').value);
+    fd.append('severity',$('bugSeverity').value);
+    fd.append('title',$('bugTitle').value.trim());
+    fd.append('description',$('bugDesc').value.trim());
+    fd.append('steps',$('bugSteps').value.trim());
+    fd.append('expected',$('bugExpected').value.trim());
+    [...$('bugImages').files].forEach(f=>fd.append('images',f));
+    $('bugSubmit').disabled=true;$('bugStatus').textContent='提交中...';clearInlineError('bugError');
+    try{
+      const r=await fetch('/api/bug_reports',{method:'POST',body:fd});
+      const d=await r.json();
+      if(d.success){
+        $('bugStatus').textContent='已提交';
+        ['bugTitle','bugDesc','bugSteps','bugExpected'].forEach(id=>$(id).value='');
+        $('bugImages').value='';
+        await bugLoadReports();
+      }else{
+        showInlineError('bugError',d.error||'提交失败','bugStatus');
+      }
+    }catch(e){showInlineError('bugError',e.message,'bugStatus');}
+    $('bugSubmit').disabled=false;
+  };
+}
+
+function initBomCompare(){
+  document.querySelectorAll('.bomcmp-tab-btn').forEach(btn=>{
+    btn.onclick=function(){
+      document.querySelectorAll('.bomcmp-tab-btn').forEach(b=>{
+        b.classList.remove('active');
+        b.style.color='#888';
+        b.style.borderBottomColor='transparent';
+      });
+      this.classList.add('active');
+      this.style.color='#1a5ad4';
+      this.style.borderBottomColor='#1a5ad4';
+      document.querySelectorAll('#bomcmp-tab-customer-hq,#bomcmp-tab-hq-version,#bomcmp-tab-cadence-hq').forEach(el=>el.style.display='none');
+      $('bomcmp-tab-'+this.dataset.bomcmpTab).style.display='block';
+    };
+  });
+  initHqVersionCompare();
+}
+
+function hqvGetCheckedCols(){
+  return [...document.querySelectorAll('#hqvCompareCols input[type="checkbox"]:checked')].map(x=>x.value);
+}
+
+function hqvRenderCompareCols(){
+  const oldHeaders=window._hqvOldHeaders||[];
+  const newHeaders=window._hqvNewHeaders||[];
+  const common=oldHeaders.filter(h=>h && newHeaders.includes(h));
+  const key=$('hqvKeyCol')?.value||'';
+  if($('hqvRuleSummary')) $('hqvRuleSummary').textContent=`匹配规则：按「${key||'料号'}」匹配同一物料`;
+  let h='';
+  common.forEach(col=>{
+    const checked=col===key?'':' checked';
+    h+=`<label><input type="checkbox" value="${_escH(col)}"${checked}>${_escH(col)}</label>`;
+  });
+  $('hqvCompareCols').innerHTML=h || '<span style="font-size:12px;color:#888">请先加载两份 BOM 的列</span>';
+}
+
+async function hqvLoadOne(which){
+  const fileEl=$(which==='old'?'hqvOldFile':'hqvNewFile');
+  const sheetEl=$(which==='old'?'hqvOldSheet':'hqvNewSheet');
+  const f=fileEl.files[0]; if(!f) return null;
+  const fd=new FormData();
+  fd.append('file',f);
+  fd.append('header_row',$('hqvHdr').value||1);
+  if(sheetEl.value && sheetEl.value!=='先选择文件') fd.append('sheet_name',sheetEl.value);
+  const r=await fetch('/api/bom_compare/local_sheets',{method:'POST',body:fd});
+  const d=await r.json();
+  if(!d.success) throw new Error(d.error||'读取文件失败');
+  sheetEl.innerHTML=(d.sheets||[]).map(s=>`<option${s===d.current_sheet?' selected':''}>${_escH(s)}</option>`).join('');
+  if(which==='old') window._hqvOldHeaders=d.headers||[];
+  else window._hqvNewHeaders=d.headers||[];
+  return d;
+}
+
+async function hqvRefreshColumns(){
+  clearInlineError('hqvError');
+  $('hqvLoadStatus').textContent='读取列中...';
+  try{
+    const oldData=await hqvLoadOne('old');
+    const newData=await hqvLoadOne('new');
+    const oldHeaders=window._hqvOldHeaders||[];
+    const newHeaders=window._hqvNewHeaders||[];
+    const common=oldHeaders.filter(h=>h && newHeaders.includes(h));
+    const keySel=$('hqvKeyCol');
+    keySel.innerHTML=common.map(h=>`<option value="${_escH(h)}">${_escH(h)}</option>`).join('');
+    const detected=(oldData&&newData&&oldData.detected_key===newData.detected_key)?oldData.detected_key:(oldData?.detected_key||newData?.detected_key||'');
+    if(detected && common.includes(detected)) keySel.value=detected;
+    hqvRenderCompareCols();
+    $('hqvLoadStatus').textContent=`已加载共同列 ${common.length} 个`;
+  }catch(e){
+    $('hqvLoadStatus').textContent='';
+    showInlineError('hqvError',e.message,'hqvStatus');
+  }
+}
+
+function initHqVersionCompare(){
+  window._hqvOldHeaders=window._hqvOldHeaders||[];
+  window._hqvNewHeaders=window._hqvNewHeaders||[];
+  $('hqvOldFile').onchange=hqvRefreshColumns;
+  $('hqvNewFile').onchange=hqvRefreshColumns;
+  $('hqvOldSheet').onchange=hqvRefreshColumns;
+  $('hqvNewSheet').onchange=hqvRefreshColumns;
+  $('hqvRefresh').onclick=hqvRefreshColumns;
+  $('hqvKeyCol').onchange=hqvRenderCompareCols;
+  $('hqvSelectAll').onclick=()=>document.querySelectorAll('#hqvCompareCols input[type="checkbox"]').forEach(x=>x.checked=true);
+  $('hqvSelectNone').onclick=()=>document.querySelectorAll('#hqvCompareCols input[type="checkbox"]').forEach(x=>x.checked=false);
+  $('hqvRun').onclick=async function(){
+    const oldFile=$('hqvOldFile').files[0], newFile=$('hqvNewFile').files[0];
+    if(!oldFile||!newFile){showInlineError('hqvError','请上传基准版本和对比版本 HQ BOM','hqvStatus');return;}
+    const compareCols=hqvGetCheckedCols();
+    if(!$('hqvKeyCol').value){showInlineError('hqvError','请选择匹配键列','hqvStatus');return;}
+    if(!compareCols.length){showInlineError('hqvError','请至少选择一个比对字段','hqvStatus');return;}
+    const btn=$('hqvRun');btn.disabled=true;$('hqvStatus').textContent='比对中...';
+    hide($('hqvResult'));clearInlineError('hqvError');
+    const cfg={header_row:parseInt($('hqvHdr').value)||1, old_sheet:$('hqvOldSheet').value,
+      new_sheet:$('hqvNewSheet').value, key_col:$('hqvKeyCol').value, compare_cols:compareCols};
+    const fd=new FormData();
+    fd.append('old_file',oldFile);fd.append('new_file',newFile);fd.append('config',JSON.stringify(cfg));
+    try{
+      const r=await fetch('/api/bom_compare/hq_version',{method:'POST',body:fd});
+      const d=await r.json();
+      if(d.success){
+        $('hqvStats').innerHTML=`新增 <b style="color:#2a8a2a">${d.added}</b> | 删除 <b style="color:#c00000">${d.removed}</b> | 变更 <b style="color:#c07000">${d.changed}</b> | 未变更 <b>${d.unchanged}</b><br>基准版本 ${d.old_total} 项，对比版本 ${d.new_total} 项`;
+        $('hqvDl').href=d.download;
+        show($('hqvResult'));$('hqvStatus').textContent='完成！';
+      }else{
+        $('hqvError').textContent=d.error||'比对失败';show($('hqvError'));$('hqvStatus').textContent='';
+      }
+    }catch(e){$('hqvError').textContent=e.message;show($('hqvError'));$('hqvStatus').textContent='';}
+    btn.disabled=false;
+  };
 }
 
 // ─── BOM ──────────────────────────────────────────────

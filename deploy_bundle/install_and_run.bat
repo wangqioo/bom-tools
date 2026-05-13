@@ -69,19 +69,29 @@ if %errorlevel% neq 0 (
 
 :: Start server
 echo [3/3] Starting web server...
+if "%PORT%"=="" set PORT=5000
 echo.
 echo ========================================
 echo   Server started! Open in browser:
-echo   http://localhost:5000
+echo   http://localhost:%PORT%
+echo   LAN users open:
+echo   http://SERVER_IP:%PORT%
 echo.
 echo   Close this window to stop the server
 echo ========================================
 echo.
 cd web_app2
 echo.
-echo Starting Flask server...
+echo Starting web server...
 echo If this fails, copy the error text above.
-..\venv\Scripts\python.exe app.py
+..\venv\Scripts\python.exe -c "import importlib.util,sys; sys.exit(0 if importlib.util.find_spec('waitress') else 1)" >nul 2>&1
+if %errorlevel% equ 0 (
+    echo Using waitress WSGI server...
+    ..\venv\Scripts\python.exe -m waitress --host=0.0.0.0 --port=%PORT% app:app
+) else (
+    echo waitress not installed; using Flask development server...
+    ..\venv\Scripts\python.exe app.py
+)
 echo.
 echo Server has stopped.
 pause

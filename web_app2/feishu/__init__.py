@@ -64,6 +64,24 @@ def _read_cache(key):
     except Exception:
         return None
 
+
+def _is_preferred_level(value):
+    """判断优选等级是否为优选料。"""
+    text = str(value).strip() if value is not None else ''
+    if not text:
+        return False
+    lowered = text.lower()
+    negative_markers = ('非优选', '不优选', '非推薦', '非推荐', 'not preferred')
+    if any(marker in lowered for marker in negative_markers):
+        return False
+    if '优选' in text or 'preferred' in lowered:
+        return True
+    try:
+        return float(text) >= 7
+    except ValueError:
+        return False
+
+
 feishu_bp = Blueprint('feishu', __name__)
 
 
@@ -497,7 +515,9 @@ def api_pref_rate():
     except Exception:
         return jsonify({'success': False, 'error': 'config 参数格式错误'})
 
-    header_row   = int(config.get('header_row', 1))
+    header_row   = _to_int(config.get('header_row', 1), 1)
+    if header_row is None:
+        return jsonify({'success': False, 'error': '表头行必须是大于等于 1 的数字'})
     sheet_name   = config.get('sheet_name', '')
     local_key_col = config.get('local_key_col', '')
     tables_cfg   = config.get('tables', [])   # [{name, sheets:[{sid,name,cache_key,fetch_col_aliases}]}]
@@ -550,18 +570,6 @@ def api_pref_rate():
                     if hv and hv not in combined:
                         combined[hv] = {'pref': pv, 'source': tname}
 
-        def _is_preferred(pv):
-            """判断优选等级是否为优选料"""
-            s = str(pv).strip() if pv else ''
-            if not s:
-                return False
-            if '优选' in s:
-                return True
-            try:
-                return float(s) >= 7
-            except ValueError:
-                return False
-
         # Write output
         from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
         pref_fill    = PatternFill('solid', fgColor='E8F5E9')   # 绿：优选
@@ -595,7 +603,7 @@ def api_pref_rate():
             m  = combined.get(kv) if kv else None
             if m:
                 matched += 1
-                is_pref = _is_preferred(m['pref'])
+                is_pref = _is_preferred_level(m['pref'])
                 if is_pref:
                     preferred += 1
                 fill = pref_fill if is_pref else nonpref_fill

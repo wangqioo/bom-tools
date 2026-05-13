@@ -20,7 +20,9 @@ HOW TO USE
      - Create a virtual environment
      - Install all dependencies from local files (no internet needed)
      - Start the web server at http://localhost:5000
-  4. Open http://localhost:5000 in a browser
+  4. Open http://localhost:5000 in a browser on the server
+     Other computers in the LAN can open:
+       http://SERVER_IP:5000
 
 SERVER CONFIGURATION
   - Default bind address: 0.0.0.0
@@ -30,13 +32,18 @@ SERVER CONFIGURATION
       install_and_run.bat
   - If other computers need to access this service, allow the selected port
     through Windows Defender Firewall.
+  - This package installs Waitress and starts the app with a production WSGI
+    server by default. It is suitable for multiple users on the LAN.
 
 WHAT'S INCLUDED
   - Flask web application (web_app2/)
   - All Python dependencies as .whl files (wheels/)
     - Supports Python 3.10, 3.11, 3.12, 3.14
+    - Includes Flask, openpyxl, requests and waitress
   - Automatic virtual environment setup
   - Zero internet required
+  - Bug reports are stored under web_app2/bug_reports/ on the deployed server.
+    Keep that folder if you move or back up the application later.
 
 TROUBLESHOOTING
   - "'python' not recognized" / "Python not found"
@@ -47,3 +54,7 @@ TROUBLESHOOTING
   - Server fails to start
     -> Check if port 5000 is already in use by another application
   - For firewall issues, allow Python through Windows Defender Firewall
+  - Other computers cannot open the site
+    -> Use the server's LAN IP instead of localhost, for example:
+       http://192.168.1.100:5000
+    -> Check Windows Defender Firewall inbound rules for the selected port
