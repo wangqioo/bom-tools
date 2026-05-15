@@ -18,6 +18,8 @@ from feishu import feishu_bp
 from plm import plm_bp
 from bom_compare import bom_compare_bp
 from bug_report import bug_report_bp
+from feature_request import feature_request_bp
+from manufacturer_alias import manufacturer_alias_bp
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
@@ -32,6 +34,8 @@ app.register_blueprint(feishu_bp)
 app.register_blueprint(plm_bp)
 app.register_blueprint(bom_compare_bp)
 app.register_blueprint(bug_report_bp)
+app.register_blueprint(feature_request_bp)
+app.register_blueprint(manufacturer_alias_bp)
 
 
 @app.route('/')

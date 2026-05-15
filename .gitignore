@@ -3,9 +3,13 @@ web_app2/uploads/
 web_app2/outputs/
 web_app2/cache/
 web_app2/bug_reports/
+web_app2/feature_requests/
+web_app2/manufacturer_aliases/
 deploy_bundle/web_app2/uploads/
 deploy_bundle/web_app2/outputs/
 deploy_bundle/web_app2/cache/
 deploy_bundle/web_app2/bug_reports/
+deploy_bundle/web_app2/feature_requests/
+deploy_bundle/web_app2/manufacturer_aliases/
 web_app2/bug_reports/
 *.zip

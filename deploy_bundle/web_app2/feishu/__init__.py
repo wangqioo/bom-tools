@@ -2,7 +2,6 @@
 """飞书多表格匹配 — Blueprint"""
 
 import os, uuid, json, hashlib, time
-from zipfile import BadZipFile
 from flask import Blueprint
 from shared import (
     requests as _requests,
@@ -10,22 +9,10 @@ from shared import (
     get_column_letter,
     request, jsonify,
     UPLOAD_DIR, OUTPUT_DIR, CACHE_DIR, _cell_str,
+    _open_workbook, _resolve_feishu_base_url, _save_uploaded_excel, _to_int,
 )
 
 os.makedirs(CACHE_DIR, exist_ok=True)
-
-BAD_EXCEL_ERROR = "无法读取文件，可能原因：① 文件是 .xls 旧格式（请另存为 .xlsx）；② 公司加解密软件未启动导致文件被加密，请检查后重试"
-
-
-def _to_int(value, default=1, min_value=1):
-    try:
-        result = int(value)
-    except (TypeError, ValueError):
-        return None
-    if min_value is not None and result < min_value:
-        return None
-    return result
-
 
 # ── 服务端数据缓存（以 token + sheet_id 为粒度）─────────────────
 
@@ -166,47 +153,57 @@ def _do_match_multi(local_ws, local_header_row, prepared_tables, all_fetch_cols,
         ws_out.column_dimensions[get_column_letter(ci)].width = 24
 
     dr = 2
-    matched = unmatched = 0
+    total = matched = unmatched = 0
 
     for ri in range(local_header_row + 1, local_ws.max_row + 1):
         row_vals = [local_ws.cell(row=ri, column=ci).value
                     for ci in range(1, max_local_col + 1)]
         if not any(v is not None and str(v).strip() for v in row_vals):
             continue
+        total += 1
 
-        found = False
+        grouped_matches = {}
         for pt in prepared_tables:
             key = tuple(_cell_str(row_vals[lc - 1]) for lc in pt["local_key_cols"])
-            if not any(k for k in key):  # 本地键全空，跳过匹配保留行
+            if not any(k for k in key):
                 continue
             matches = pt["lookup"].get(key, [])
             if not matches:
                 continue
-            first = True
             for mdict in matches:
+                fetch_values = []
+                for col_name in all_fetch_cols:
+                    lookup_name = pt.get("col_lookup", {}).get(col_name, col_name)
+                    fetch_values.append(mdict.get(lookup_name, ""))
+                group_key = tuple(fetch_values)
+                grouped = grouped_matches.setdefault(group_key, {
+                    "values": fetch_values,
+                    "sources": [],
+                })
+                if pt["name"] not in grouped["sources"]:
+                    grouped["sources"].append(pt["name"])
+
+        if grouped_matches:
+            first = True
+            for grouped in grouped_matches.values():
                 for ci, val in enumerate(row_vals, 1):
                     c = ws_out.cell(row=dr, column=ci, value=val if first else None)
                     c.alignment = Alignment(horizontal="left", vertical="center")
                     c.border = bdr
-                for j, col_name in enumerate(all_fetch_cols):
-                    lookup_name = pt.get("col_lookup", {}).get(col_name, col_name)
-                    c = ws_out.cell(row=dr, column=max_local_col + j + 1,
-                                    value=mdict.get(lookup_name, ""))
+                for j, value in enumerate(grouped["values"]):
+                    c = ws_out.cell(row=dr, column=max_local_col + j + 1, value=value)
                     c.fill = hq_fill
                     c.alignment = Alignment(horizontal="left", vertical="center")
                     c.border = bdr
                 src_col = max_local_col + len(all_fetch_cols) + 1
-                c = ws_out.cell(row=dr, column=src_col, value=pt["name"] if first else "")
+                c = ws_out.cell(row=dr, column=src_col, value="；".join(grouped["sources"]))
                 c.fill = src_fill
                 c.alignment = Alignment(horizontal="center", vertical="center")
                 c.border = bdr
                 first = False
                 dr += 1
-            found = True
             matched += 1
-            break
-
-        if not found:
+        else:
             for ci, val in enumerate(row_vals, 1):
                 c = ws_out.cell(row=dr, column=ci, value=val)
                 c.alignment = Alignment(horizontal="left", vertical="center")
@@ -219,7 +216,6 @@ def _do_match_multi(local_ws, local_header_row, prepared_tables, all_fetch_cols,
             dr += 1
 
     wb_out.save(out_file)
-    total = dr - 2
     return total, matched, unmatched
 
 
@@ -229,7 +225,10 @@ def _do_match_multi(local_ws, local_header_row, prepared_tables, all_fetch_cols,
 def api_feishu_load():
     """拉取单个 Sheet 全部数据并缓存到服务端"""
     data = request.get_json(silent=True) or {}
-    base_url = data.get('base_url', 'https://mcenter.huaqin.com')
+    try:
+        base_url = _resolve_feishu_base_url(data.get('base_url'))
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)})
     origin   = data.get('origin', '')
     user_id  = data.get('user_id', '')
     token    = data.get('token', '').strip()
@@ -265,7 +264,10 @@ def api_feishu_load():
 def api_feishu_sheets():
     """获取飞书表格的 Sheet 列表，同时读取每个 Sheet 的第一行表头"""
     data = request.get_json(silent=True) or {}
-    base_url = data.get('base_url', 'https://mcenter.huaqin.com')
+    try:
+        base_url = _resolve_feishu_base_url(data.get('base_url'))
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)})
     origin = data.get('origin', '')
     user_id = data.get('user_id', '')
     token = data.get('token', '').strip()
@@ -301,7 +303,10 @@ def api_feishu_match():
     except Exception:
         return jsonify({'success': False, 'error': 'config 参数格式错误'})
 
-    base_url   = config.get('base_url', 'https://mcenter.huaqin.com')
+    try:
+        base_url = _resolve_feishu_base_url(config.get('base_url'))
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)})
     origin     = config.get('origin', '')
     user_id    = config.get('user_id', '')
     sheet_name = config.get('sheet_name', '')
@@ -311,10 +316,11 @@ def api_feishu_match():
     tables_cfg = config.get('tables', [])
 
     uid = str(uuid.uuid4())[:8]
-    local_path = os.path.join(UPLOAD_DIR, f"fs_local_{uid}.xlsx")
-    local_file.save(local_path)
-
-    wb_local = openpyxl.load_workbook(local_path, data_only=True)
+    try:
+        local_path = _save_uploaded_excel(local_file, "fs_local", uid)
+        wb_local = _open_workbook(local_path, data_only=True)
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)})
     sheets = wb_local.sheetnames
     if not sheet_name or sheet_name not in sheets:
         sheet_name = sheets[0]
@@ -474,14 +480,13 @@ def api_feishu_local_sheets():
     if not file:
         return jsonify({'success': False, 'error': '请上传文件'})
     uid = str(uuid.uuid4())[:8]
-    path = os.path.join(UPLOAD_DIR, f"fs_pre_{uid}.xlsx")
-    file.save(path)
     try:
-        wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+        path = _save_uploaded_excel(file, "fs_pre", uid)
+        wb = _open_workbook(path, read_only=True, data_only=True)
         sheets = wb.sheetnames
         wb.close()
-    except BadZipFile:
-        return jsonify({'success': False, 'error': BAD_EXCEL_ERROR})
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
@@ -492,7 +497,10 @@ def api_feishu_local_sheets():
     if header_row is None:
         return jsonify({'success': False, 'error': '表头行必须是大于等于 1 的数字'})
 
-    wb2 = openpyxl.load_workbook(path, data_only=True)
+    try:
+        wb2 = _open_workbook(path, data_only=True)
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)})
     ws = wb2[sheet_name] if sheet_name else wb2[wb2.sheetnames[0]]
     headers = [_cell_str(ws.cell(row=header_row, column=ci).value)
                for ci in range(1, ws.max_column + 1)]
@@ -523,14 +531,16 @@ def api_pref_rate():
     tables_cfg   = config.get('tables', [])   # [{name, sheets:[{sid,name,cache_key,fetch_col_aliases}]}]
 
     uid = str(uuid.uuid4())[:8]
-    local_path = os.path.join(UPLOAD_DIR, f"pref_{uid}.xlsx")
-    local_file.save(local_path)
+    try:
+        local_path = _save_uploaded_excel(local_file, "pref", uid)
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)})
 
     try:
         try:
-            wb = openpyxl.load_workbook(local_path, data_only=True)
-        except BadZipFile:
-            return jsonify({'success': False, 'error': BAD_EXCEL_ERROR})
+            wb = _open_workbook(local_path, data_only=True)
+        except ValueError as e:
+            return jsonify({'success': False, 'error': str(e)})
         sheets = wb.sheetnames
         if not sheet_name or sheet_name not in sheets:
             sheet_name = sheets[0]

@@ -1,60 +1,66 @@
-BOM Tools - Offline Deployment for Windows
-============================================
+BOM Tools - Offline LAN Deployment for Windows
+===============================================
 
-This package contains a one-click deployment of the BOM Tools web application,
-designed for Windows servers WITHOUT internet access.
+This folder is the offline deployment bundle for the BOM Tools web app.
+Copy the whole deploy_bundle folder to the target LAN server and run it there.
+No internet connection is required if Python is already installed.
 
 PREREQUISITES
   - Windows 10/11 or Windows Server 2016+
-  - Python 3.10+ installed
-    - Download from: https://www.python.org/downloads/
-    - IMPORTANT: During installation, CHECK "Add Python to PATH"
-      (it's at the bottom of the first installer screen)
-    - Do NOT use the Microsoft Store version of Python
+  - Python 3.10, 3.11, 3.12 or 3.14 installed from python.org
+  - During Python installation, CHECK "Add Python to PATH"
+  - Do NOT use the Microsoft Store Python version
 
-HOW TO USE
-  1. Copy the entire `deploy_bundle` folder to the target Windows machine
-  2. Double-click `install_and_run.bat`
-  3. The script will:
-     - Automatically detect Python (supports both `python` and `py` commands)
-     - Create a virtual environment
-     - Install all dependencies from local files (no internet needed)
-     - Start the web server at http://localhost:5000
-  4. Open http://localhost:5000 in a browser on the server
-     Other computers in the LAN can open:
+QUICK START
+  1. Copy the entire deploy_bundle folder to the target server.
+  2. Double-click install_and_run.bat.
+  3. The script will create venv, install packages from wheels/, and start:
+       http://localhost:5000
+  4. Other LAN users open:
        http://SERVER_IP:5000
 
-SERVER CONFIGURATION
-  - Default bind address: 0.0.0.0
-  - Default port: 5000
-  - To use another port, set PORT before starting:
+CHANGE PORT
+  In cmd, run:
       set PORT=8080
       install_and_run.bat
-  - If other computers need to access this service, allow the selected port
-    through Windows Defender Firewall.
-  - This package installs Waitress and starts the app with a production WSGI
-    server by default. It is suitable for multiple users on the LAN.
 
-WHAT'S INCLUDED
-  - Flask web application (web_app2/)
-  - All Python dependencies as .whl files (wheels/)
-    - Supports Python 3.10, 3.11, 3.12, 3.14
-    - Includes Flask, openpyxl, requests and waitress
-  - Automatic virtual environment setup
-  - Zero internet required
-  - Bug reports are stored under web_app2/bug_reports/ on the deployed server.
-    Keep that folder if you move or back up the application later.
+FIREWALL
+  If other computers cannot open the site, allow inbound TCP traffic for the
+  selected port, default 5000, in Windows Defender Firewall.
+
+DATA DIRECTORIES
+  Runtime data is created on the deployed server under web_app2/:
+  - bug_reports/        Bug records, status changes, and attachments
+  - feature_requests/   Demand/work-order records, likes, and attachments
+  - manufacturer_aliases/ Manufacturer alias mapping SQLite database
+  - uploads/            Temporary uploaded Excel files
+  - outputs/            Generated result files
+  - cache/              Feishu cache data
+
+Keep bug_reports/, feature_requests/, and manufacturer_aliases/ when backing up or moving the server.
+Temporary uploads/outputs/cache/ can be cleaned if needed.
+
+INCLUDED TOOLS
+  - BOM format conversion
+  - Feishu preferred-library and relation-library matching
+  - Manufacturer naming alias map
+  - BOM preferred-rate query
+  - PLM upload format conversion
+  - BOM compare tool collection
+  - Bug submission with status management
+  - Demand development work orders with likes
+
+OFFLINE DEPENDENCIES
+  wheels/ includes Flask, openpyxl, requests, waitress, and transitive deps.
+  The installer uses:
+      pip install --no-index --find-links wheels -r requirements.txt
 
 TROUBLESHOOTING
-  - "'python' not recognized" / "Python not found"
-    -> Reinstall Python from python.org, check "Add Python to PATH"
-  - "Failed to create virtual environment"
-    -> You may have the Microsoft Store Python. Uninstall it and
-       install Python from https://www.python.org/downloads/
-  - Server fails to start
-    -> Check if port 5000 is already in use by another application
-  - For firewall issues, allow Python through Windows Defender Firewall
-  - Other computers cannot open the site
-    -> Use the server's LAN IP instead of localhost, for example:
-       http://192.168.1.100:5000
-    -> Check Windows Defender Firewall inbound rules for the selected port
+  - Python not found:
+      Reinstall Python from python.org and select "Add Python to PATH".
+  - venv creation failed:
+      Remove Microsoft Store Python and install python.org Python.
+  - Port already in use:
+      Set another PORT before running install_and_run.bat.
+  - LAN users cannot open:
+      Use the server LAN IP, not localhost, and check firewall inbound rules.

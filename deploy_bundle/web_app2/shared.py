@@ -2,36 +2,29 @@
 """BOM Tools Web v2 — 公共模块"""
 
 import os, sys, time, re
+from zipfile import BadZipFile
 
 _parent = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _parent not in sys.path:
     sys.path.insert(0, _parent)
 
-try:
-    import openpyxl
-    from openpyxl import Workbook
-    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-    from openpyxl.utils import get_column_letter, column_index_from_string
-except ImportError:
-    import subprocess
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "openpyxl", "-q"])
-    import openpyxl
-    from openpyxl import Workbook
-    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-    from openpyxl.utils import get_column_letter, column_index_from_string
-
-try:
-    import requests
-except ImportError:
-    import subprocess
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "requests", "-q"])
-    import requests
+import openpyxl
+import requests
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.utils import get_column_letter, column_index_from_string
 
 from flask import request, jsonify, send_file
 
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads")
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "outputs")
 CACHE_DIR  = os.path.join(os.path.dirname(__file__), "cache")
+
+BAD_EXCEL_ERROR = "\u65e0\u6cd5\u8bfb\u53d6\u6587\u4ef6\uff0c\u53ef\u80fd\u539f\u56e0\uff1a\u2460 \u6587\u4ef6\u662f .xls \u65e7\u683c\u5f0f\uff08\u8bf7\u53e6\u5b58\u4e3a .xlsx\uff09\uff1b\u2461 \u516c\u53f8\u52a0\u89e3\u5bc6\u8f6f\u4ef6\u672a\u542f\u52a8\u5bfc\u81f4\u6587\u4ef6\u88ab\u52a0\u5bc6\uff0c\u8bf7\u68c0\u67e5\u540e\u91cd\u8bd5"
+
+FEISHU_BASE_URLS = {
+    "huaqin": "https://mcenter.huaqin.com",
+}
 
 FEISHU_PRESET_TABLES = [
     {"name": "MLCC",               "token": "shthq7d9W17DSo7cwuFhtIg7KPf", "category": "优选库"},
@@ -86,3 +79,49 @@ def _col_int(s):
         return int(s) if s.isdigit() else column_index_from_string(s)
     except Exception:
         return None
+
+def _to_int(value, default=1, min_value=1):
+    try:
+        result = int(value if value is not None else default)
+    except (TypeError, ValueError):
+        return None
+    if min_value is not None and result < min_value:
+        return None
+    return result
+
+
+def _request_int(name, default=1, min_value=1):
+    return _to_int(request.form.get(name, default), default, min_value)
+
+
+def _save_uploaded_excel(file, prefix, uid):
+    if not file:
+        raise ValueError("\u8bf7\u4e0a\u4f20\u6587\u4ef6")
+    filename = file.filename or ""
+    lower = filename.lower()
+    if lower.endswith(".xls") and not lower.endswith(".xlsx"):
+        raise ValueError("\u4e0d\u652f\u6301 .xls \u683c\u5f0f\uff0c\u8bf7\u5728 Excel \u4e2d\u53e6\u5b58\u4e3a .xlsx \u540e\u91cd\u8bd5")
+    path = os.path.join(UPLOAD_DIR, f"{prefix}_{uid}.xlsx")
+    file.save(path)
+    return path
+
+
+def _open_workbook(path, **kwargs):
+    try:
+        return openpyxl.load_workbook(path, **kwargs)
+    except BadZipFile as exc:
+        raise ValueError(BAD_EXCEL_ERROR) from exc
+
+
+def _resolve_feishu_base_url(value):
+    key_or_url = str(value or "").strip()
+    if not key_or_url:
+        return FEISHU_BASE_URLS["huaqin"]
+    if key_or_url in FEISHU_BASE_URLS:
+        return FEISHU_BASE_URLS[key_or_url]
+    allowed = {url.rstrip("/") for url in FEISHU_BASE_URLS.values()}
+    normalized = key_or_url.rstrip("/")
+    if normalized in allowed:
+        return normalized
+    raise ValueError("\u4e0d\u652f\u6301\u7684\u98de\u4e66\u7f51\u5173\u5730\u5740\uff0c\u8bf7\u4f7f\u7528\u7cfb\u7edf\u9884\u8bbe\u5730\u5740")
+

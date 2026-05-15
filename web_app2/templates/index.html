@@ -8,11 +8,11 @@
 * { margin:0; padding:0; box-sizing:border-box; }
 body { font-family: -apple-system,'Segoe UI','Microsoft YaHei',sans-serif; display:flex; height:100vh; background:#f0f2f5; }
 /* === 左侧导航 === */
-.sidebar { width:200px; background:linear-gradient(180deg,#1a2942,#1a3a5c); color:#ccc; display:flex; flex-direction:column; flex-shrink:0; }
+.sidebar { width:250px; background:linear-gradient(180deg,#1a2942,#1a3a5c); color:#ccc; display:flex; flex-direction:column; flex-shrink:0; }
 .sidebar .logo { padding:18px 16px; font-size:15px; font-weight:700; color:#fff; border-bottom:1px solid rgba(255,255,255,.08); cursor:pointer; }
 .sidebar .logo .sub { font-size:11px; font-weight:400; color:#8ab4f8; display:block; margin-top:2px; }
 .sidebar nav { flex:1; padding:8px 0; overflow-y:auto; }
-.sidebar nav a { display:flex; align-items:center; gap:10px; padding:11px 18px; color:#b0bec5; text-decoration:none; font-size:14px; transition:all .12s; border-left:3px solid transparent; }
+.sidebar nav a { display:flex; align-items:center; gap:10px; padding:11px 18px; color:#b0bec5; text-decoration:none; font-size:14px; transition:all .12s; border-left:3px solid transparent; white-space:nowrap; }
 .sidebar nav a:hover { background:rgba(255,255,255,.06); color:#e0e0e0; }
 .sidebar nav a.active { background:rgba(45,108,223,.25); color:#fff; border-left-color:#4a9eff; font-weight:600; }
 .sidebar nav a .icon { font-size:18px; width:24px; text-align:center; }
@@ -56,6 +56,11 @@ th { background:#f0f2f5; padding:8px 6px; text-align:left; font-weight:600; bord
 td { padding:7px 6px; border-bottom:1px solid #e8eaed; white-space:nowrap; }
 tr:hover td { background:#f7f9fc; }
 .table-wrap { max-height:320px; overflow:auto; border:1px solid #e0e0e0; border-radius:6px; }
+.table-wrap table { width:max-content; min-width:100%; table-layout:auto; }
+.table-wrap th,.table-wrap td { max-width:none; white-space:nowrap; border-right:1px solid #e5e7eb; }
+.table-wrap th:last-child,.table-wrap td:last-child { border-right:none; }
+.excel-preview { max-height:238px; }
+.preview-note { margin:6px 0 4px; font-size:12px; color:#667085; }
 /* === Tab 切换 === */
 .tabs { display:flex; gap:0; border-bottom:2px solid #d0d5dd; margin-bottom:16px; }
 .tab-btn { padding:8px 20px; background:#f5f7fa; border:1px solid #d0d5dd; border-bottom:none; border-radius:6px 6px 0 0; cursor:pointer; font-size:14px; font-weight:500; color:#666; margin-bottom:-2px; position:relative; }
@@ -76,6 +81,12 @@ tr:hover td { background:#f7f9fc; }
 .badge-orange { background:#fff3e0; color:#e07000; }
 .badge-gray { background:#f0f0f0; color:#888; }
 .badge-blue { background:#e8f0fe; color:#2d6cdf; }
+.badge-status-pending { background:#fff7e6; color:#b45f00; border:1px solid #ffd591; }
+.badge-status-progress { background:#e6f4ff; color:#0958d9; border:1px solid #91caff; }
+.badge-status-fixed { background:#e8f5e9; color:#237804; border:1px solid #b7eb8f; }
+.badge-status-closed { background:#f0f0f0; color:#595959; border:1px solid #d9d9d9; }
+.badge-status-paused { background:#f9f0ff; color:#722ed1; border:1px solid #d3adf7; }
+.badge-status-invalid { background:#fff1f0; color:#cf1322; border:1px solid #ffa39e; }
 /* === checkbox list === */
 .chk-list { display:flex; flex-wrap:wrap; gap:3px; max-height:160px; overflow-y:auto; padding:6px; border:1px solid #e0e0e0; border-radius:6px; }
 .chk-list label { display:inline-flex; align-items:center; gap:3px; padding:2px 8px; font-size:12px; cursor:pointer; border-radius:4px; white-space:nowrap; }
@@ -136,6 +147,7 @@ tr:hover td { background:#f7f9fc; }
 #plm-tab-bom-cfg #plmQtyCfgTable { border-radius:8px; }
 #plm-tab-bom-cfg #plmQtyCfgBody input { border-color:#d7deea; }
 #plm-tab-bom-cfg #plmQtyCfgBody tr:hover td { background:#f6f9ff; }
+
 </style>
 </head>
 <body>
@@ -146,10 +158,12 @@ tr:hover td { background:#f7f9fc; }
   <nav>
     <a href="#" data-tool="bom"><span class="icon">📋</span>BOM 格式转换</a>
     <a href="#" data-tool="feishu"><span class="icon">🔍</span>飞书优选库+关系库匹配</a>
+    <a href="#" data-tool="manufacturer-alias"><span class="icon">&#127991;</span>厂商命名映射表</a>
     <a href="#" data-tool="pref-rate"><span class="icon">📊</span>查询BOM优选率</a>
     <a href="#" data-tool="plm"><span class="icon">📤</span>转换为上传PLM系统格式</a>
     <a href="#" data-tool="bom-compare"><span class="icon">🧾</span>BOM比对工具合集</a>
     <a href="#" data-tool="bug-report"><span class="icon">🐞</span>Bug提交栏目</a>
+    <a href="#" data-tool="feature-request"><span class="icon">📝</span>需求开发工单</a>
   </nav>
 </aside>
 
@@ -175,7 +189,8 @@ tr:hover td { background:#f7f9fc; }
   <div class="workflow-step-desc">上传待转换的 BOM，并确认 Sheet 和表头行，下面会显示预览方便核对。</div>
   <div class="row"><label>文件路径：</label><input type="file" id="bomFile" accept=".xlsx,.xlsm,.xls" style="width:320px"></div>
   <div class="row"><label>Sheet：</label><select id="bomSheet" style="width:180px"><option>先选择文件</option></select><label>表头行：</label><input type="number" id="bomHdr" value="1" min="1" style="width:60px"><button class="btn btn-sm btn-gray" id="bomRefresh">刷新预览</button></div>
-  <div id="bomPreview" class="table-wrap" style="margin-top:8px"></div>
+  <div class="preview-note">仅预览前 50 行，正式处理会读取完整表格。</div>
+  <div id="bomPreview" class="table-wrap excel-preview" style="margin-top:8px"></div>
 </div>
 <div class="section"><h3>第二步：列映射（自动识别，可手动调整）</h3>
   <div class="workflow-step-desc">选择原始 BOM 的格式，并确认物料名称、用量、品牌/厂家、型号等关键列。</div>
@@ -233,6 +248,7 @@ tr:hover td { background:#f7f9fc; }
 <div class="section"><h3>第二步：基础列映射（自动识别，可手动填列字母覆盖）</h3>
   <div class="workflow-step-desc">确认整张 BOM 共用的序号、HQ PN 和主二供列。筛选只看序号列；导出保留原序号，HQ PN 和主二供只用于输出。</div>
   <div id="plmDetectLog" style="font-size:12px;color:#555;background:#f7f9fc;padding:8px;border-radius:6px;margin-bottom:8px"></div>
+  <div class="preview-note">仅预览前 50 行，正式处理会读取完整表格。</div>
   <div id="plmColMap" class="table-wrap" style="margin-bottom:10px;max-height:200px"></div>
   <div class="row">
     <label>序号列：</label><input type="text" id="plmColSeq" style="width:60px" placeholder="如 A">
@@ -356,13 +372,57 @@ tr:hover td { background:#f7f9fc; }
     <div class="error" id="bugError"></div>
   </div>
   <div class="section"><h3>问题记录</h3>
-    <div class="workflow-step-desc">按提交时间倒序展示。截图可直接打开查看。</div>
+    <div class="workflow-step-desc">按提交时间倒序展示。点击问题卡片可查看详情并修改处理状态，附件可直接打开查看。</div>
     <div class="row">
       <button class="btn btn-sm btn-gray" id="bugRefresh" type="button">刷新记录</button>
       <span id="bugListStatus" style="font-size:12px;color:#888"></span>
     </div>
     <div id="bugList" style="display:flex;flex-direction:column;gap:10px"></div>
+    <div id="bugDetailModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.38);z-index:50;align-items:center;justify-content:center;padding:18px">
+      <div style="width:min(760px,92vw);max-height:86vh;overflow:auto;background:#fff;border-radius:12px;box-shadow:0 16px 50px rgba(15,23,42,.22);padding:18px">
+        <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;border-bottom:1px solid #e8edf5;padding-bottom:10px">
+          <div><h3 id="bugDetailTitle" style="margin:0 0 6px"></h3><div id="bugDetailMeta" style="font-size:12px;color:#667085"></div></div>
+          <button class="btn btn-sm btn-gray" id="bugDetailClose" type="button">关闭</button>
+        </div>
+        <div style="margin-top:12px" id="bugDetailBody"></div>
+        <div class="row" style="margin-top:14px;border-top:1px solid #e8edf5;padding-top:12px">
+          <label>处理状态：</label>
+          <select id="bugDetailStatus" style="width:120px"><option>待处理</option><option>处理中</option><option>已修复</option><option>已关闭</option><option>暂缓</option><option>无法复现</option></select>
+          <button class="btn btn-primary" id="bugDetailSave" type="button">保存状态</button>
+          <span id="bugDetailMsg" style="font-size:13px;color:#888"></span>
+        </div>
+      </div>
+    </div>
   </div>
+</div>
+</div>
+</script>
+
+<!-- ── 需求开发工单 ── -->
+<script type="text/html" id="tpl-feature-request">
+<div class="workflow-shell">
+<div class="workflow-hero">
+  <h4>需求开发工单</h4>
+  <p>提交新功能、流程优化或开发需求。记录会保存在服务端，便于后续评估和跟进。</p>
+</div>
+<div style="display:grid;grid-template-columns:minmax(380px,460px) 1fr;gap:14px;align-items:start">
+  <div class="section"><h3>提交需求</h3>
+    <div class="workflow-step-desc">请写清楚使用场景、希望怎么改、验收标准。原始 BOM、示例文件或说明文档可作为附件上传。</div>
+    <div class="row" style="display:grid;grid-template-columns:minmax(180px,220px) minmax(160px,200px);gap:12px;align-items:end">
+      <label style="display:flex;flex-direction:column;gap:6px">姓名：<input type="text" id="featureRequester" style="width:100%"></label>
+      <label style="display:flex;flex-direction:column;gap:6px">工号：<input type="text" id="featureEmployeeId" style="width:100%"></label>
+    </div>
+    <div class="row"><label>需求类型：</label><select id="featureType" style="width:120px"><option>新功能</option><option>功能优化</option><option>流程改进</option><option>自动化</option><option>其他</option></select><label>优先级：</label><select id="featurePriority" style="width:90px"><option>一般</option><option>较高</option><option>紧急</option><option>低</option></select></div>
+    <div class="row"><label>影响模块：</label><select id="featureModule" style="width:240px"><option>BOM 格式转换</option><option>飞书优选库+关系库匹配</option><option>查询BOM优选率</option><option>转换为上传PLM系统格式</option><option>BOM比对工具合集</option><option>平台通用</option><option>其他</option></select></div>
+    <div class="row"><label>需求标题：</label><input type="text" id="featureTitle" style="width:100%" placeholder="一句话概括要做什么"></div>
+    <div class="row" style="align-items:flex-start"><label>需求背景：</label><textarea id="featureBackground" style="width:100%;height:78px;padding:8px;border:1px solid #c8ccd0;border-radius:6px;font-family:inherit" placeholder="现在的痛点或使用场景"></textarea></div>
+    <div class="row" style="align-items:flex-start"><label>需求说明：</label><textarea id="featureRequirement" style="width:100%;height:112px;padding:8px;border:1px solid #c8ccd0;border-radius:6px;font-family:inherit" placeholder="希望系统怎么处理，输入和输出是什么"></textarea></div>
+    <div class="row" style="align-items:flex-start"><label>预期价值：</label><textarea id="featureValue" style="width:100%;height:64px;padding:8px;border:1px solid #c8ccd0;border-radius:6px;font-family:inherit" placeholder="能节省哪些时间或降低哪些风险"></textarea></div>
+    <div class="row" style="align-items:flex-start"><label>验收标准：</label><textarea id="featureAcceptance" style="width:100%;height:64px;padding:8px;border:1px solid #c8ccd0;border-radius:6px;font-family:inherit" placeholder="做到什么程度算完成"></textarea></div>
+    <div class="row"><label>附件：</label><input type="file" id="featureFiles" accept="image/*,.xlsx,.xlsm,.xls,.csv,.txt,.log,.zip,.rar,.7z,.doc,.docx,.ppt,.pptx,.pdf" multiple style="width:300px"><span class="hint">支持截图、Excel、CSV、Office/PDF、日志文本和压缩包</span></div>
+    <button class="btn btn-primary" id="featureSubmit" type="button">提交工单</button><span id="featureStatus" style="font-size:13px;color:#888;margin-left:8px"></span><div class="error" id="featureError"></div>
+  </div>
+  <div class="section"><h3>需求记录</h3><div class="workflow-step-desc">按提交时间倒序展示。附件可直接打开查看。</div><div class="row"><button class="btn btn-sm btn-gray" id="featureRefresh" type="button">刷新记录</button><span id="featureListStatus" style="font-size:12px;color:#888"></span></div><div id="featureList" style="display:flex;flex-direction:column;gap:10px"></div></div>
 </div>
 </div>
 </script>
@@ -379,11 +439,37 @@ tr:hover td { background:#f7f9fc; }
 <div id="bomcmp-tab-customer-hq" class="workflow-shell">
   <div class="workflow-hero">
     <h4>客户BOM对比HQ BOM</h4>
-    <p>用于客户 BOM 与 HQ BOM 的差异比对。具体比对规则、输入列映射和输出格式待补充。</p>
+    <p>上传客户 BOM 和 HQ BOM，选择匹配键与字段映射后导出差异报告。</p>
   </div>
-  <div class="section"><h3>功能待补充</h3>
-    <div class="workflow-step-desc">这里后续会放上传文件、列映射、比对规则和导出结果。</div>
+  <div class="section"><h3>第一步：上传文件</h3>
+    <div class="workflow-step-desc">两份文件可使用不同格式。请分别选择 Sheet 和表头行，然后加载列。</div>
+    <div class="row"><label>客户 BOM：</label><input type="file" id="custLeftFile" accept=".xlsx,.xlsm,.xls" style="width:320px"></div>
+    <div class="row"><label>HQ BOM：</label><input type="file" id="custRightFile" accept=".xlsx,.xlsm,.xls" style="width:320px"></div>
+    <div class="row">
+      <label>客户 Sheet：</label><select id="custLeftSheet" style="width:180px"><option>先选择文件</option></select>
+      <label>客户表头行：</label><input type="number" id="custLeftHdr" value="1" min="1" style="width:60px">
+      <label>HQ Sheet：</label><select id="custRightSheet" style="width:180px"><option>先选择文件</option></select>
+      <label>HQ表头行：</label><input type="number" id="custRightHdr" value="3" min="1" style="width:60px">
+      <button class="btn btn-sm btn-gray" id="custRefresh" type="button">加载列</button>
+    </div>
+    <div id="custLoadStatus" style="font-size:12px;color:#888"></div>
   </div>
+  <div class="section"><h3>第二步：匹配键和字段映射</h3>
+    <div class="workflow-step-desc">匹配键用于判定两份 BOM 中哪些行是同一项；字段映射用于指定要比对的值。</div>
+    <div class="row">
+      <label>客户匹配键：</label><select id="custLeftKey" style="width:220px"><option>先加载列</option></select>
+      <label>HQ匹配键：</label><select id="custRightKey" style="width:220px"><option>先加载列</option></select>
+    </div>
+    <div class="row"><button class="btn btn-sm btn-gray" id="custSelectAll" type="button">全选同名字段</button><button class="btn btn-sm btn-gray" id="custSelectNone" type="button">清空同名字段</button><button class="btn btn-sm btn-gray" id="custAddPair" type="button">添加自定义映射</button></div>
+    <div id="custCommonPairs" class="chk-list" style="max-height:160px"></div>
+    <div id="custManualPairs" style="display:flex;flex-direction:column;gap:6px;margin-top:10px"></div>
+  </div>
+  <div class="section"><h3>第三步：导出报告</h3>
+    <button class="btn btn-primary" id="custRun" type="button">开始比对</button>
+    <span id="custStatus" style="font-size:13px;color:#888;margin-left:8px"></span>
+  </div>
+  <div class="result" id="custResult"><span class="title">比对完成</span><br><span id="custStats" style="display:inline-block;margin-top:6px"></span><br><a class="download" id="custDl" href="#">下载差异报告</a></div>
+  <div class="error" id="custError"></div>
 </div>
 
 <div id="bomcmp-tab-hq-version" class="workflow-shell" style="display:none">
@@ -431,16 +517,72 @@ tr:hover td { background:#f7f9fc; }
 
 <div id="bomcmp-tab-cadence-hq" class="workflow-shell" style="display:none">
   <div class="workflow-hero">
-    <h4>Cadence导出BOM对比HQ BOM</h4>
-    <p>用于 Cadence Archive BOM 导出结果与 HQ BOM 的差异比对。具体输入格式、匹配键和输出格式待补充。</p>
+    <h4>Cadence BOM对比HQ BOM</h4>
+    <p>上传 Cadence Archive BOM 导出表和 HQ BOM，按位号、料号、型号、数量或厂商等字段比对差异。</p>
   </div>
-  <div class="section"><h3>功能待补充</h3>
-    <div class="workflow-step-desc">这里后续会放 Cadence 导出 BOM、HQ BOM 上传、字段映射和差异报告。</div>
+  <div class="section"><h3>第一步：上传文件</h3>
+    <div class="workflow-step-desc">Cadence 导出格式可能随项目不同，因此这里使用手动匹配键和字段映射。</div>
+    <div class="row"><label>Cadence BOM：</label><input type="file" id="cadLeftFile" accept=".xlsx,.xlsm,.xls" style="width:320px"></div>
+    <div class="row"><label>HQ BOM：</label><input type="file" id="cadRightFile" accept=".xlsx,.xlsm,.xls" style="width:320px"></div>
+    <div class="row">
+      <label>Cadence Sheet：</label><select id="cadLeftSheet" style="width:180px"><option>先选择文件</option></select>
+      <label>Cadence表头行：</label><input type="number" id="cadLeftHdr" value="1" min="1" style="width:60px">
+      <label>HQ Sheet：</label><select id="cadRightSheet" style="width:180px"><option>先选择文件</option></select>
+      <label>HQ表头行：</label><input type="number" id="cadRightHdr" value="3" min="1" style="width:60px">
+      <button class="btn btn-sm btn-gray" id="cadRefresh" type="button">加载列</button>
+    </div>
+    <div id="cadLoadStatus" style="font-size:12px;color:#888"></div>
+  </div>
+  <div class="section"><h3>第二步：匹配键和字段映射</h3>
+    <div class="workflow-step-desc">建议优先按位号或料号匹配；如果两边列名不同，请使用自定义字段映射。</div>
+    <div class="row">
+      <label>Cadence匹配键：</label><select id="cadLeftKey" style="width:220px"><option>先加载列</option></select>
+      <label>HQ匹配键：</label><select id="cadRightKey" style="width:220px"><option>先加载列</option></select>
+    </div>
+    <div class="row"><button class="btn btn-sm btn-gray" id="cadSelectAll" type="button">全选同名字段</button><button class="btn btn-sm btn-gray" id="cadSelectNone" type="button">清空同名字段</button><button class="btn btn-sm btn-gray" id="cadAddPair" type="button">添加自定义映射</button></div>
+    <div id="cadCommonPairs" class="chk-list" style="max-height:160px"></div>
+    <div id="cadManualPairs" style="display:flex;flex-direction:column;gap:6px;margin-top:10px"></div>
+  </div>
+  <div class="section"><h3>第三步：导出报告</h3>
+    <button class="btn btn-primary" id="cadRun" type="button">开始比对</button>
+    <span id="cadStatus" style="font-size:13px;color:#888;margin-left:8px"></span>
+  </div>
+  <div class="result" id="cadResult"><span class="title">比对完成</span><br><span id="cadStats" style="display:inline-block;margin-top:6px"></span><br><a class="download" id="cadDl" href="#">下载差异报告</a></div>
+  <div class="error" id="cadError"></div>
+</div>
+
+</script>
+
+<!-- ── 查询BOM优选率 ── -->
+
+<!-- ── 厂商命名映射表 ── -->
+<script type="text/html" id="tpl-manufacturer-alias">
+<div class="workflow-shell">
+  <div class="workflow-hero">
+    <h4>厂商命名映射表</h4>
+    <p>维护客户厂商别名与 HQ 规范厂商名的精确对应关系，供后续 BOM、飞书和 PLM 流程复用。</p>
+  </div>
+  <div style="display:grid;grid-template-columns:minmax(340px,420px) 1fr;gap:14px;align-items:start">
+    <div class="section"><h3>新增映射</h3>
+      <div class="workflow-step-desc">一个别名只对应一个 HQ 规范厂商名。大小写、空格、常见标点会自动归一化后校验重复。</div>
+      <div class="row"><label>HQ规范名：</label><input type="text" id="mfgCanonical" style="width:100%" placeholder="如 Murata"></div>
+      <div class="row"><label>厂商别名：</label><input type="text" id="mfgAlias" style="width:100%" placeholder="如 MURATA / 村田 / muRata"></div>
+      <div class="row"><label>来源：</label><input type="text" id="mfgSource" style="width:100%" placeholder="客户BOM、飞书库、人工确认等"></div>
+      <div class="row" style="align-items:flex-start"><label>备注：</label><textarea id="mfgNote" style="width:100%;height:76px;padding:8px;border:1px solid #c8ccd0;border-radius:6px;font-family:inherit" placeholder="可记录客户、项目或确认依据"></textarea></div>
+      <button class="btn btn-primary" id="mfgAdd" type="button">保存映射</button>
+      <span id="mfgAddStatus" style="font-size:13px;color:#888;margin-left:8px"></span>
+      <div class="error" id="mfgError"></div>
+    </div>
+    <div class="section"><h3>查询映射</h3>
+      <div class="workflow-step-desc">输入任意客户厂商名、英文大小写变体、中文名或音译名，查询对应的 HQ 规范厂商名。</div>
+      <div class="row"><input type="text" id="mfgSearch" style="width:320px" placeholder="输入厂商名或别名"><button class="btn btn-primary" id="mfgSearchBtn" type="button">查询</button><button class="btn btn-sm btn-gray" id="mfgRefresh" type="button">刷新</button><span id="mfgListStatus" style="font-size:12px;color:#888"></span></div>
+      <div id="mfgMatch" style="display:none;margin:10px 0;padding:10px;border:1px solid #b7eb8f;background:#f6ffed;border-radius:8px;color:#237804;font-size:13px"></div>
+      <div class="table-wrap" style="max-height:520px"><table><thead><tr><th>HQ规范名</th><th>厂商别名</th><th>归一化键</th><th>来源</th><th>备注</th><th style="width:70px">操作</th></tr></thead><tbody id="mfgRows"></tbody></table></div>
+    </div>
   </div>
 </div>
 </script>
 
-<!-- ── 查询BOM优选率 ── -->
 <script type="text/html" id="tpl-pref-rate">
 <div class="workflow-shell">
 <div class="workflow-hero">
@@ -562,6 +704,26 @@ function clearInlineError(errorId){
   el.textContent='';
   hide(el);
 }
+
+function excelLoadingHtml(msg){
+  return `<div style="padding:14px 16px;color:#5f6d82;background:#f7f9fc;border:1px dashed #cbd5e1;border-radius:8px;font-size:13px"><span class="spinner">&#8635;</span> ${_escH(msg||'\u6b63\u5728\u8bfb\u53d6 Excel...')}</div>`;
+}
+function setLoadingStatus(id,msg){
+  const el=$(id); if(!el) return;
+  el.innerHTML=`<span class="spinner">&#8635;</span> ${_escH(msg||'\u52a0\u8f7d\u4e2d...')}`;
+}
+function setPlainStatus(id,msg){
+  const el=$(id); if(!el) return;
+  el.textContent=msg||'';
+}
+function setSelectPlaceholder(id,msg){
+  const el=$(id); if(!el) return;
+  el.innerHTML=`<option>${_escH(msg||'\u52a0\u8f7d\u4e2d...')}</option>`;
+}
+function clearSelectOptions(id,msg){
+  const el=$(id); if(!el) return;
+  el.innerHTML=`<option>${_escH(msg||'\u5148\u52a0\u8f7d\u5217')}</option>`;
+}
 async function postFormJson(url, fd){
   const r=await fetch(url,{method:'POST',body:fd});
   let d;
@@ -580,6 +742,8 @@ const TOOLS = {
            desc:'将客户提供的多种格式 BOM 表自动识别列映射，支持品牌型号合并列/分开列（格式A/B/C），展开为多供应商独立行。'},
   feishu: {title:'飞书优选库+关系库匹配', badge:'v3.0',  tpl:'tpl-feishu',
            desc:'连接飞书内部 API 网关，支持 15 个预置库（优选库 + 对应关系库），多键 AND 匹配（最多 3 对），批量提取字段，输出含来源表格的匹配结果。'},
+  'manufacturer-alias': {title:'\u5382\u5546\u547d\u540d\u6620\u5c04\u8868', badge:'\u6620\u5c04\u5e93', tpl:'tpl-manufacturer-alias',
+           desc:'\u7ef4\u62a4\u5ba2\u6237\u5382\u5546\u522b\u540d\u3001\u5927\u5c0f\u5199\u53d8\u4f53\u3001\u4e2d\u6587\u540d\u548c\u97f3\u8bd1\u540d\u5230 HQ \u89c4\u8303\u5382\u5546\u540d\u7684\u7cbe\u786e\u6620\u5c04\uff0c\u4f9b\u540e\u7eed\u5339\u914d\u6d41\u7a0b\u590d\u7528\u3002'},
   'pref-rate': {title:'查询BOM优选率', badge:'v1.0', tpl:'tpl-pref-rate',
                desc:'按 HQ料号 在所有优选库缓存中查找优选等级，输出含优选率统计的 Excel 结果文件。'},
   plm:    {title:'转换为上传PLM系统格式', badge:'v1.6',  tpl:'tpl-plm',
@@ -588,6 +752,8 @@ const TOOLS = {
            desc:'提供客户BOM对比HQ BOM、同项目HQ BOM版本对比、Cadence导出BOM对比HQ BOM三个比对子功能。'},
   'bug-report': {title:'Bug提交栏目', badge:'反馈', tpl:'tpl-bug-report',
            desc:'提交工具问题、附件和复现信息，所有记录保存在服务端，团队成员均可查看。'},
+  'feature-request': {title:'需求开发工单', badge:'需求', tpl:'tpl-feature-request',
+           desc:'提交新功能、流程优化和开发需求，便于后续评估、排期和跟进。'},
 };
 let curTool = null;
 
@@ -636,6 +802,8 @@ function initTool(tool){
   else if(tool==='plm') initPlm();
   else if(tool==='bom-compare') initBomCompare();
   else if(tool==='bug-report') initBugReport();
+  else if(tool==='feature-request') initFeatureRequest();
+  else if(tool==='manufacturer-alias') initManufacturerAlias();
   else if(window._toolInits&&window._toolInits[tool]) window._toolInits[tool]();
 }
 
@@ -644,6 +812,93 @@ function bugFmtTime(ts){
   const d=new Date(ts*1000);
   const pad=n=>String(n).padStart(2,'0');
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function bugStatusClass(status){
+  const s=String(status||'');
+  if(s==='处理中') return 'badge-status-progress';
+  if(s==='已修复') return 'badge-status-fixed';
+  if(s==='已关闭') return 'badge-status-closed';
+  if(s==='暂缓') return 'badge-status-paused';
+  if(s==='无法复现') return 'badge-status-invalid';
+  return 'badge-status-pending';
+}
+
+
+
+async function mfgLoadAliases(query){
+  const q = query !== undefined ? query : $('mfgSearch').value.trim();
+  $('mfgListStatus').textContent='\u52a0\u8f7d\u4e2d...';
+  try{
+    const r=await fetch('/api/manufacturer_aliases?q='+encodeURIComponent(q));
+    const d=await r.json();
+    if(!d.success) throw new Error(d.error||'\u52a0\u8f7d\u5931\u8d25');
+    const rows=d.aliases||[];
+    $('mfgListStatus').textContent=`\u5171 ${rows.length} \u6761\u8bb0\u5f55`;
+    if(d.match){
+      $('mfgMatch').style.display='block';
+      $('mfgMatch').innerHTML=`\u5339\u914d\u5230 HQ \u89c4\u8303\u5382\u5546\u540d\uff1a<b>${_escH(d.match.canonical_name)}</b> &nbsp; \u522b\u540d\uff1a${_escH(d.match.alias)} &nbsp; \u6765\u6e90\uff1a${_escH(d.match.source||'')}`;
+    }else{
+      $('mfgMatch').style.display=q?'block':'none';
+      $('mfgMatch').innerHTML=q?`\u672a\u627e\u5230\u7cbe\u786e\u6620\u5c04\uff0c\u5f52\u4e00\u5316\u952e\uff1a<b>${_escH(d.normalized_query||'')}</b>`:'';
+    }
+    if(!rows.length){
+      $('mfgRows').innerHTML='<tr><td colspan="6" style="color:#888;text-align:center;padding:18px">\u6682\u65e0\u6620\u5c04\u8bb0\u5f55</td></tr>';
+      return;
+    }
+    $('mfgRows').innerHTML=rows.map(item=>`<tr>
+      <td>${_escH(item.canonical_name)}</td>
+      <td>${_escH(item.alias)}</td>
+      <td style="color:#667085">${_escH(item.normalized_alias)}</td>
+      <td>${_escH(item.source||'')}</td>
+      <td>${_escH(item.note||'')}</td>
+      <td><button class="btn btn-sm btn-gray" type="button" onclick="mfgDeleteAlias('${_escH(item.id)}')" style="color:#c00000">\u5220\u9664</button></td>
+    </tr>`).join('');
+  }catch(e){
+    $('mfgListStatus').textContent='';
+    $('mfgRows').innerHTML=`<tr><td colspan="6"><div class="error show">${_escH(e.message)}</div></td></tr>`;
+  }
+}
+
+async function mfgAddAlias(){
+  const fd=new FormData();
+  fd.append('canonical_name',$('mfgCanonical').value.trim());
+  fd.append('alias',$('mfgAlias').value.trim());
+  fd.append('source',$('mfgSource').value.trim());
+  fd.append('note',$('mfgNote').value.trim());
+  $('mfgAdd').disabled=true;$('mfgAddStatus').textContent='\u4fdd\u5b58\u4e2d...';clearInlineError('mfgError');
+  try{
+    const r=await fetch('/api/manufacturer_aliases',{method:'POST',body:fd});
+    const d=await r.json();
+    if(!d.success){
+      let msg=d.error||'\u4fdd\u5b58\u5931\u8d25';
+      if(d.existing) msg += `\uff1a${d.existing.alias} \u2192 ${d.existing.canonical_name}`;
+      throw new Error(msg);
+    }
+    $('mfgAddStatus').textContent='\u5df2\u4fdd\u5b58';
+    $('mfgAlias').value='';$('mfgNote').value='';
+    await mfgLoadAliases($('mfgSearch').value.trim());
+  }catch(e){showInlineError('mfgError',e.message,'mfgAddStatus');}
+  $('mfgAdd').disabled=false;
+}
+
+async function mfgDeleteAlias(id){
+  if(!id || !confirm('\u786e\u5b9a\u5220\u9664\u8fd9\u6761\u5382\u5546\u6620\u5c04\uff1f')) return;
+  $('mfgListStatus').textContent='\u5220\u9664\u4e2d...';
+  try{
+    const r=await fetch('/api/manufacturer_aliases/'+encodeURIComponent(id),{method:'DELETE'});
+    const d=await r.json();
+    if(!d.success) throw new Error(d.error||'\u5220\u9664\u5931\u8d25');
+    await mfgLoadAliases($('mfgSearch').value.trim());
+  }catch(e){$('mfgListStatus').textContent=e.message;}
+}
+
+function initManufacturerAlias(){
+  mfgLoadAliases('');
+  $('mfgAdd').onclick=mfgAddAlias;
+  $('mfgSearchBtn').onclick=()=>mfgLoadAliases($('mfgSearch').value.trim());
+  $('mfgRefresh').onclick=()=>mfgLoadAliases('');
+  $('mfgSearch').onkeydown=e=>{if(e.key==='Enter')mfgLoadAliases($('mfgSearch').value.trim());};
 }
 
 async function bugLoadReports(){
@@ -658,18 +913,22 @@ async function bugLoadReports(){
       $('bugList').innerHTML='<div style="font-size:13px;color:#888;padding:16px;background:#f7f9fc;border-radius:8px">暂无问题记录</div>';
       return;
     }
+    window._bugReportsById={};
+    reports.forEach(item=>{window._bugReportsById[item.id]=item;});
     $('bugList').innerHTML=reports.map(item=>{
-      const imgs=(item.attachments||[]).map(a=>`<a href="${_escH(a.url)}" target="_blank" style="font-size:12px;color:#1a5ad4;margin-right:8px">${_escH(a.name||'截图')}</a>`).join('');
-      return `<div style="border:1px solid #e2e8f3;border-radius:8px;padding:12px;background:#fff">
+      const imgs=(item.attachments||[]).map(a=>`<a href="${_escH(a.url)}" target="_blank" onclick="event.stopPropagation()" style="font-size:12px;color:#1a5ad4;margin-right:8px">${_escH(a.name||'截图')}</a>`).join('');
+      const statusClass=bugStatusClass(item.status);
+      return `<div onclick="bugOpenReport('${_escH(item.id)}')" style="border:1px solid #e2e8f3;border-radius:8px;padding:12px;background:#fff;cursor:pointer">
         <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start">
           <div style="font-weight:700;color:#1a3a5c">${_escH(item.title)}</div>
-          <span class="badge-sm badge-blue">${_escH(item.status||'待处理')}</span>
+          <span class="badge-sm ${statusClass}">${_escH(item.status||'待处理')}</span>
         </div>
         <div style="font-size:12px;color:#667085;margin-top:5px">${_escH(item.module)} | ${_escH(item.severity)} | ${_escH(item.reporter)}（${_escH(item.employee_id)}） | ${bugFmtTime(item.submitted_at)}</div>
         <div style="font-size:13px;color:#333;line-height:1.6;margin-top:8px;white-space:pre-wrap">${_escH(item.description)}</div>
         ${item.steps?`<div style="font-size:12px;color:#555;margin-top:8px"><b>复现步骤：</b><div style="white-space:pre-wrap">${_escH(item.steps)}</div></div>`:''}
         ${item.expected?`<div style="font-size:12px;color:#555;margin-top:8px"><b>期望结果：</b><div style="white-space:pre-wrap">${_escH(item.expected)}</div></div>`:''}
         ${imgs?`<div style="margin-top:8px"><b style="font-size:12px;color:#555">附件：</b>${imgs}</div>`:''}
+        <div style="font-size:12px;color:#1a5ad4;margin-top:8px">点击查看详情 / 修改处理状态</div>
       </div>`;
     }).join('');
   }catch(e){
@@ -678,9 +937,43 @@ async function bugLoadReports(){
   }
 }
 
+function bugOpenReport(id){
+  const item=(window._bugReportsById||{})[id];
+  if(!item) return;
+  const files=(item.attachments||[]).map(a=>`<a href="${_escH(a.url)}" target="_blank" style="font-size:12px;color:#1a5ad4;margin-right:8px">${_escH(a.name||'附件')}</a>`).join('');
+  $('bugDetailTitle').textContent=item.title||'';
+  const detailStatus=item.status||'待处理';
+  $('bugDetailMeta').innerHTML=`${_escH(item.module||'')} | ${_escH(item.severity||'')} | ${_escH(item.reporter||'')}（${_escH(item.employee_id||'')}） | ${bugFmtTime(item.submitted_at)} <span class="badge-sm ${bugStatusClass(detailStatus)}" style="margin-left:8px">${_escH(detailStatus)}</span>`;
+  $('bugDetailBody').innerHTML=`<div style="font-size:13px;color:#333;line-height:1.7;white-space:pre-wrap">${_escH(item.description)}</div>${item.steps?`<div style="font-size:13px;color:#555;margin-top:10px"><b>复现步骤：</b><div style="white-space:pre-wrap">${_escH(item.steps)}</div></div>`:''}${item.expected?`<div style="font-size:13px;color:#555;margin-top:10px"><b>期望结果：</b><div style="white-space:pre-wrap">${_escH(item.expected)}</div></div>`:''}${files?`<div style="margin-top:10px"><b style="font-size:13px;color:#555">附件：</b>${files}</div>`:''}`;
+  $('bugDetailStatus').value=item.status||'待处理';
+  $('bugDetailSave').dataset.id=id;
+  $('bugDetailMsg').textContent='';
+  $('bugDetailModal').style.display='flex';
+}
+function bugCloseReport(){
+  if($('bugDetailModal')) $('bugDetailModal').style.display='none';
+}
+async function bugSaveStatus(){
+  const id=$('bugDetailSave').dataset.id;
+  const status=$('bugDetailStatus').value;
+  $('bugDetailSave').disabled=true;$('bugDetailMsg').textContent='保存中...';
+  try{
+    const r=await fetch('/api/bug_reports/'+encodeURIComponent(id)+'/status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})});
+    const d=await r.json();
+    if(!d.success) throw new Error(d.error||'保存失败');
+    $('bugDetailMsg').textContent='已保存';
+    await bugLoadReports();
+    if(d.report) bugOpenReport(d.report.id);
+  }catch(e){$('bugDetailMsg').textContent=e.message;}
+  $('bugDetailSave').disabled=false;
+}
+
 function initBugReport(){
   bugLoadReports();
   $('bugRefresh').onclick=bugLoadReports;
+  $('bugDetailClose').onclick=bugCloseReport;
+  $('bugDetailSave').onclick=bugSaveStatus;
+  $('bugDetailModal').onclick=function(e){if(e.target===this) bugCloseReport();};
   $('bugSubmit').onclick=async function(){
     const fd=new FormData();
     fd.append('reporter',$('bugReporter').value.trim());
@@ -709,6 +1002,170 @@ function initBugReport(){
   };
 }
 
+
+
+
+async function featureLoadRequests(){
+  $('featureListStatus').textContent='加载中...';
+  try{
+    const r=await fetch('/api/feature_requests');
+    const d=await r.json();
+    if(!d.success) throw new Error(d.error||'加载失败');
+    const requests=d.requests||[];
+    $('featureListStatus').textContent=`共 ${requests.length} 条记录`;
+    if(!requests.length){$('featureList').innerHTML='<div style="font-size:13px;color:#888;padding:16px;background:#f7f9fc;border-radius:8px">暂无需求记录</div>';return;}
+    $('featureList').innerHTML=requests.map(item=>{
+      const files=(item.attachments||[]).map(a=>`<a href="${_escH(a.url)}" target="_blank" style="font-size:12px;color:#1a5ad4;margin-right:8px">${_escH(a.name||'附件')}</a>`).join('');
+      const likeCount=Number(item.likes||0);
+      return `<div style="border:1px solid #e2e8f3;border-radius:8px;padding:12px;background:#fff"><div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start"><div style="font-weight:700;color:#1a3a5c">${_escH(item.title)}</div><div style="display:flex;gap:8px;align-items:center;flex-shrink:0"><span class="badge-sm badge-blue">${_escH(item.status||'\u5f85\u8bc4\u4f30')}</span><button class="btn btn-sm btn-gray" type="button" onclick="featureLikeRequest('${_escH(item.id)}')" style="padding:2px 8px;font-size:12px">\u70b9\u8d5e ${likeCount}</button></div></div><div style="font-size:12px;color:#667085;margin-top:5px">${_escH(item.module)} | ${_escH(item.request_type)} | ${_escH(item.priority)} | ${_escH(item.requester)}\uff08${_escH(item.employee_id)}\uff09 | ${bugFmtTime(item.submitted_at)}</div>${item.background?`<div style="font-size:12px;color:#555;margin-top:8px"><b>\u9700\u6c42\u80cc\u666f\uff1a</b><div style="white-space:pre-wrap">${_escH(item.background)}</div></div>`:''}<div style="font-size:13px;color:#333;line-height:1.6;margin-top:8px;white-space:pre-wrap">${_escH(item.requirement)}</div>${item.value?`<div style="font-size:12px;color:#555;margin-top:8px"><b>\u9884\u671f\u4ef7\u503c\uff1a</b><div style="white-space:pre-wrap">${_escH(item.value)}</div></div>`:''}${item.acceptance?`<div style="font-size:12px;color:#555;margin-top:8px"><b>\u9a8c\u6536\u6807\u51c6\uff1a</b><div style="white-space:pre-wrap">${_escH(item.acceptance)}</div></div>`:''}${files?`<div style="margin-top:8px"><b style="font-size:12px;color:#555">\u9644\u4ef6\uff1a</b>${files}</div>`:''}</div>`;
+    }).join('');
+  }catch(e){$('featureListStatus').textContent='';$('featureList').innerHTML=`<div class="error show">${_escH(e.message)}</div>`;}
+}
+
+async function featureLikeRequest(id){
+  try{
+    const r=await fetch('/api/feature_requests/'+encodeURIComponent(id)+'/like',{method:'POST'});
+    const d=await r.json();
+    if(!d.success) throw new Error(d.error||'点赞失败');
+    await featureLoadRequests();
+  }catch(e){
+    $('featureListStatus').textContent=e.message;
+  }
+}
+
+function initFeatureRequest(){
+  featureLoadRequests();
+  $('featureRefresh').onclick=featureLoadRequests;
+  $('featureSubmit').onclick=async function(){
+    const fd=new FormData();
+    fd.append('requester',$('featureRequester').value.trim());fd.append('employee_id',$('featureEmployeeId').value.trim());fd.append('module',$('featureModule').value);fd.append('priority',$('featurePriority').value);fd.append('request_type',$('featureType').value);fd.append('title',$('featureTitle').value.trim());fd.append('background',$('featureBackground').value.trim());fd.append('requirement',$('featureRequirement').value.trim());fd.append('value',$('featureValue').value.trim());fd.append('acceptance',$('featureAcceptance').value.trim());[...$('featureFiles').files].forEach(f=>fd.append('attachments',f));
+    $('featureSubmit').disabled=true;$('featureStatus').textContent='提交中...';clearInlineError('featureError');
+    try{const r=await fetch('/api/feature_requests',{method:'POST',body:fd});const d=await r.json();if(d.success){$('featureStatus').textContent='已提交';['featureTitle','featureBackground','featureRequirement','featureValue','featureAcceptance'].forEach(id=>$(id).value='');$('featureFiles').value='';await featureLoadRequests();}else{showInlineError('featureError',d.error||'提交失败','featureStatus');}}
+    catch(e){showInlineError('featureError',e.message,'featureStatus');}
+    $('featureSubmit').disabled=false;
+  };
+}
+
+function cmpState(prefix){
+  const key='_cmp_'+prefix;
+  if(!window[key]) window[key]={leftHeaders:[],rightHeaders:[],manualPairs:[]};
+  return window[key];
+}
+function cmpOptions(headers, selected){
+  return (headers||[]).map(h=>`<option value="${_escH(h)}"${h===selected?' selected':''}>${_escH(h)}</option>`).join('');
+}
+function cmpRenderPairs(prefix){
+  const st=cmpState(prefix);
+  const left=st.leftHeaders||[], right=st.rightHeaders||[];
+  const common=left.filter(h=>h && right.includes(h));
+  const leftKey=$(prefix+'LeftKey')?.value||'';
+  const rightKey=$(prefix+'RightKey')?.value||'';
+  let html='';
+  common.forEach(col=>{
+    const checked=(col===leftKey && col===rightKey)?'':' checked';
+    html+=`<label><input type="checkbox" value="${_escH(col)}"${checked}>${_escH(col)}</label>`;
+  });
+  $(prefix+'CommonPairs').innerHTML=html || '<span style="font-size:12px;color:#888">没有同名字段，可在下方添加自定义映射。</span>';
+  cmpRenderManualPairs(prefix);
+}
+function cmpRenderManualPairs(prefix){
+  const st=cmpState(prefix);
+  const left=st.leftHeaders||[], right=st.rightHeaders||[];
+  const rows=st.manualPairs||[];
+  $(prefix+'ManualPairs').innerHTML=rows.map((pair,i)=>`<div class="row" style="margin:0">
+    <label style="min-width:90px">自定义字段：</label>
+    <select data-i="${i}" data-side="left" style="width:220px">${cmpOptions(left,pair.left)}</select>
+    <span>&harr;</span>
+    <select data-i="${i}" data-side="right" style="width:220px">${cmpOptions(right,pair.right)}</select>
+    <button class="btn btn-sm btn-gray" type="button" data-remove="${i}" style="color:#c00000">删除</button>
+  </div>`).join('');
+  $(prefix+'ManualPairs').querySelectorAll('select').forEach(sel=>{
+    sel.onchange=function(){st.manualPairs[parseInt(this.dataset.i)][this.dataset.side]=this.value;};
+  });
+  $(prefix+'ManualPairs').querySelectorAll('button[data-remove]').forEach(btn=>{
+    btn.onclick=function(){st.manualPairs.splice(parseInt(this.dataset.remove),1);cmpRenderManualPairs(prefix);};
+  });
+}
+async function cmpRefresh(prefix){
+  const leftFile=$(prefix+'LeftFile').files[0], rightFile=$(prefix+'RightFile').files[0];
+  const st=cmpState(prefix);
+  st.leftHeaders=[];st.rightHeaders=[];st.manualPairs=[];
+  clearSelectOptions(prefix+'LeftKey','\u52a0\u8f7d\u4e2d...');
+  clearSelectOptions(prefix+'RightKey','\u52a0\u8f7d\u4e2d...');
+  $(prefix+'CommonPairs').innerHTML=excelLoadingHtml('\u6b63\u5728\u8bfb\u53d6\u4e24\u4efd Excel \u5217...');
+  $(prefix+'ManualPairs').innerHTML='';
+  hide($(prefix+'Result'));clearInlineError(prefix+'Error');
+  if(!leftFile||!rightFile){
+    $(prefix+'LoadStatus').textContent='';
+    $(prefix+'CommonPairs').innerHTML='<span style="font-size:12px;color:#888">\u8bf7\u5148\u4e0a\u4f20\u4e24\u4efd BOM \u6587\u4ef6</span>';
+    return;
+  }
+  setLoadingStatus(prefix+'LoadStatus','\u6b63\u5728\u8bfb\u53d6\u5217...');
+  const fd=new FormData();
+  fd.append('left_file',leftFile);fd.append('right_file',rightFile);
+  fd.append('left_header_row',$(prefix+'LeftHdr').value||1);fd.append('right_header_row',$(prefix+'RightHdr').value||1);
+  const ls=$(prefix+'LeftSheet').value, rs=$(prefix+'RightSheet').value;
+  if(ls&&ls!=='\u5148\u9009\u62e9\u6587\u4ef6'&&ls!=='\u52a0\u8f7d\u4e2d...') fd.append('left_sheet',ls);
+  if(rs&&rs!=='\u5148\u9009\u62e9\u6587\u4ef6'&&rs!=='\u52a0\u8f7d\u4e2d...') fd.append('right_sheet',rs);
+  try{
+    const d=await postFormJson('/api/bom_compare/generic_sheets',fd);
+    if(!d.success) throw new Error(d.error||'\u8bfb\u53d6\u5217\u5931\u8d25');
+    $(prefix+'LeftSheet').innerHTML=(d.left_sheets||[]).map(s=>`<option${s===d.left_current_sheet?' selected':''}>${_escH(s)}</option>`).join('');
+    $(prefix+'RightSheet').innerHTML=(d.right_sheets||[]).map(s=>`<option${s===d.right_current_sheet?' selected':''}>${_escH(s)}</option>`).join('');
+    st.leftHeaders=d.left_headers||[];st.rightHeaders=d.right_headers||[];
+    $(prefix+'LeftKey').innerHTML=cmpOptions(st.leftHeaders,d.detected_left_key||d.left_detected_key);
+    $(prefix+'RightKey').innerHTML=cmpOptions(st.rightHeaders,d.detected_right_key||d.right_detected_key);
+    cmpRenderPairs(prefix);
+    setPlainStatus(prefix+'LoadStatus',`\u5df2\u52a0\u8f7d\uff1a\u5de6\u4fa7 ${st.leftHeaders.length} \u5217\uff0c\u53f3\u4fa7 ${st.rightHeaders.length} \u5217`);
+  }catch(e){
+    $(prefix+'CommonPairs').innerHTML='<span style="font-size:12px;color:#888">\u5217\u8bfb\u53d6\u5931\u8d25</span>';
+    $(prefix+'LoadStatus').textContent='';showInlineError(prefix+'Error',e.message,prefix+'Status');
+  }
+}
+function cmpCollectPairs(prefix){
+  const pairs=[];
+  document.querySelectorAll('#'+prefix+'CommonPairs input[type="checkbox"]:checked').forEach(x=>pairs.push({left:x.value,right:x.value}));
+  (cmpState(prefix).manualPairs||[]).forEach(p=>{if(p.left&&p.right)pairs.push({left:p.left,right:p.right});});
+  const seen=new Set();
+  return pairs.filter(p=>{const k=p.left+'\u0000'+p.right;if(seen.has(k))return false;seen.add(k);return true;});
+}
+function initGenericBomCompare(prefix, compareType){
+  cmpState(prefix);
+  $(prefix+'Refresh').onclick=()=>cmpRefresh(prefix);
+  $(prefix+'LeftFile').onchange=()=>cmpRefresh(prefix);
+  $(prefix+'RightFile').onchange=()=>cmpRefresh(prefix);
+  $(prefix+'LeftSheet').onchange=()=>cmpRefresh(prefix);
+  $(prefix+'RightSheet').onchange=()=>cmpRefresh(prefix);
+  $(prefix+'LeftHdr').onchange=()=>cmpRefresh(prefix);
+  $(prefix+'RightHdr').onchange=()=>cmpRefresh(prefix);
+  $(prefix+'LeftKey').onchange=()=>cmpRenderPairs(prefix);
+  $(prefix+'RightKey').onchange=()=>cmpRenderPairs(prefix);
+  $(prefix+'SelectAll').onclick=()=>document.querySelectorAll('#'+prefix+'CommonPairs input[type="checkbox"]').forEach(x=>x.checked=true);
+  $(prefix+'SelectNone').onclick=()=>document.querySelectorAll('#'+prefix+'CommonPairs input[type="checkbox"]').forEach(x=>x.checked=false);
+  $(prefix+'AddPair').onclick=()=>{const st=cmpState(prefix);st.manualPairs.push({left:st.leftHeaders[0]||'',right:st.rightHeaders[0]||''});cmpRenderManualPairs(prefix);};
+  $(prefix+'Run').onclick=async function(){
+    const leftFile=$(prefix+'LeftFile').files[0], rightFile=$(prefix+'RightFile').files[0];
+    if(!leftFile||!rightFile){showInlineError(prefix+'Error','请上传两份 BOM 文件',prefix+'Status');return;}
+    const fieldPairs=cmpCollectPairs(prefix);
+    if(!$(prefix+'LeftKey').value||!$(prefix+'RightKey').value){showInlineError(prefix+'Error','请先加载列并选择两侧匹配键',prefix+'Status');return;}
+    if(!fieldPairs.length){showInlineError(prefix+'Error','请至少选择一组需要比对的字段',prefix+'Status');return;}
+    const btn=$(prefix+'Run');btn.disabled=true;$(prefix+'Status').textContent='正在比对...';hide($(prefix+'Result'));clearInlineError(prefix+'Error');
+    const cfg={compare_type:compareType,left_sheet:$(prefix+'LeftSheet').value,right_sheet:$(prefix+'RightSheet').value,
+      left_header_row:parseInt($(prefix+'LeftHdr').value)||1,right_header_row:parseInt($(prefix+'RightHdr').value)||1,
+      left_key_col:$(prefix+'LeftKey').value,right_key_col:$(prefix+'RightKey').value,field_pairs:fieldPairs};
+    const fd=new FormData();fd.append('left_file',leftFile);fd.append('right_file',rightFile);fd.append('config',JSON.stringify(cfg));
+    try{
+      const d=await postFormJson('/api/bom_compare/generic',fd);
+      if(!d.success) throw new Error(d.error||'比对失败');
+      const leftName=compareType==='cadence_hq'?'Cadence BOM':'客户 BOM';
+      const rightName='HQ BOM';
+      $(prefix+'Stats').innerHTML=`${leftName} 独有 <b style="color:#c00000">${d.left_only}</b> | ${rightName} 独有 <b style="color:#2a8a2a">${d.right_only}</b> | 字段变更 <b style="color:#c07000">${d.changed}</b> | 完全一致 <b>${d.same}</b><br>${leftName} 共 ${d.left_total} 行，${rightName} 共 ${d.right_total} 行`;
+      $(prefix+'Dl').href=d.download;show($(prefix+'Result'));$(prefix+'Status').textContent='完成';
+    }catch(e){showInlineError(prefix+'Error',e.message,prefix+'Status');}
+    btn.disabled=false;
+  };
+}
+
 function initBomCompare(){
   document.querySelectorAll('.bomcmp-tab-btn').forEach(btn=>{
     btn.onclick=function(){
@@ -724,7 +1181,9 @@ function initBomCompare(){
       $('bomcmp-tab-'+this.dataset.bomcmpTab).style.display='block';
     };
   });
+  initGenericBomCompare('cust','customer_hq');
   initHqVersionCompare();
+  initGenericBomCompare('cad','cadence_hq');
 }
 
 function hqvGetCheckedCols(){
@@ -752,10 +1211,10 @@ async function hqvLoadOne(which){
   const fd=new FormData();
   fd.append('file',f);
   fd.append('header_row',$('hqvHdr').value||1);
-  if(sheetEl.value && sheetEl.value!=='先选择文件') fd.append('sheet_name',sheetEl.value);
+  if(sheetEl.value && sheetEl.value!=='\u5148\u9009\u62e9\u6587\u4ef6' && sheetEl.value!=='\u52a0\u8f7d\u4e2d...') fd.append('sheet_name',sheetEl.value);
   const r=await fetch('/api/bom_compare/local_sheets',{method:'POST',body:fd});
   const d=await r.json();
-  if(!d.success) throw new Error(d.error||'读取文件失败');
+  if(!d.success) throw new Error(d.error||'\u8bfb\u53d6\u6587\u4ef6\u5931\u8d25');
   sheetEl.innerHTML=(d.sheets||[]).map(s=>`<option${s===d.current_sheet?' selected':''}>${_escH(s)}</option>`).join('');
   if(which==='old') window._hqvOldHeaders=d.headers||[];
   else window._hqvNewHeaders=d.headers||[];
@@ -763,8 +1222,11 @@ async function hqvLoadOne(which){
 }
 
 async function hqvRefreshColumns(){
-  clearInlineError('hqvError');
-  $('hqvLoadStatus').textContent='读取列中...';
+  clearInlineError('hqvError');hide($('hqvResult'));
+  window._hqvOldHeaders=[];window._hqvNewHeaders=[];
+  clearSelectOptions('hqvKeyCol','\u52a0\u8f7d\u4e2d...');
+  $('hqvCompareCols').innerHTML=excelLoadingHtml('\u6b63\u5728\u8bfb\u53d6\u4e24\u4efd HQ BOM \u5217...');
+  setLoadingStatus('hqvLoadStatus','\u8bfb\u53d6\u5217\u4e2d...');
   try{
     const oldData=await hqvLoadOne('old');
     const newData=await hqvLoadOne('new');
@@ -776,8 +1238,9 @@ async function hqvRefreshColumns(){
     const detected=(oldData&&newData&&oldData.detected_key===newData.detected_key)?oldData.detected_key:(oldData?.detected_key||newData?.detected_key||'');
     if(detected && common.includes(detected)) keySel.value=detected;
     hqvRenderCompareCols();
-    $('hqvLoadStatus').textContent=`已加载共同列 ${common.length} 个`;
+    setPlainStatus('hqvLoadStatus',`\u5df2\u52a0\u8f7d\u5171\u540c\u5217 ${common.length} \u4e2a`);
   }catch(e){
+    $('hqvCompareCols').innerHTML='<span style="font-size:12px;color:#888">\u5217\u8bfb\u53d6\u5931\u8d25</span>';
     $('hqvLoadStatus').textContent='';
     showInlineError('hqvError',e.message,'hqvStatus');
   }
@@ -825,15 +1288,11 @@ function initHqVersionCompare(){
 function updateBomPreview(headers, previewRows){
   if(!headers||!headers.length){$('bomPreview').innerHTML='';return;}
   let h='<table>';
-  // 列字母行
   h+='<tr style="background:#e8f0fe">';
   headers.forEach((_,ci)=>h+=`<th style="color:#1a5ad4;font-size:11px;font-weight:700;padding:2px 6px">${String.fromCharCode(65+ci)}</th>`);
-  h+='</tr>';
-  // 表头行
-  h+='<tr>';
+  h+='</tr><tr>';
   headers.forEach(hd=>h+=`<th>${_escH(hd||'')}</th>`);
   h+='</tr>';
-  // 数据行
   (previewRows||[]).forEach(r=>{
     h+='<tr>';
     r.forEach(c=>h+=`<td>${_escH(c||'')}</td>`);
@@ -843,10 +1302,18 @@ function updateBomPreview(headers, previewRows){
   $('bomPreview').innerHTML=h;
 }
 
+function bomPrepareLoad(clearSheet){
+  hide($('bomResult'));clearInlineError('bomError');
+  $('bomPreview').innerHTML=excelLoadingHtml('\u6b63\u5728\u8bfb\u53d6 BOM \u9884\u89c8...');
+  $('bomDetected').textContent='';
+  if(clearSheet) setSelectPlaceholder('bomSheet','\u52a0\u8f7d\u4e2d...');
+  setLoadingStatus('bomStatus','\u6b63\u5728\u8bfb\u53d6 Excel...');
+}
+
 function updateBomFromApi(d){
-  if(!d.success) return;
+  if(!d.success) throw new Error(d.error||'\u8bfb\u53d6 Excel \u5931\u8d25');
   let opts='';
-  d.sheets.forEach(s=>opts+=`<option${s===d.current_sheet?' selected':''}>${s}</option>`);
+  (d.sheets||[]).forEach(s=>opts+=`<option${s===d.current_sheet?' selected':''}>${_escH(s)}</option>`);
   $('bomSheet').innerHTML=opts;
   if(d.detected){
     if(d.detected.name)  $('bomColName').value=d.detected.name;
@@ -854,38 +1321,47 @@ function updateBomFromApi(d){
     if(d.detected.brand) $('bomColBrand').value=d.detected.brand;
     if(d.detected.model) $('bomColModel').value=d.detected.model;
   }
-  // Format guess
   if(d.fmt_guess){
     const sel=$('bomFmt');
     for(let i=0;i<sel.options.length;i++){
       if(sel.options[i].value===d.fmt_guess){sel.selectedIndex=i;break;}
     }
   }
-  $('bomDetected').textContent='自动识别：'+JSON.stringify(d.detected||{});
+  $('bomDetected').textContent='\u81ea\u52a8\u8bc6\u522b\uff1a'+JSON.stringify(d.detected||{});
   updateBomPreview(d.headers, d.preview);
+  setPlainStatus('bomStatus',`\u5df2\u52a0\u8f7d ${(d.headers||[]).length} \u5217`);
+}
+
+async function bomLoadDetect(opts={}){
+  const f=$('bomFile').files[0];
+  if(!f){
+    $('bomPreview').innerHTML='';$('bomDetected').textContent='';
+    setSelectPlaceholder('bomSheet','\u5148\u9009\u62e9\u6587\u4ef6');
+    setPlainStatus('bomStatus','');
+    return;
+  }
+  bomPrepareLoad(!!opts.clearSheet);
+  const fd=new FormData();
+  fd.append('file',f);
+  fd.append('header_row',$('bomHdr').value||1);
+  if(!opts.clearSheet && $('bomSheet').value && $('bomSheet').value!=='\u5148\u9009\u62e9\u6587\u4ef6' && $('bomSheet').value!=='\u52a0\u8f7d\u4e2d...') fd.append('sheet_name',$('bomSheet').value);
+  try{
+    const r=await fetch('/api/bom/detect',{method:'POST',body:fd});
+    const d=await r.json();
+    updateBomFromApi(d);
+  }catch(e){
+    $('bomPreview').innerHTML='';
+    showInlineError('bomError',e.message,'bomStatus');
+  }
 }
 
 function initBom(){
-  $('bomSheet').onchange=function(){
-    const f=$('bomFile').files[0];if(!f)return;
-    hide($('bomResult'));hide($('bomError'));
-    const fd=new FormData();fd.append('file',f);fd.append('sheet_name',this.value);fd.append('header_row',$('bomHdr').value);
-    fetch('/api/bom/detect',{method:'POST',body:fd}).then(r=>r.json()).then(updateBomFromApi);
-  };
-  $('bomFile').onchange=function(){
-    const f=this.files[0];if(!f)return;
-    hide($('bomResult'));hide($('bomError'));
-    const fd=new FormData();fd.append('file',f);fd.append('header_row',$('bomHdr').value);
-    fetch('/api/bom/detect',{method:'POST',body:fd}).then(r=>r.json()).then(updateBomFromApi);
-  };
-  $('bomRefresh').onclick=function(){
-    const f=$('bomFile').files[0];if(!f)return;
-    const fd=new FormData();fd.append('file',f);fd.append('sheet_name',$('bomSheet').value);fd.append('header_row',$('bomHdr').value);
-    fetch('/api/bom/detect',{method:'POST',body:fd}).then(r=>r.json()).then(updateBomFromApi);
-  };
+  $('bomSheet').onchange=()=>bomLoadDetect({clearSheet:false});
+  $('bomFile').onchange=()=>bomLoadDetect({clearSheet:true});
+  $('bomRefresh').onclick=()=>bomLoadDetect({clearSheet:false});
   $('bomRun').onclick=async function(){
-    const f=$('bomFile').files[0];if(!f){showInlineError('bomError','请选择文件','bomStatus');return;}
-    const btn=$('bomRun');btn.disabled=true;$('bomStatus').textContent='处理中...';
+    const f=$('bomFile').files[0];if(!f){showInlineError('bomError','\u8bf7\u9009\u62e9\u6587\u4ef6','bomStatus');return;}
+    const btn=$('bomRun');btn.disabled=true;$('bomStatus').textContent='\u5904\u7406\u4e2d...';
     hide($('bomResult'));clearInlineError('bomError');
     const fd=new FormData();fd.append('file',f);
     fd.append('fmt',$('bomFmt').value);
@@ -900,20 +1376,19 @@ function initBom(){
       const r=await fetch('/api/bom/convert',{method:'POST',body:fd});
       const d=await r.json();
       if(d.success){
-        let stats=`共 <b>${d.total}</b> 行`;
-        if(d.skipped!=null) stats+=`，跳过空行 ${d.skipped} 行`;
+        let stats=`\u5171 <b>${d.total}</b> \u884c`;
+        if(d.skipped!=null) stats+=`\uff0c\u8df3\u8fc7\u7a7a\u884c ${d.skipped} \u884c`;
         $('bomStats').innerHTML=stats;
         $('bomDl').href=d.download;
-        show($('bomResult'));$('bomStatus').textContent='完成！';
+        show($('bomResult'));$('bomStatus').textContent='\u5b8c\u6210\uff01';
       } else {
-        $('bomError').textContent=d.error||'转换失败';show($('bomError'));$('bomStatus').textContent='';
+        $('bomError').textContent=d.error||'\u8f6c\u6362\u5931\u8d25';show($('bomError'));$('bomStatus').textContent='';
       }
-    }catch(e){$('bomError').textContent=e.message;show($('bomError'));}
+    }catch(e){$('bomError').textContent=e.message;show($('bomError'));$('bomStatus').textContent='';}
     btn.disabled=false;
   };
 }
 
-// ─── PLM ──────────────────────────────────────────────
 function buildColMapTable(headers){
   if(!headers||!headers.length){$('plmColMap').innerHTML='';return;}
   let h='<table><tr style="background:#e8f0fe"><th style="width:50px">列</th><th>列名</th></tr>';
@@ -941,6 +1416,36 @@ function updatePlmFromApi(d){
   $('plmDetectLog').textContent='自动识别：'+(d.headers||[]).join(' | ');
   buildColMapTable(d.headers);
   plmRefreshQtyConfigNames(false);
+}
+
+function plmPrepareLoad(clearSheet, clearConfigs){
+  hide($('plmResult'));clearInlineError('plmError');
+  window._plmPreviewHeaders=[];
+  buildColMapTable([]);
+  $('plmDetectLog').innerHTML=excelLoadingHtml('\u6b63\u5728\u8bfb\u53d6 PLM \u5217...');
+  if(clearSheet) setSelectPlaceholder('plmSheet','\u52a0\u8f7d\u4e2d...');
+  if(clearConfigs){window._plmQtyConfigs=[];plmRenderQtyConfigs();}
+  setLoadingStatus('plmStatus','\u6b63\u5728\u8bfb\u53d6 Excel...');
+}
+async function plmLoadDetect(opts={}){
+  const f=$('plmFile').files[0];
+  if(!f){
+    buildColMapTable([]);$('plmDetectLog').textContent='';window._plmPreviewHeaders=[];
+    setSelectPlaceholder('plmSheet','\u5148\u9009\u62e9\u6587\u4ef6');setPlainStatus('plmStatus','');
+    return;
+  }
+  plmPrepareLoad(!!opts.clearSheet, !!opts.clearConfigs);
+  const fd=new FormData();fd.append('file',f);fd.append('header_row',$('plmHdr').value||4);
+  if(!opts.clearSheet && $('plmSheet').value && $('plmSheet').value!=='\u5148\u9009\u62e9\u6587\u4ef6' && $('plmSheet').value!=='\u52a0\u8f7d\u4e2d...') fd.append('sheet_name',$('plmSheet').value);
+  try{
+    const r=await fetch('/api/plm/detect',{method:'POST',body:fd});
+    const d=await r.json();
+    if(!d.success) throw new Error(d.error||'\u8bfb\u53d6 Excel \u5931\u8d25');
+    updatePlmFromApi(d);
+    setPlainStatus('plmStatus',`\u5df2\u52a0\u8f7d ${(d.headers||[]).length} \u5217`);
+  }catch(e){
+    buildColMapTable([]);$('plmDetectLog').textContent='';showInlineError('plmError',e.message,'plmStatus');
+  }
 }
 
 function plmColToIndex(col){
@@ -1087,21 +1592,9 @@ function initPlm(){
   $('plmAddQtyCfg').onclick=plmAddQtyCfg;
   $('plmUsePrevRow').onclick=()=>plmSetQtyNameRow(plmDefaultNameRow());
   $('plmUseHeaderRow').onclick=()=>plmSetQtyNameRow(parseInt($('plmHdr').value)||4);
-  $('plmFile').onchange=function(){
-    const f=this.files[0];if(!f)return;
-    const fd=new FormData();fd.append('file',f);fd.append('header_row',$('plmHdr').value||4);
-    fetch('/api/plm/detect',{method:'POST',body:fd}).then(r=>r.json()).then(updatePlmFromApi);
-  };
-  $('plmSheet').onchange=function(){
-    const f=$('plmFile').files[0];if(!f)return;
-    const fd=new FormData();fd.append('file',f);fd.append('sheet_name',this.value);fd.append('header_row',$('plmHdr').value||4);
-    fetch('/api/plm/detect',{method:'POST',body:fd}).then(r=>r.json()).then(updatePlmFromApi);
-  };
-  $('plmRefresh').onclick=function(){
-    const f=$('plmFile').files[0];if(!f)return;
-    const fd=new FormData();fd.append('file',f);fd.append('sheet_name',$('plmSheet').value);fd.append('header_row',$('plmHdr').value||4);
-    fetch('/api/plm/detect',{method:'POST',body:fd}).then(r=>r.json()).then(updatePlmFromApi);
-  };
+  $('plmFile').onchange=()=>plmLoadDetect({clearSheet:true, clearConfigs:true});
+  $('plmSheet').onchange=()=>plmLoadDetect({clearSheet:false, clearConfigs:false});
+  $('plmRefresh').onclick=()=>plmLoadDetect({clearSheet:false, clearConfigs:false});
   $('plmRun').onclick=async function(){
     const f=$('plmFile').files[0];if(!f){showInlineError('plmError','请选择文件','plmStatus');return;}
     const btn=$('plmRun');btn.disabled=true;$('plmStatus').textContent='处理中...';
@@ -1138,31 +1631,37 @@ function initPlm(){
 
 // ─── 规格型号提取 ─────────────────────────────────────
 async function seLoadFile(){
-  const f=$('seFile').files[0]; if(!f) return;
+  const f=$('seFile').files[0];
+  clearInlineError('seError');hide($('seResult'));
+  clearSelectOptions('seCol','\u52a0\u8f7d\u4e2d...');
+  clearSelectOptions('seExcludeCol','\u52a0\u8f7d\u4e2d...');
+  if(!f){setSelectPlaceholder('seSheet','\u5148\u9009\u62e9\u6587\u4ef6');setPlainStatus('seStatus','');return;}
+  setLoadingStatus('seStatus','\u6b63\u5728\u8bfb\u53d6 Excel \u5217...');
   const fd=new FormData();
   fd.append('file',f);
   fd.append('header_row',$('seHdr').value||1);
   const cur=$('seSheet').value;
-  if(cur&&cur!=='先选择文件') fd.append('sheet_name',cur);
-  $('seStatus').textContent='加载中...';
+  if(cur&&cur!=='\u5148\u9009\u62e9\u6587\u4ef6'&&cur!=='\u52a0\u8f7d\u4e2d...') fd.append('sheet_name',cur);
   try{
     const r=await fetch('/api/feishu/local_sheets',{method:'POST',body:fd});
     const d=await r.json();
-    if(!d.success){$('seStatus').textContent='加载失败：'+d.error;return;}
+    if(!d.success) throw new Error(d.error||'\u52a0\u8f7d\u5931\u8d25');
     const ss=$('seSheet');
     ss.innerHTML=d.sheets.map(s=>`<option${s===d.current_sheet?' selected':''}>${_escH(s)}</option>`).join('');
     ss.onchange=seLoadFile;
     const kc=$('seCol');
     kc.innerHTML=d.headers.map(h=>`<option value="${_escH(h)}">${_escH(h)}</option>`).join('');
-    // auto-select column containing 规格型号
-    const auto=d.headers.find(h=>h.includes('规格型号'));
+    const auto=d.headers.find(h=>h.includes('\u89c4\u683c\u578b\u53f7'));
     if(auto) kc.value=auto;
     const ex=$('seExcludeCol');
-    ex.innerHTML='<option value="">不启用剔除规则</option>'+d.headers.map(h=>`<option value="${_escH(h)}">${_escH(h)}</option>`).join('');
-    const autoEx=d.headers.find(h=>h.includes('HQ料号')||h==='HQ料号'||h.includes('料号'));
+    ex.innerHTML='<option value="">\u4e0d\u542f\u7528\u5254\u9664\u89c4\u5219</option>'+d.headers.map(h=>`<option value="${_escH(h)}">${_escH(h)}</option>`).join('');
+    const autoEx=d.headers.find(h=>h.includes('HQ\u6599\u53f7')||h==='HQ\u6599\u53f7'||h.includes('\u6599\u53f7'));
     if(autoEx) ex.value=autoEx;
-    $('seStatus').textContent=`已加载 ${d.headers.length} 列`;
-  }catch(e){$('seStatus').textContent='错误：'+e.message;}
+    setPlainStatus('seStatus',`\u5df2\u52a0\u8f7d ${d.headers.length} \u5217`);
+  }catch(e){
+    clearSelectOptions('seCol','\u52a0\u8f7d\u5931\u8d25');clearSelectOptions('seExcludeCol','\u52a0\u8f7d\u5931\u8d25');
+    setPlainStatus('seStatus','\u52a0\u8f7d\u5931\u8d25\uff1a'+e.message);
+  }
 }
 
 async function seRun(){
@@ -1481,16 +1980,28 @@ function initFeishu(){
   $('fsRestoreDefault').onclick=fsRestoreDefault;
   $('fsClearConfig').onclick=fsClearConfig;
   $('fsRun').onclick=fsRunMatch;
-  $('fsFile').onchange=function(){
-    const f=this.files[0];if(!f)return;
+  $('fsFile').onchange=async function(){
+    const f=this.files[0];
+    window._fsLocalHeaders=[];
+    setSelectPlaceholder('fsSheet','\u52a0\u8f7d\u4e2d...');
+    fsRenderGLKSection();
+    hide($('fsResult'));clearInlineError('fsError');
+    if(!f){setSelectPlaceholder('fsSheet','\u5148\u9009\u62e9\u6587\u4ef6');setPlainStatus('fsRunStatus2','');return;}
+    setLoadingStatus('fsRunStatus2','\u6b63\u5728\u8bfb\u53d6\u672c\u5730 BOM \u5217...');
     const fd=new FormData();fd.append('file',f);fd.append('header_row',$('fsHdr').value||1);
-    fetch('/api/feishu/local_sheets',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{
-      if(!d.success)return;
+    try{
+      const r=await fetch('/api/feishu/local_sheets',{method:'POST',body:fd});
+      const d=await r.json();
+      if(!d.success) throw new Error(d.error||'\u8bfb\u53d6\u6587\u4ef6\u5931\u8d25');
       window._fsLocalHeaders=d.headers||[];
       const sel=$('fsSheet');sel.innerHTML='';
       (d.sheets||[]).forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent=s;sel.appendChild(o);});
       if(window._updateLkList) window._updateLkList();
-    });
+      setPlainStatus('fsRunStatus2',`\u5df2\u52a0\u8f7d ${(d.headers||[]).length} \u5217`);
+    }catch(e){
+      setSelectPlaceholder('fsSheet','\u52a0\u8f7d\u5931\u8d25');
+      showInlineError('fsError',e.message,'fsRunStatus2');
+    }
   };
 }
 
@@ -1886,29 +2397,33 @@ async function fsRunMatch(){
   }
 
   async function prLoadFile(){
-    const f = $('prFile').files[0]; if(!f) return;
+    const f = $('prFile').files[0];
+    clearInlineError('prError');hide($('prResult'));
+    clearSelectOptions('prKeyCol','\u52a0\u8f7d\u4e2d...');
+    if(!f){setSelectPlaceholder('prSheet','\u5148\u9009\u62e9\u6587\u4ef6');setPlainStatus('prStatus','');return;}
+    setLoadingStatus('prStatus','\u6b63\u5728\u8bfb\u53d6 Excel \u5217...');
     const hdr = parseInt($('prHdr').value)||1;
     const fd = new FormData();
     fd.append('file', f);
     fd.append('header_row', hdr);
     const cur = $('prSheet').value;
-    if(cur && cur !== '先选择文件') fd.append('sheet_name', cur);
+    if(cur && cur !== '\u5148\u9009\u62e9\u6587\u4ef6' && cur !== '\u52a0\u8f7d\u4e2d...') fd.append('sheet_name', cur);
     try{
       const r = await fetch('/api/feishu/local_sheets', {method:'POST', body:fd});
       const d = await r.json();
-      if(!d.success){$('prStatus').textContent='加载失败：'+d.error;return;}
-      // populate sheet selector
+      if(!d.success) throw new Error(d.error||'\u52a0\u8f7d\u5931\u8d25');
       const ss = $('prSheet');
       ss.innerHTML = d.sheets.map(s=>`<option${s===d.current_sheet?' selected':''}>${_escH(s)}</option>`).join('');
       ss.onchange = prLoadFile;
-      // populate key col selector
       const kc = $('prKeyCol');
       kc.innerHTML = d.headers.map(h=>`<option value="${_escH(h)}">${_escH(h)}</option>`).join('');
-      // auto-select HQ料号 if present
-      const auto = d.headers.find(h=>h.includes('HQ料号')||h==='HQ料号');
+      const auto = d.headers.find(h=>h.includes('HQ\u6599\u53f7')||h==='HQ\u6599\u53f7');
       if(auto) kc.value = auto;
-      $('prStatus').textContent = `已加载 ${d.headers.length} 列`;
-    }catch(e){$('prStatus').textContent='错误：'+e.message;}
+      setPlainStatus('prStatus',`\u5df2\u52a0\u8f7d ${d.headers.length} \u5217`);
+    }catch(e){
+      clearSelectOptions('prKeyCol','\u52a0\u8f7d\u5931\u8d25');
+      setPlainStatus('prStatus','\u52a0\u8f7d\u5931\u8d25\uff1a'+e.message);
+    }
   }
 
   async function prRun(){

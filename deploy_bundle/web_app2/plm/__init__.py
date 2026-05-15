@@ -2,13 +2,14 @@
 """PLM 上传工具 — Blueprint"""
 
 import os, uuid, re, json
-from zipfile import BadZipFile, ZipFile, ZIP_DEFLATED
+from zipfile import ZipFile, ZIP_DEFLATED
 from flask import Blueprint
 from shared import (
     openpyxl, Workbook, Font, PatternFill, Alignment, Border, Side,
     get_column_letter,
     request, jsonify,
     UPLOAD_DIR, OUTPUT_DIR, _col_int,
+    _open_workbook, _request_int, _save_uploaded_excel,
 )
 
 plm_bp = Blueprint('plm', __name__)
@@ -27,21 +28,6 @@ PLM_IDX_SEQ  = 0
 PLM_IDX_HQPN = 1
 PLM_IDX_QTY  = 4
 PLM_IDX_MARK = 11  # 主辅BOM标记
-
-BAD_EXCEL_ERROR = '无法读取文件，可能原因：① 文件是 .xls 旧格式（请另存为 .xlsx）；② 公司加解密软件未启动导致文件被加密，请检查后重试'
-
-
-def _request_int(name, default=1, min_value=1):
-    try:
-        value = int(request.form.get(name, default))
-    except (TypeError, ValueError):
-        return None
-    if min_value is not None and value < min_value:
-        return None
-    return value
-
-
-
 
 def _detect_columns(ws, header_row):
     result = {}
@@ -94,7 +80,7 @@ def _safe_filename_part(value):
 
 def _do_convert(in_file, sheet_name, header_row,
                 col_seq, col_hqpn, col_stype, col_qty, project_name, out_file):
-    wb_in = openpyxl.load_workbook(in_file, data_only=True)
+    wb_in = _open_workbook(in_file, data_only=True)
     ws_in = wb_in[sheet_name]
     max_col = ws_in.max_column
 
@@ -193,16 +179,12 @@ def api_plm_detect():
     file = request.files.get('file')
     if not file:
         return jsonify({'success': False, 'error': '请上传文件'})
-    if file.filename and file.filename.lower().endswith('.xls') and not file.filename.lower().endswith('.xlsx'):
-        return jsonify({'success': False, 'error': '不支持 .xls 格式，请在 Excel 中另存为 .xlsx 后重试'})
     uid = str(uuid.uuid4())[:8]
-    in_path = os.path.join(UPLOAD_DIR, f"plm_pre_{uid}.xlsx")
-    file.save(in_path)
-
     try:
-        wb = openpyxl.load_workbook(in_path, read_only=True, data_only=True)
-    except BadZipFile:
-        return jsonify({'success': False, 'error': '无法读取文件，可能原因：① 文件是 .xls 旧格式（请另存为 .xlsx）；② 公司加解密软件未启动导致文件被加密，请检查后重试'})
+        in_path = _save_uploaded_excel(file, "plm_pre", uid)
+        wb = _open_workbook(in_path, read_only=True, data_only=True)
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)})
     sheets = wb.sheetnames
     wb.close()
 
@@ -213,14 +195,17 @@ def api_plm_detect():
     if header_row is None:
         return jsonify({'success': False, 'error': '表头行必须是大于等于 1 的数字'})
 
-    wb2 = openpyxl.load_workbook(in_path, data_only=True)
+    try:
+        wb2 = _open_workbook(in_path, data_only=True)
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)})
     ws = wb2[sheet_name] if sheet_name else wb2[wb2.sheetnames[0]]
     detected, raw_headers = _detect_columns(ws, header_row)
 
     # Preview
     preview_headers = [ws.cell(row=header_row, column=ci).value for ci in range(1, ws.max_column + 1)]
     preview = []
-    for ri in range(header_row + 1, min(header_row + 4, ws.max_row + 1)):
+    for ri in range(header_row + 1, min(header_row + 51, ws.max_row + 1)):
         row = [ws.cell(row=ri, column=ci).value for ci in range(1, ws.max_column + 1)]
         if any(v is not None and str(v).strip() for v in row):
             preview.append([str(v) if v is not None else "" for v in row])
@@ -245,11 +230,11 @@ def api_plm_convert():
     if not file:
         return jsonify({'success': False, 'error': '请上传文件'})
 
-    if file.filename and file.filename.lower().endswith('.xls') and not file.filename.lower().endswith('.xlsx'):
-        return jsonify({'success': False, 'error': '不支持 .xls 格式，请在 Excel 中另存为 .xlsx 后重试'})
     uid = str(uuid.uuid4())[:8]
-    in_path = os.path.join(UPLOAD_DIR, f"plm_in_{uid}.xlsx")
-    file.save(in_path)
+    try:
+        in_path = _save_uploaded_excel(file, "plm_in", uid)
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)})
 
     sheet_name = request.form.get('sheet', '')
     header_row = _request_int('header_row', 4)
@@ -263,9 +248,9 @@ def api_plm_convert():
     project_name = request.form.get('project_name', '')
 
     try:
-        wb = openpyxl.load_workbook(in_path, read_only=True, data_only=True)
-    except BadZipFile:
-        return jsonify({'success': False, 'error': '无法读取文件，可能原因：① 文件是 .xls 旧格式（请另存为 .xlsx）；② 公司加解密软件未启动导致文件被加密，请检查后重试'})
+        wb = _open_workbook(in_path, read_only=True, data_only=True)
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)})
     sheets = wb.sheetnames
     wb.close()
     if not sheet_name or sheet_name not in sheets:
@@ -273,7 +258,7 @@ def api_plm_convert():
 
     # Auto-detect if columns not specified
     if not all([col_seq_str, col_hqpn_str, col_stype_str]) or (not col_qty_str and not qty_configs_str):
-        wb2 = openpyxl.load_workbook(in_path, data_only=True)
+        wb2 = _open_workbook(in_path, data_only=True)
         ws = wb2[sheet_name]
         detected, raw_headers = _detect_columns(ws, header_row)
         wb2.close()
@@ -311,7 +296,7 @@ def api_plm_convert():
         col_qty_list = [_col_int(ref) for ref in col_qty_refs]
         col_qty_list = [ci for ci in col_qty_list if ci]
 
-        wb_hdr = openpyxl.load_workbook(in_path, read_only=True, data_only=True)
+        wb_hdr = _open_workbook(in_path, read_only=True, data_only=True)
         ws_hdr = wb_hdr[sheet_name]
         for col_qty in col_qty_list:
             header_val = ws_hdr.cell(row=header_row, column=col_qty).value
@@ -413,12 +398,14 @@ def api_spec_extract():
         return jsonify({'success': False, 'error': '未指定提取列'})
 
     uid = str(uuid.uuid4())[:8]
-    path = os.path.join(UPLOAD_DIR, f'se_{uid}.xlsx')
-    f.save(path)
+    try:
+        path = _save_uploaded_excel(f, 'se', uid)
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)})
 
     try:
         from shared import _cell_str
-        wb = openpyxl.load_workbook(path, data_only=True)
+        wb = _open_workbook(path, data_only=True)
         sheets = wb.sheetnames
         if not sheet_name or sheet_name not in sheets:
             sheet_name = sheets[0]

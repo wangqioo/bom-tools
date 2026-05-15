@@ -2,33 +2,18 @@
 """BOM 转换工具 — Blueprint"""
 
 import os, uuid, re
-from zipfile import BadZipFile
 from flask import Blueprint, render_template
 from shared import (
     openpyxl, Workbook, Font, PatternFill, Alignment, Border, Side,
     get_column_letter, column_index_from_string,
     request, jsonify,
     UPLOAD_DIR, OUTPUT_DIR, _col_int, FEISHU_PRESET_TABLES,
+    _open_workbook, _request_int, _save_uploaded_excel,
 )
 
 bom_bp = Blueprint('bom', __name__)
 
 SUPPLIER_LABELS = ["主供","二供","三供","四供","五供","六供","七供","八供","九供","十供"]
-
-BAD_EXCEL_ERROR = '无法读取文件，可能原因：① 文件是 .xls 旧格式（请另存为 .xlsx）；② 公司加解密软件未启动导致文件被加密，请检查后重试'
-
-
-def _request_int(name, default=1, min_value=1):
-    try:
-        value = int(request.form.get(name, default))
-    except (TypeError, ValueError):
-        return None
-    if min_value is not None and value < min_value:
-        return None
-    return value
-
-
-
 
 # ── 供应商解析 ─────────────────────────────────────────────────
 
@@ -324,16 +309,12 @@ def api_bom_detect():
     file = request.files.get('file')
     if not file:
         return jsonify({'success': False, 'error': '请上传文件'})
-    if file.filename and file.filename.lower().endswith('.xls') and not file.filename.lower().endswith('.xlsx'):
-        return jsonify({'success': False, 'error': '不支持 .xls 格式，请在 Excel 中另存为 .xlsx 后重试'})
     uid = str(uuid.uuid4())[:8]
-    in_path = os.path.join(UPLOAD_DIR, f"bom_pre_{uid}.xlsx")
-    file.save(in_path)
-
     try:
-        wb = openpyxl.load_workbook(in_path, read_only=True, data_only=True)
-    except BadZipFile:
-        return jsonify({'success': False, 'error': '无法读取文件，可能原因：① 文件是 .xls 旧格式（请另存为 .xlsx）；② 公司加解密软件未启动导致文件被加密，请检查后重试'})
+        in_path = _save_uploaded_excel(file, "bom_pre", uid)
+        wb = _open_workbook(in_path, read_only=True, data_only=True)
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)})
     sheets = wb.sheetnames
     wb.close()
 
@@ -344,15 +325,18 @@ def api_bom_detect():
     header_row = _request_int('header_row', 1)
     if header_row is None:
         return jsonify({'success': False, 'error': '表头行必须是大于等于 1 的数字'})
-    wb2 = openpyxl.load_workbook(in_path, data_only=True)
+    try:
+        wb2 = _open_workbook(in_path, data_only=True)
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)})
     ws = wb2[sheet_name] if sheet_name else wb2[wb2.sheetnames[0]]
 
     all_cols, best = _detect_columns(ws, header_row)
 
-    # Build preview (first 5 data rows)
+    # Build preview (first 50 data rows)
     headers = [ws.cell(row=header_row, column=ci).value for ci in range(1, ws.max_column + 1)]
     preview = []
-    for ri in range(header_row + 1, min(header_row + 6, ws.max_row + 1)):
+    for ri in range(header_row + 1, min(header_row + 51, ws.max_row + 1)):
         row = [ws.cell(row=ri, column=ci).value for ci in range(1, ws.max_column + 1)]
         if any(v is not None and str(v).strip() for v in row):
             preview.append([str(v) if v is not None else "" for v in row])
@@ -398,11 +382,11 @@ def api_bom_convert():
     if not file:
         return jsonify({'success': False, 'error': '请上传文件'})
 
-    if file.filename and file.filename.lower().endswith('.xls') and not file.filename.lower().endswith('.xlsx'):
-        return jsonify({'success': False, 'error': '不支持 .xls 格式，请在 Excel 中另存为 .xlsx 后重试'})
     uid = str(uuid.uuid4())[:8]
-    in_path = os.path.join(UPLOAD_DIR, f"bom_in_{uid}.xlsx")
-    file.save(in_path)
+    try:
+        in_path = _save_uploaded_excel(file, "bom_in", uid)
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)})
 
     sheet_name = request.form.get('sheet', '')
     header_row = _request_int('header_row', 1)
@@ -417,9 +401,9 @@ def api_bom_convert():
     project_name = request.form.get('project_name', '')
 
     try:
-        wb = openpyxl.load_workbook(in_path, read_only=True, data_only=True)
-    except BadZipFile:
-        return jsonify({'success': False, 'error': '无法读取文件，可能原因：① 文件是 .xls 旧格式（请另存为 .xlsx）；② 公司加解密软件未启动导致文件被加密，请检查后重试'})
+        wb = _open_workbook(in_path, read_only=True, data_only=True)
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)})
     sheets = wb.sheetnames
     wb.close()
     if not sheet_name or sheet_name not in sheets:
@@ -433,7 +417,10 @@ def api_bom_convert():
     if not col_brand:
         return jsonify({'success': False, 'error': '请指定品牌/厂家列'})
 
-    wb2 = openpyxl.load_workbook(in_path, data_only=True)
+    try:
+        wb2 = _open_workbook(in_path, data_only=True)
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)})
     ws = wb2[sheet_name]
 
     if output_mode == 'expand':
