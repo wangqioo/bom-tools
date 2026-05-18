@@ -338,6 +338,8 @@ def _load_generic_rows(path, sheet_name, header_row, key_col, compare_cols, expa
             item = {
                 'row': ri,
                 'values': _expand_compare_values(values, key_col, item_key) if expand_refdes else values,
+                'raw': row_values,
+                'headers': headers,
             }
             if item_key in rows:
                 duplicates.setdefault(item_key, [rows[item_key]['row']]).append(ri)
@@ -366,6 +368,12 @@ def _field_pairs(config_pairs, left_headers, right_headers, ignored_left_headers
     return [(col, col) for col in common]
 
 
+def _generic_field_equal(left_col, right_col, left_value, right_value):
+    if _is_refdes_header(left_col) or _is_refdes_header(right_col):
+        return set(_split_refdes(left_value)) == set(_split_refdes(right_value))
+    return left_value == right_value
+
+
 def _generic_diff_items(left_rows, right_rows, field_pairs, labels=None):
     labels = labels or {'left_label': '左侧', 'right_label': '右侧'}
     left_only_type = f"仅{labels['left_label']}存在"
@@ -382,7 +390,7 @@ def _generic_diff_items(left_rows, right_rows, field_pairs, labels=None):
             diff_type = right_only_type
         else:
             for left_col, right_col in field_pairs:
-                if left['values'].get(left_col, '') != right['values'].get(right_col, ''):
+                if not _generic_field_equal(left_col, right_col, left['values'].get(left_col, ''), right['values'].get(right_col, '')):
                     changed_fields.append(f'{left_col} <-> {right_col}' if left_col != right_col else left_col)
             diff_type = '\u5b57\u6bb5\u53d8\u66f4' if changed_fields else '\u4e00\u81f4'
         items.append({
@@ -395,7 +403,7 @@ def _generic_diff_items(left_rows, right_rows, field_pairs, labels=None):
     return items
 
 
-def _write_generic_compare_report(out_path, left_rows, right_rows, field_pairs, stats, duplicate_notes, labels):
+def _write_generic_compare_report(out_path, left_rows, right_rows, field_pairs, stats, duplicate_notes, labels, left_headers=None, right_headers=None):
     wb = Workbook()
     ws = wb.active
     ws.title = '\u5dee\u5f02\u603b\u89c8'
@@ -454,7 +462,7 @@ def _write_generic_compare_report(out_path, left_rows, right_rows, field_pairs, 
         for left_col, right_col in field_pairs:
             left_value = left_item['values'].get(left_col, '') if left_item else ''
             right_value = right_item['values'].get(right_col, '') if right_item else ''
-            if item['type'] == '字段变更' and left_value == right_value:
+            if item['type'] == '字段变更' and _generic_field_equal(left_col, right_col, left_value, right_value):
                 continue
             rows.append([
                 item['type'],
@@ -489,10 +497,32 @@ def _write_generic_compare_report(out_path, left_rows, right_rows, field_pairs, 
         sheet.freeze_panes = 'A2'
         sheet.auto_filter.ref = sheet.dimensions
 
+    def write_original_rows(sheet, table_items, side, headers):
+        headers = list(headers or [])
+        for ci, header in enumerate(headers, 1):
+            c = sheet.cell(row=1, column=ci, value=header)
+            c.font = Font(bold=True)
+            c.alignment = center
+            c.border = bdr
+            c.fill = header_fill
+        fill = fills[left_only_type if side == 'left' else right_only_type]
+        for ri, item in enumerate(table_items, 2):
+            source = item['left'] if side == 'left' else item['right']
+            raw = list((source or {}).get('raw') or [])
+            if len(raw) < len(headers):
+                raw.extend([''] * (len(headers) - len(raw)))
+            for ci, value in enumerate(raw[:len(headers)], 1):
+                c = sheet.cell(row=ri, column=ci, value=value)
+                c.alignment = left_align
+                c.border = bdr
+                c.fill = fill
+        sheet.freeze_panes = 'A2'
+        sheet.auto_filter.ref = sheet.dimensions
+
     diff_items = [i for i in items if i['type'] != '一致']
     write_table(wb.create_sheet('差异明细'), diff_items)
-    write_table(wb.create_sheet(_safe_sheet_title(left_only_type)), [i for i in items if i['type'] == left_only_type])
-    write_table(wb.create_sheet(_safe_sheet_title(right_only_type)), [i for i in items if i['type'] == right_only_type])
+    write_original_rows(wb.create_sheet(_safe_sheet_title(left_only_type)), [i for i in items if i['type'] == left_only_type], 'left', left_headers)
+    write_original_rows(wb.create_sheet(_safe_sheet_title(right_only_type)), [i for i in items if i['type'] == right_only_type], 'right', right_headers)
     write_table(wb.create_sheet('字段变更'), [i for i in items if i['type'] == '字段变更'])
 
     ws_dup = wb.create_sheet('\u91cd\u590d\u952e')
@@ -1074,7 +1104,7 @@ def api_generic_compare():
         changed = []
         same = []
         for key in common:
-            has_change = any(left_rows[key]['values'].get(l, '') != right_rows[key]['values'].get(r, '') for l, r in field_pairs)
+            has_change = any(not _generic_field_equal(l, r, left_rows[key]['values'].get(l, ''), right_rows[key]['values'].get(r, '')) for l, r in field_pairs)
             (changed if has_change else same).append(key)
 
         stats = {
@@ -1095,7 +1125,7 @@ def api_generic_compare():
         )
         out_name = f"{labels['filename']}_{uid}.xlsx"
         out_path = os.path.join(OUTPUT_DIR, out_name)
-        _write_generic_compare_report(out_path, left_rows, right_rows, field_pairs, stats, duplicate_notes, labels)
+        _write_generic_compare_report(out_path, left_rows, right_rows, field_pairs, stats, duplicate_notes, labels, left_headers, right_headers)
         return jsonify({'success': True, 'download': f'/download/{out_name}', 'left_format': left_fmt['kind'], 'left_header_row': left_fmt['header_row'], 'right_format': right_fmt['kind'], 'right_header_row': right_fmt['header_row'], 'expanded_refdes': expand_refdes, 'left_ignored_headers': ignored_left_headers, **stats})
     except ValueError as e:
         return jsonify({'success': False, 'error': str(e)})

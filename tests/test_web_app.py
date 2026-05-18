@@ -485,6 +485,12 @@ class WebAppTests(unittest.TestCase):
         self.assertNotIn("数量", [row[4] for row in changed_rows])
         self.assertIn("仅客户BOM存在", wb.sheetnames)
         self.assertIn("仅HQ BOM存在", wb.sheetnames)
+        left_only_sheet = wb["仅客户BOM存在"]
+        right_only_sheet = wb["仅HQ BOM存在"]
+        self.assertEqual([cell.value for cell in left_only_sheet[1]][:3], ["客户料号", "型号", "数量"])
+        self.assertEqual([cell.value for cell in left_only_sheet[2]][:3], ["C", "L1", "3"])
+        self.assertEqual([cell.value for cell in right_only_sheet[1]][:8], ["序号", "料号", "型号", "物料描述", "单耗", "替代关系", "位号", "生产厂家"])
+        self.assertEqual([cell.value for cell in right_only_sheet[2]][:3], ["3", "D", "L2"])
         wb.close()
 
     def test_generic_customer_compare_accepts_plm_full_hq_bom_on_right(self):
@@ -584,6 +590,39 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(payload["right_only"], 0)
         self.assertEqual(payload["changed"], 1)
         self.assertEqual(payload["same"], 2)
+
+    def test_generic_cadence_treats_refdes_order_as_same(self):
+        part_no = "料号"
+        refdes = "位号"
+        main = "主料"
+        maker = "厂商A"
+        left_bytes = _hq_export_bytes([
+            ["1", "A", "M1", "", 3, main, "R1,R2,R3", maker],
+        ]).getvalue()
+        right_bytes = _hq_export_bytes([
+            ["1", "A", "M1", "", 3, main, "R3,R1,R2", maker],
+        ]).getvalue()
+        compare_resp = app.test_client().post("/api/bom_compare/generic", data={
+            "left_file": (io.BytesIO(left_bytes), "cadence.xlsx"),
+            "right_file": (io.BytesIO(right_bytes), "hq.xlsx"),
+            "config": json.dumps({
+                "compare_type": "cadence_hq",
+                "left_header_row": 1,
+                "right_header_row": 3,
+                "left_key_col": part_no,
+                "right_key_col": part_no,
+                "field_pairs": [{"left": refdes, "right": refdes}],
+            }),
+        }, content_type="multipart/form-data")
+        payload = compare_resp.get_json()
+        self.assertTrue(payload["success"])
+        self.assertEqual(payload["changed"], 0)
+        self.assertEqual(payload["same"], 1)
+        filename = unquote(payload["download"].split("/download/", 1)[1])
+        wb = openpyxl.load_workbook(WEB_APP / "outputs" / filename, data_only=True)
+        detail = wb["差异明细"]
+        self.assertEqual(detail.max_row, 1)
+        wb.close()
 
     def test_generic_cadence_ignores_empty_columns_by_default(self):
         part_no = "料号"
