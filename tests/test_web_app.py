@@ -218,6 +218,114 @@ class WebAppTests(unittest.TestCase):
         wb.close()
 
 
+    def test_feishu_match_prefers_relation_table_over_preferred_library(self):
+        key_pref, _, _ = _write_cache("token-pref", "sid-pref", [
+            ["PN", "HQ PN", "Model"],
+            ["A", "HQ-PREF", "M-PREF"],
+        ])
+        key_rel, _, _ = _write_cache("token-rel", "sid-rel", [
+            ["PN", "HQ PN", "Model"],
+            ["A", "HQ-REL", "M-REL"],
+        ])
+        fetch_map = [
+            {"output": "HQ PN", "alias": "HQ PN"},
+            {"output": "Model", "alias": "Model"},
+        ]
+        data = {
+            "file": (_xlsx_bytes(["PN"], [["A"]]), "local.xlsx"),
+            "config": json.dumps({
+                "sheet_name": "Sheet",
+                "header_row": 1,
+                "tables": [
+                    {"name": "?????", "token": "token-pref", "sheets": [{
+                        "enabled": True,
+                        "sheet_id": "sid-pref",
+                        "sheet_name": "???",
+                        "local_key_names": ["PN"],
+                        "feishu_key_names": ["PN"],
+                        "fetch_col_map": fetch_map,
+                        "cache_key": key_pref,
+                    }]},
+                    {"name": "\u5ba2\u6237\u7269\u6599\u578b\u53f7\u4e0eHQ\u6599\u53f7\u5bf9\u5e94\u5173\u7cfb", "token": "token-rel", "sheets": [{
+                        "enabled": True,
+                        "sheet_id": "sid-rel",
+                        "sheet_name": "\u5b57\u8282",
+                        "local_key_names": ["PN"],
+                        "feishu_key_names": ["PN"],
+                        "fetch_col_map": fetch_map,
+                        "cache_key": key_rel,
+                    }]},
+                ],
+            }),
+        }
+        resp = app.test_client().post(
+            "/api/feishu/match",
+            data=data,
+            content_type="multipart/form-data",
+        )
+        payload = resp.get_json()
+        self.assertTrue(payload["success"], payload.get("error"))
+        self.assertEqual(payload["matched"], 1)
+        filename = unquote(payload["download"].split("/download/", 1)[1])
+        wb = openpyxl.load_workbook(WEB_APP / "outputs" / filename, data_only=True)
+        ws = wb.active
+        self.assertEqual(ws.max_row, 2)
+        self.assertEqual([ws["A2"].value, ws["B2"].value, ws["C2"].value], ["A", "HQ-REL", "M-REL"])
+        self.assertEqual(ws["D2"].value, "\u5ba2\u6237\u7269\u6599\u578b\u53f7\u4e0eHQ\u6599\u53f7\u5bf9\u5e94\u5173\u7cfb - \u5b57\u8282")
+        wb.close()
+
+
+    def test_feishu_match_maps_local_manufacturer_alias_key(self):
+        suffix = uuid.uuid4().hex[:8]
+        canonical = f"HQ Maker {suffix}"
+        alias = f"Customer Maker {suffix}"
+        create_resp = app.test_client().post("/api/manufacturer_aliases", data={
+            "canonical_name": canonical,
+            "alias": alias,
+            "source": "unit-test",
+        })
+        self.assertTrue(create_resp.get_json()["success"])
+
+        key, _, _ = _write_cache("token-mfg", f"sid-{suffix}", [
+            ["PN", "HQ Maker", "HQ PN"],
+            ["A", canonical, "HQ-1"],
+        ])
+        data = {
+            "file": (_xlsx_bytes(["PN", "Maker"], [["A", alias]]), "local.xlsx"),
+            "config": json.dumps({
+                "sheet_name": "Sheet",
+                "header_row": 1,
+                "tables": [{
+                    "name": "LibMfg",
+                    "token": "token-mfg",
+                    "sheets": [{
+                        "enabled": True,
+                        "sheet_id": f"sid-{suffix}",
+                        "sheet_name": "SheetMfg",
+                        "local_key_names": ["PN", "Maker"],
+                        "feishu_key_names": ["PN", "HQ Maker"],
+                        "local_key_transforms": ["", "manufacturer_alias"],
+                        "fetch_col_map": [{"output": "HQ PN", "alias": "HQ PN"}],
+                        "cache_key": key,
+                    }],
+                }],
+            }),
+        }
+        resp = app.test_client().post(
+            "/api/feishu/match",
+            data=data,
+            content_type="multipart/form-data",
+        )
+        payload = resp.get_json()
+        self.assertTrue(payload["success"], payload.get("error"))
+        self.assertEqual(payload["matched"], 1)
+        filename = unquote(payload["download"].split("/download/", 1)[1])
+        wb = openpyxl.load_workbook(WEB_APP / "outputs" / filename, data_only=True)
+        ws = wb.active
+        self.assertEqual([ws["A2"].value, ws["B2"].value, ws["C2"].value], ["A", alias, "HQ-1"])
+        wb.close()
+
+
     def test_manufacturer_alias_create_lookup_duplicate_and_delete(self):
         suffix = uuid.uuid4().hex[:8]
         canonical = f"HQ Maker {suffix}"

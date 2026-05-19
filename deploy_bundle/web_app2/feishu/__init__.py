@@ -11,6 +11,7 @@ from shared import (
     UPLOAD_DIR, OUTPUT_DIR, CACHE_DIR, _cell_str,
     _open_workbook, _resolve_feishu_base_url, _save_uploaded_excel, _to_int,
 )
+from manufacturer_alias import lookup_manufacturer
 
 os.makedirs(CACHE_DIR, exist_ok=True)
 
@@ -125,6 +126,20 @@ def _hq_read_sheet(base_url, origin, user_id, token,
     return all_rows
 
 
+def _map_local_key_value(value, transform=''):
+    text = _cell_str(value)
+    if transform == 'manufacturer_alias' and text:
+        match = lookup_manufacturer(text)
+        if match:
+            return _cell_str(match.get('canonical_name'))
+    return text
+
+
+def _match_source_priority(name):
+    text = str(name or '')
+    return 1 if ('对应关系' in text or '关系库' in text) else 0
+
+
 def _do_match_multi(local_ws, local_header_row, prepared_tables, all_fetch_cols, out_file):
     max_local_col = local_ws.max_column
     local_header = [local_ws.cell(row=local_header_row, column=ci).value
@@ -162,9 +177,16 @@ def _do_match_multi(local_ws, local_header_row, prepared_tables, all_fetch_cols,
             continue
         total += 1
 
-        grouped_matches = {}
+        candidate_matches = []
         for pt in prepared_tables:
-            key = tuple(_cell_str(row_vals[lc - 1]) for lc in pt["local_key_cols"])
+            transforms = pt.get("local_key_transforms", [])
+            key = tuple(
+                _map_local_key_value(
+                    row_vals[lc - 1],
+                    transforms[i] if i < len(transforms) else '',
+                )
+                for i, lc in enumerate(pt["local_key_cols"])
+            )
             if not any(k for k in key):
                 continue
             matches = pt["lookup"].get(key, [])
@@ -175,13 +197,25 @@ def _do_match_multi(local_ws, local_header_row, prepared_tables, all_fetch_cols,
                 for col_name in all_fetch_cols:
                     lookup_name = pt.get("col_lookup", {}).get(col_name, col_name)
                     fetch_values.append(mdict.get(lookup_name, ""))
-                group_key = tuple(fetch_values)
-                grouped = grouped_matches.setdefault(group_key, {
+                candidate_matches.append({
                     "values": fetch_values,
+                    "source": pt["name"],
+                    "priority": pt.get("source_priority", 0),
+                })
+
+        grouped_matches = {}
+        if candidate_matches:
+            max_priority = max(item["priority"] for item in candidate_matches)
+            for item in candidate_matches:
+                if item["priority"] != max_priority:
+                    continue
+                group_key = tuple(item["values"])
+                grouped = grouped_matches.setdefault(group_key, {
+                    "values": item["values"],
                     "sources": [],
                 })
-                if pt["name"] not in grouped["sources"]:
-                    grouped["sources"].append(pt["name"])
+                if item["source"] not in grouped["sources"]:
+                    grouped["sources"].append(item["source"])
 
         if grouped_matches:
             first = True
@@ -348,7 +382,12 @@ def api_feishu_match():
             full_name  = f"{table_name} - {sname}"
             local_keys = [k for k in scfg.get('local_key_names', []) if k]
             feishu_keys= [k for k in scfg.get('feishu_key_names', []) if k]
+            local_key_transforms = list(scfg.get('local_key_transforms', []))
             fetch_cols = [c for c in scfg.get('fetch_col_names', []) if c]
+            if len(local_key_transforms) < len(local_keys):
+                local_key_transforms += [''] * (len(local_keys) - len(local_key_transforms))
+            elif len(local_key_transforms) > len(local_keys):
+                local_key_transforms = local_key_transforms[:len(local_keys)]
 
             if not sid:
                 logs.append(f"[{full_name}] 跳过：Sheet ID 为空")
@@ -442,6 +481,8 @@ def api_feishu_match():
             prepared_tables.append({
                 "name": full_name,
                 "local_key_cols": local_key_cols,
+                "local_key_transforms": local_key_transforms,
+                "source_priority": _match_source_priority(full_name),
                 "lookup": lookup,
                 "col_lookup": col_lookup,
             })

@@ -111,6 +111,11 @@ tr:hover td { background:#f7f9fc; }
 .overview-card .oc-desc { font-size:13px; color:#666; line-height:1.6; }
 /* === 加载遮罩 === */
 .spinner { display:inline-block; animation:spin .8s linear infinite; }
+.fs-match-wait { display:none; align-items:flex-start; gap:12px; margin:12px 0 0; padding:12px 14px; border:1px solid #b7d4ff; border-radius:8px; background:#f4f8ff; color:#25466f; }
+.fs-match-wait.show { display:flex; }
+.fs-match-wait .wait-spinner { width:22px; height:22px; border:3px solid #cfe0ff; border-top-color:#2d6cdf; border-radius:50%; flex:0 0 auto; animation:spin .8s linear infinite; margin-top:2px; }
+.fs-match-wait .wait-title { font-size:13px; font-weight:700; color:#163a6b; margin-bottom:4px; }
+.fs-match-wait .wait-text { font-size:12px; line-height:1.6; color:#4f6178; }
 @keyframes spin { 100% { transform:rotate(360deg); } }
 /* === PLM 流程卡片 === */
 .workflow-shell,.plm-shell { display:flex; flex-direction:column; gap:0; }
@@ -152,6 +157,35 @@ tr:hover td { background:#f7f9fc; }
 #plm-tab-bom-cfg #plmQtyCfgTable { border-radius:8px; }
 #plm-tab-bom-cfg #plmQtyCfgBody input { border-color:#d7deea; }
 #plm-tab-bom-cfg #plmQtyCfgBody tr:hover td { background:#f6f9ff; }
+.manual-shell { max-width:1180px; margin:0 auto; }
+.manual-hero { position:relative; overflow:hidden; border:1px solid #dbe5f2; border-radius:10px; padding:22px 24px; background:linear-gradient(135deg,#f8fbff 0%,#eef6ff 58%,#f7fafc 100%); box-shadow:0 1px 4px rgba(18,38,63,.06); }
+.manual-hero h4 { font-size:20px; color:#12345a; margin-bottom:6px; letter-spacing:0; }
+.manual-hero p { max-width:780px; font-size:13px; line-height:1.7; color:#52657d; }
+.manual-hero-meta { display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
+.manual-chip { display:inline-flex; align-items:center; height:24px; padding:0 10px; border:1px solid #c9d9ee; border-radius:999px; background:#fff; color:#31577f; font-size:12px; font-weight:600; }
+.manual-layout { display:grid; grid-template-columns:260px minmax(0,1fr); gap:14px; align-items:start; margin-top:14px; }
+.manual-toc { position:sticky; top:12px; background:#fff; border:1px solid #e2e8f3; border-radius:10px; padding:12px; box-shadow:0 1px 4px rgba(18,38,63,.05); }
+.manual-toc-title { font-size:12px; font-weight:700; color:#64748b; margin:0 0 8px; }
+.manual-toc a { display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:7px; color:#334155; text-decoration:none; font-size:13px; line-height:1.35; }
+.manual-toc a:hover { background:#f1f6ff; color:#1a5ad4; }
+.manual-content { display:flex; flex-direction:column; gap:12px; min-width:0; }
+.manual-note { padding:11px 13px; border:1px solid #f3d18a; background:#fffaf0; border-radius:9px; color:#715114; font-size:13px; line-height:1.7; }
+.manual-tool { background:#fff; border:1px solid #e2e8f3; border-radius:10px; padding:18px; box-shadow:0 1px 4px rgba(18,38,63,.05); scroll-margin-top:14px; }
+.manual-tool-head { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; margin-bottom:14px; padding-bottom:10px; border-bottom:1px solid #e8eef7; }
+.manual-tool h3 { font-size:17px; color:#163a6b; margin:0 0 5px; }
+.manual-tool-desc { font-size:12px; color:#64748b; line-height:1.6; }
+.manual-label { flex:0 0 auto; padding:4px 9px; border-radius:999px; background:#edf5ff; color:#1a5ad4; border:1px solid #cfe0ff; font-size:12px; font-weight:700; }
+.manual-grid { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(280px,.9fr); gap:14px; }
+.manual-panel { border:1px solid #edf1f7; background:#fbfcfe; border-radius:9px; padding:13px 14px; }
+.manual-panel h4 { font-size:13px; color:#26364a; margin:0 0 9px; display:flex; align-items:center; gap:7px; }
+.manual-panel ul { margin:0; padding:0; list-style:none; color:#475063; font-size:13px; line-height:1.75; }
+.manual-panel li { position:relative; padding-left:16px; margin-bottom:5px; }
+.manual-panel li:before { content:""; position:absolute; left:0; top:.78em; width:6px; height:6px; border-radius:50%; background:#7aa7e8; }
+.manual-steps { counter-reset:manual-step; display:flex; flex-direction:column; gap:8px; }
+.manual-step { counter-increment:manual-step; display:grid; grid-template-columns:24px 1fr; gap:8px; align-items:flex-start; color:#475063; font-size:13px; line-height:1.6; }
+.manual-step:before { content:counter(manual-step); width:22px; height:22px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; background:#163a6b; color:#fff; font-size:12px; font-weight:700; }
+@media (max-width:900px){ .manual-layout { grid-template-columns:1fr; } .manual-toc { position:static; } .manual-grid { grid-template-columns:1fr; } }
+
 
 </style>
 </head>
@@ -169,6 +203,7 @@ tr:hover td { background:#f7f9fc; }
     <a href="#" data-tool="bom-compare"><span class="icon">🧾</span>BOM比对工具合集</a>
     <a href="#" data-tool="bug-report"><span class="icon">🐞</span>Bug提交栏目</a>
     <a href="#" data-tool="feature-request"><span class="icon">📝</span>需求开发工单</a>
+    <a href="#" data-tool="manual"><span class="icon">📖</span>工具说明书</a>
   </nav>
 </aside>
 
@@ -186,6 +221,76 @@ tr:hover td { background:#f7f9fc; }
 </div>
 
 <!-- ===== 隐藏模板 ===== -->
+
+<!-- manual template -->
+<script type="text/html" id="tpl-manual">
+<div class="manual-shell">
+  <div class="manual-hero">
+    <h4>工具说明书</h4>
+    <p>面向日常使用的内部工具手册。每个工具都按“执行逻辑”和“使用方法”拆开说明，便于先理解系统怎么处理，再按步骤操作。</p>
+    <div class="manual-hero-meta"><span class="manual-chip">覆盖全部 Web 工具</span><span class="manual-chip">同步当前匹配规则</span><span class="manual-chip">适合新人快速上手</span></div>
+  </div>
+  <div class="manual-layout"><aside class="manual-toc"><div class="manual-toc-title">说明目录</div>
+      <a href="#manual-bom">01 BOM 格式转换</a>
+      <a href="#manual-feishu">02 飞书优选库 + 关系库匹配</a>
+      <a href="#manual-mfg">03 厂商命名映射表</a>
+      <a href="#manual-pref">04 查询 BOM 优选率</a>
+      <a href="#manual-plm">05 转换为上传 PLM 系统格式</a>
+      <a href="#manual-compare">06 BOM 比对工具合集</a>
+      <a href="#manual-feedback">07 Bug 与需求工单</a>
+    </aside><div class="manual-content"><div class="manual-note">说明书只解释当前 Web 工具的实际处理规则，不会修改数据。飞书相关工具依赖已缓存的飞书表格数据和厂商命名映射表。</div>
+      <section class="manual-tool" id="manual-bom">
+        <div class="manual-tool-head"><div><h3>BOM 格式转换</h3><div class="manual-tool-desc">把客户 BOM 清洗成后续工具更容易使用的结构化 Excel。</div></div><span class="manual-label">格式整理</span></div>
+        <div class="manual-grid">
+          <div class="manual-panel"><h4>实际执行逻辑</h4><ul><li>读取上传的 Excel，按选择的 Sheet 和表头行解析列名，并生成预览。</li><li>根据常见列名自动识别位号、规格型号、品牌/厂商、料号、数量等字段。</li><li>支持客户 BOM 中品牌、型号合并或分开的常见格式，把多供应商信息展开为独立行。</li><li>导出标准化后的 Excel，便于后续匹配、比对或上传流程继续使用。</li></ul></div>
+          <div class="manual-panel"><h4>使用方法</h4><div class="manual-steps"><div class="manual-step">上传客户 BOM，选择正确 Sheet 和表头行，确认预览列名是否对应。</div><div class="manual-step">检查系统自动识别的列映射，必要时手动指定列字母。</div><div class="manual-step">选择输出设置后运行转换，下载结果文件。</div></div></div>
+        </div>
+      </section>
+      <section class="manual-tool" id="manual-feishu">
+        <div class="manual-tool-head"><div><h3>飞书优选库 + 关系库匹配</h3><div class="manual-tool-desc">用本地 BOM 去匹配飞书缓存库，提取 HQ 料号、制造商、优选等级等字段。</div></div><span class="manual-label">核心匹配</span></div>
+        <div class="manual-grid">
+          <div class="manual-panel"><h4>实际执行逻辑</h4><ul><li>读取本地 BOM 指定 Sheet，从表头行定位本地匹配键，默认按“型号 + 厂商”参与匹配。</li><li>本地厂商键勾选“厂商映射”后，会先通过厂商命名映射表转换为 HQ 规范厂商名，再参与匹配。</li><li>飞书侧按已启用的优选库、对应关系库 Sheet 进行多键 AND 匹配，只有所有匹配键都一致才视为命中。</li><li>如果同一个本地物料同时命中对应关系库和优选库，默认只保留对应关系库结果，避免重复。</li><li>匹配时间取决于本地 BOM 行数、启用 Sheet 数量和缓存数据量。</li></ul></div>
+          <div class="manual-panel"><h4>使用方法</h4><div class="manual-steps"><div class="manual-step">确认 API 网关配置、用户 ID 和本地 BOM 文件。</div><div class="manual-step">选择本地 Sheet、表头行，检查本地键是否为规格型号和厂商；厂商列应勾选厂商映射。</div><div class="manual-step">在表格库中连接或使用缓存，勾选需要参与匹配的 Sheet，并确认飞书侧匹配键和提取列。</div><div class="manual-step">点击开始匹配，等待完成后下载 Excel 结果。</div></div></div>
+        </div>
+      </section>
+      <section class="manual-tool" id="manual-mfg">
+        <div class="manual-tool-head"><div><h3>厂商命名映射表</h3><div class="manual-tool-desc">把客户厂商名称统一到 HQ 规范厂商名，供飞书匹配等流程复用。</div></div><span class="manual-label">名称归一</span></div>
+        <div class="manual-grid">
+          <div class="manual-panel"><h4>实际执行逻辑</h4><ul><li>按上传文件、选择的 Sheet 和表头行读取数据。</li><li>根据工具配置和当前规则生成结果。</li><li>输出 Excel 或保存记录，便于后续复查。</li></ul></div>
+          <div class="manual-panel"><h4>使用方法</h4><div class="manual-steps"><div class="manual-step">先选择文件或填写必要信息。</div><div class="manual-step">核对系统识别的列名、匹配键或映射关系。</div><div class="manual-step">运行后下载结果或查看保存记录。</div></div></div>
+        </div>
+      </section>
+      <section class="manual-tool" id="manual-pref">
+        <div class="manual-tool-head"><div><h3>查询 BOM 优选率</h3><div class="manual-tool-desc">基于飞书优选库缓存，统计 BOM 中已匹配物料的优选情况。</div></div><span class="manual-label">优选统计</span></div>
+        <div class="manual-grid">
+          <div class="manual-panel"><h4>实际执行逻辑</h4><ul><li>按上传文件、选择的 Sheet 和表头行读取数据。</li><li>根据工具配置和当前规则生成结果。</li><li>输出 Excel 或保存记录，便于后续复查。</li></ul></div>
+          <div class="manual-panel"><h4>使用方法</h4><div class="manual-steps"><div class="manual-step">先选择文件或填写必要信息。</div><div class="manual-step">核对系统识别的列名、匹配键或映射关系。</div><div class="manual-step">运行后下载结果或查看保存记录。</div></div></div>
+        </div>
+      </section>
+      <section class="manual-tool" id="manual-plm">
+        <div class="manual-tool-head"><div><h3>转换为上传 PLM 系统格式</h3><div class="manual-tool-desc">把整机 BOM 配置表转换成 PLM 系统可导入的标准格式。</div></div><span class="manual-label">PLM 上传</span></div>
+        <div class="manual-grid">
+          <div class="manual-panel"><h4>实际执行逻辑</h4><ul><li>按上传文件、选择的 Sheet 和表头行读取数据。</li><li>根据工具配置和当前规则生成结果。</li><li>输出 Excel 或保存记录，便于后续复查。</li></ul></div>
+          <div class="manual-panel"><h4>使用方法</h4><div class="manual-steps"><div class="manual-step">先选择文件或填写必要信息。</div><div class="manual-step">核对系统识别的列名、匹配键或映射关系。</div><div class="manual-step">运行后下载结果或查看保存记录。</div></div></div>
+        </div>
+      </section>
+      <section class="manual-tool" id="manual-compare">
+        <div class="manual-tool-head"><div><h3>BOM 比对工具合集</h3><div class="manual-tool-desc">对客户 BOM、HQ BOM 版本、整机 BOM 或 Cadence 导出 BOM 做差异比对。</div></div><span class="manual-label">差异报告</span></div>
+        <div class="manual-grid">
+          <div class="manual-panel"><h4>实际执行逻辑</h4><ul><li>按上传文件、选择的 Sheet 和表头行读取数据。</li><li>根据工具配置和当前规则生成结果。</li><li>输出 Excel 或保存记录，便于后续复查。</li></ul></div>
+          <div class="manual-panel"><h4>使用方法</h4><div class="manual-steps"><div class="manual-step">先选择文件或填写必要信息。</div><div class="manual-step">核对系统识别的列名、匹配键或映射关系。</div><div class="manual-step">运行后下载结果或查看保存记录。</div></div></div>
+        </div>
+      </section>
+      <section class="manual-tool" id="manual-feedback">
+        <div class="manual-tool-head"><div><h3>Bug 提交栏目与需求开发工单</h3><div class="manual-tool-desc">沉淀问题、需求和附件，方便团队后续定位、评估和排期。</div></div><span class="manual-label">反馈闭环</span></div>
+        <div class="manual-grid">
+          <div class="manual-panel"><h4>实际执行逻辑</h4><ul><li>按上传文件、选择的 Sheet 和表头行读取数据。</li><li>根据工具配置和当前规则生成结果。</li><li>输出 Excel 或保存记录，便于后续复查。</li></ul></div>
+          <div class="manual-panel"><h4>使用方法</h4><div class="manual-steps"><div class="manual-step">先选择文件或填写必要信息。</div><div class="manual-step">核对系统识别的列名、匹配键或映射关系。</div><div class="manual-step">运行后下载结果或查看保存记录。</div></div></div>
+        </div>
+      </section>
+    </div></div>
+</div>
+</script>
 
 <!-- ── BOM 工具 ── -->
 <script type="text/html" id="tpl-bom">
@@ -631,23 +736,11 @@ tr:hover td { background:#f7f9fc; }
     <h4>厂商命名映射表</h4>
     <p>维护客户厂商别名与 HQ 规范厂商名的精确对应关系，供后续 BOM、飞书和 PLM 流程复用。</p>
   </div>
-  <div style="display:grid;grid-template-columns:minmax(340px,420px) 1fr;gap:14px;align-items:start">
-    <div class="section"><h3>新增映射</h3>
-      <div class="workflow-step-desc">一个别名只对应一个 HQ 规范厂商名。大小写、空格、常见标点会自动归一化后校验重复。</div>
-      <div class="row"><label>HQ规范名：</label><input type="text" id="mfgCanonical" style="width:100%" placeholder="如 Murata"></div>
-      <div class="row"><label>厂商别名：</label><input type="text" id="mfgAlias" style="width:100%" placeholder="如 MURATA / 村田 / muRata"></div>
-      <div class="row"><label>来源：</label><input type="text" id="mfgSource" style="width:100%" placeholder="客户BOM、飞书库、人工确认等"></div>
-      <div class="row" style="align-items:flex-start"><label>备注：</label><textarea id="mfgNote" style="width:100%;height:76px;padding:8px;border:1px solid #c8ccd0;border-radius:6px;font-family:inherit" placeholder="可记录客户、项目或确认依据"></textarea></div>
-      <button class="btn btn-primary" id="mfgAdd" type="button">保存映射</button>
-      <span id="mfgAddStatus" style="font-size:13px;color:#888;margin-left:8px"></span>
-      <div class="error" id="mfgError"></div>
-    </div>
-    <div class="section"><h3>查询映射</h3>
+  <div class="section"><h3>查询映射</h3>
       <div class="workflow-step-desc">输入任意客户厂商名、英文大小写变体、中文名或音译名，查询对应的 HQ 规范厂商名。</div>
       <div class="row"><input type="text" id="mfgSearch" style="width:320px" placeholder="输入厂商名或别名"><button class="btn btn-primary" id="mfgSearchBtn" type="button">查询</button><button class="btn btn-sm btn-gray" id="mfgRefresh" type="button">刷新</button><span id="mfgListStatus" style="font-size:12px;color:#888"></span></div>
       <div id="mfgMatch" style="display:none;margin:10px 0;padding:10px;border:1px solid #b7eb8f;background:#f6ffed;border-radius:8px;color:#237804;font-size:13px"></div>
       <div class="table-wrap" style="max-height:520px"><table><thead><tr><th>HQ规范名</th><th>厂商别名</th><th>归一化键</th><th>来源</th><th>备注</th><th style="width:70px">操作</th></tr></thead><tbody id="mfgRows"></tbody></table></div>
-    </div>
   </div>
 </div>
 </script>
@@ -741,6 +834,13 @@ tr:hover td { background:#f7f9fc; }
   <div id="fsRunStatus" style="font-size:12px;color:#888;margin-bottom:8px"></div>
   <button class="btn btn-primary" id="fsRun">⚡ 开始匹配</button>
   <span id="fsRunStatus2" style="font-size:13px;color:#888;margin-left:8px"></span>
+  <div class="fs-match-wait" id="fsMatchWait" aria-live="polite">
+    <span class="wait-spinner" aria-hidden="true"></span>
+    <div>
+      <div class="wait-title">正在匹配，请先不要关闭页面</div>
+      <div class="wait-text">系统正在读取本地 BOM，并逐个检查已启用的优选库和对应关系库；如果本地行数多、缓存表多，处理会需要一段时间。完成后会自动显示下载入口。</div>
+    </div>
+  </div>
 </div>
 <div class="result" id="fsResult"><span class="title">✅ 匹配完成</span><br><span id="fsStats" style="display:inline-block;margin-top:6px"></span><br><a class="download" id="fsDl" href="#">📥 下载匹配结果</a></div>
 <div class="error" id="fsError"></div>
@@ -820,12 +920,14 @@ const TOOLS = {
   'bom-compare': {title:'BOM比对工具合集', badge:'v0.1', tpl:'tpl-bom-compare',
            desc:'提供客户BOM对比HQ BOM、单板HQ BOM版本对比、整机HQ BOM版本对比、Cadence导出BOM对比HQ BOM四个比对子功能。'},
   'bug-report': {title:'Bug提交栏目', badge:'反馈', tpl:'tpl-bug-report',
-           desc:'提交工具问题、附件和复现信息，所有记录保存在服务端，团队成员均可查看。'},
+            desc:'提交工具问题、附件和复现信息，所有记录保存在服务端，团队成员均可查看。'},
   'feature-request': {title:'需求开发工单', badge:'需求', tpl:'tpl-feature-request',
-           desc:'提交新功能、流程优化和开发需求，便于后续评估、排期和跟进。'},
+            desc:'提交新功能、流程优化和开发需求，便于后续评估、排期和跟进。'},
+  manual: {title:'工具说明书', badge:'说明', tpl:'tpl-manual',
+           desc:'集中展示每个工具的处理逻辑、输入要求、关键规则和推荐使用步骤。'},
 };
 let curTool = null;
-const APP_NOTICE_VERSION = '2026-05-19-bom-compare-rules';
+const APP_NOTICE_VERSION = '2026-05-19-manual-docs';
 
 function initRefreshNotice(){
   const notice = $('refreshNotice');
@@ -991,7 +1093,6 @@ async function mfgDeleteAlias(id){
 
 function initManufacturerAlias(){
   mfgLoadAliases('');
-  $('mfgAdd').onclick=mfgAddAlias;
   $('mfgSearchBtn').onclick=()=>mfgLoadAliases($('mfgSearch').value.trim());
   $('mfgRefresh').onclick=()=>mfgLoadAliases('');
   $('mfgSearch').onkeydown=e=>{if(e.key==='Enter')mfgLoadAliases($('mfgSearch').value.trim());};
@@ -1123,10 +1224,16 @@ async function featureLoadRequests(){
 
 async function featureLikeRequest(id){
   try{
-    const r=await fetch('/api/feature_requests/'+encodeURIComponent(id)+'/like',{method:'POST'});
+    const employeeId=($('featureEmployeeId')&&$('featureEmployeeId').value.trim())||'';
+    const r=await fetch('/api/feature_requests/'+encodeURIComponent(id)+'/like',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({employee_id:employeeId})
+    });
     const d=await r.json();
     if(!d.success) throw new Error(d.error||'点赞失败');
     await featureLoadRequests();
+    if(d.already_liked) $('featureListStatus').textContent=d.message||'你已经点赞过该需求';
   }catch(e){
     $('featureListStatus').textContent=e.message;
   }
@@ -1864,18 +1971,26 @@ let _fsGlobalFetchMap = [  // [{std_name, default_alias}]  pre-populated default
   {std_name:'HQ描述',    default_alias:'HQ描述'},
 ];
 let _fsGlobalLocalKeys = [''];  // dynamic local-side match keys
+let _fsGlobalLocalKeyTransforms = [''];  // '' | 'manufacturer_alias'
 
 function fsRenderGLKSection(){
   const cont=$('fsGLkContainer'); if(!cont) return;
   const hdrs=window._fsLocalHeaders||[];
+  while(_fsGlobalLocalKeyTransforms.length<_fsGlobalLocalKeys.length) _fsGlobalLocalKeyTransforms.push('');
+  if(_fsGlobalLocalKeyTransforms.length>_fsGlobalLocalKeys.length) _fsGlobalLocalKeyTransforms.splice(_fsGlobalLocalKeys.length);
   let h='';
   _fsGlobalLocalKeys.forEach((val,i)=>{
     const req=i===0;
     let opts=`<option value="">${req?'— 选择列 —':'（不使用）'}</option>`;
     hdrs.forEach(h2=>{if(h2) opts+=`<option value="${_escH(h2)}"${h2===val?' selected':''}>${_escH(h2)}</option>`;});
+    const mfgChecked=_fsGlobalLocalKeyTransforms[i]==='manufacturer_alias'?' checked':'';
+    const showMfgMap=/厂商|厂家|制造商|供应商|brand|manufacturer/i.test(val||'');
     h+=`<div style="display:flex;align-items:center;gap:4px">
       <span style="min-width:16px;font-size:12px;${req?'color:#c00000':'color:#888'}">${i+1}</span>
       <select id="fsGlk_${i}" style="width:180px;font-size:12px" onchange="fsGLKChange()">${opts}</select>
+      <label title="勾选后，本地该列会先通过厂商命名映射表转换为 HQ 规范厂商名，再参与匹配" style="font-size:12px;color:#555;display:${showMfgMap?'flex':'none'};align-items:center;gap:2px;white-space:nowrap">
+        <input type="checkbox" id="fsGlkMfg_${i}" onchange="fsGLKChange()"${mfgChecked}>厂商映射
+      </label>
       ${_fsGlobalLocalKeys.length>1?`<button class="btn btn-sm btn-gray" style="padding:0 6px;font-size:12px;line-height:20px" onclick="fsRemoveGLK(${i})">×</button>`:''}
     </div>`;
   });
@@ -1885,13 +2000,22 @@ function fsRenderGLKSection(){
 
 function fsGLKChange(){
   _fsGlobalLocalKeys=_fsGlobalLocalKeys.map((_,i)=>($(`fsGlk_${i}`)||{value:''}).value.trim());
+  _fsGlobalLocalKeyTransforms=_fsGlobalLocalKeys.map((k,i)=>
+    (/厂商|厂家|制造商|供应商|brand|manufacturer/i.test(k||'') && ($(`fsGlkMfg_${i}`)||{checked:false}).checked)
+      ? 'manufacturer_alias' : ''
+  );
   fsSaveConfig();
   if(fsCurIdx!==null) fsSelectTable(fsCurIdx);
 }
 
 function fsAddGLK(){
   _fsGlobalLocalKeys=_fsGlobalLocalKeys.map((_,i)=>($(`fsGlk_${i}`)||{value:''}).value.trim());
+  _fsGlobalLocalKeyTransforms=_fsGlobalLocalKeys.map((k,i)=>
+    (/厂商|厂家|制造商|供应商|brand|manufacturer/i.test(k||'') && ($(`fsGlkMfg_${i}`)||{checked:false}).checked)
+      ? 'manufacturer_alias' : ''
+  );
   _fsGlobalLocalKeys.push('');
+  _fsGlobalLocalKeyTransforms.push('');
   fsTables.forEach(t=>Object.values(t.sheet_configs).forEach(sc=>sc.feishu_key_names.push('')));
   fsRenderGLKSection(); fsSaveConfig();
   if(fsCurIdx!==null) fsSelectTable(fsCurIdx);
@@ -1899,8 +2023,14 @@ function fsAddGLK(){
 
 function fsRemoveGLK(i){
   _fsGlobalLocalKeys=_fsGlobalLocalKeys.map((_,j)=>($(`fsGlk_${j}`)||{value:''}).value.trim());
+  _fsGlobalLocalKeyTransforms=_fsGlobalLocalKeys.map((k,j)=>
+    (/厂商|厂家|制造商|供应商|brand|manufacturer/i.test(k||'') && ($(`fsGlkMfg_${j}`)||{checked:false}).checked)
+      ? 'manufacturer_alias' : ''
+  );
   _fsGlobalLocalKeys.splice(i,1);
+  _fsGlobalLocalKeyTransforms.splice(i,1);
   if(!_fsGlobalLocalKeys.length) _fsGlobalLocalKeys=[''];
+  if(!_fsGlobalLocalKeyTransforms.length) _fsGlobalLocalKeyTransforms=[''];
   fsTables.forEach(t=>Object.values(t.sheet_configs).forEach(sc=>{
     if(sc.feishu_key_names.length>i) sc.feishu_key_names.splice(i,1);
     if(!sc.feishu_key_names.length) sc.feishu_key_names=[''];
@@ -1920,6 +2050,7 @@ function fsSaveConfig(){
     origin:  or_ ? or_.value : prev.origin||'',
     user_id:  ui ? ui.value  : prev.user_id||'',
     global_local_keys: _fsGlobalLocalKeys.slice(),
+    global_local_key_transforms: _fsGlobalLocalKeyTransforms.slice(),
     global_fetch_map: _fsGlobalFetchMap.map(r=>({std_name:r.std_name||'',default_alias:r.default_alias||''})),
     tables: fsTables.map(t=>({
       idx: t.idx, token: t.token||'',
@@ -1947,6 +2078,7 @@ function fsExportConfig(){
   // 按最新架构导出：全局本地键 + 全局提取列 + 每个表格有效 sheet 配置
   const out = {
     global_local_keys: _fsGlobalLocalKeys.filter(k=>k),
+    global_local_key_transforms: _fsGlobalLocalKeyTransforms.slice(0, _fsGlobalLocalKeys.length),
     global_fetch_map: _fsGlobalFetchMap.filter(r=>r.std_name).map(r=>r.std_name),
     tables: fsTables.map(t=>{
       // 找出有意义的 sheet 配置：enabled 或填了至少一个飞书键或有提取列覆盖
@@ -1988,6 +2120,7 @@ function fsClearConfig(){
   window._fsSavedCfg = null;
   _fsGlobalFetchMap = [];
   _fsGlobalLocalKeys = [''];
+  _fsGlobalLocalKeyTransforms = [''];
   fsTables = FS_TABLES.map((t,i)=>({...t, idx:i, _sheets:[], _connected:false, sheet_configs:{}}));
   renderFsTrees();
   fsRenderGFMSection();
@@ -2001,6 +2134,8 @@ function fsRestoreDefault(){
   // 恢复全局本地键
   _fsGlobalLocalKeys = (FS_DEFAULT_CONFIG.global_local_keys||[]).length
     ? FS_DEFAULT_CONFIG.global_local_keys.slice() : [''];
+  _fsGlobalLocalKeyTransforms = (FS_DEFAULT_CONFIG.global_local_key_transforms||[]).slice(0, _fsGlobalLocalKeys.length);
+  while(_fsGlobalLocalKeyTransforms.length<_fsGlobalLocalKeys.length) _fsGlobalLocalKeyTransforms.push('');
   // 恢复全局提取列
   _fsGlobalFetchMap = (FS_DEFAULT_CONFIG.global_fetch_map||[]).map(n=>({std_name:n,default_alias:n}));
   if(!_fsGlobalFetchMap.length) _fsGlobalFetchMap=[{std_name:'HQ料号',default_alias:'HQ料号'},{std_name:'HQ规格型号',default_alias:'HQ规格型号'},{std_name:'HQ制造商',default_alias:'HQ制造商'},{std_name:'优选等级',default_alias:'优选等级'},{std_name:'HQ描述',default_alias:'HQ描述'}];
@@ -2105,7 +2240,23 @@ function initFeishu(){
       _fsGlobalLocalKeys=saved.global_local_keys.slice();
       if(!_fsGlobalLocalKeys.length) _fsGlobalLocalKeys=[''];
     }
-    $('fsCfgStatus').textContent = '已从本地存储恢复配置';
+    if(saved.global_local_key_transforms && saved.global_local_key_transforms.length){
+      _fsGlobalLocalKeyTransforms=saved.global_local_key_transforms.slice(0,_fsGlobalLocalKeys.length);
+    }else{
+      _fsGlobalLocalKeyTransforms=_fsGlobalLocalKeys.map(()=>'');
+    }
+    while(_fsGlobalLocalKeyTransforms.length<_fsGlobalLocalKeys.length) _fsGlobalLocalKeyTransforms.push('');
+    if(_fsGlobalLocalKeys.length===1 && !_fsGlobalLocalKeys.includes('厂商')){
+      _fsGlobalLocalKeys.push('厂商');
+      _fsGlobalLocalKeyTransforms.push('manufacturer_alias');
+      fsTables.forEach(t=>Object.values(t.sheet_configs).forEach(sc=>{
+        const makerAlias=(sc.fetch_col_aliases||{})['HQ制造商']||'制造商';
+        if((sc.feishu_key_names||[]).length===1) sc.feishu_key_names.push(makerAlias);
+      }));
+      fsSaveConfig();
+      $('fsCfgStatus').textContent = '已从旧配置自动补齐厂商匹配键';
+    }
+    if(!$('fsCfgStatus').textContent) $('fsCfgStatus').textContent = '已从本地存储恢复配置';
   }
   ['fsBaseUrl','fsOrigin','fsUserId'].forEach(id=>{
     const el=$(id); if(el) el.oninput = fsSaveConfig;
@@ -2467,7 +2618,12 @@ async function fsRunMatch(){
   const f=$('fsFile').files[0];if(!f){showInlineError('fsError','请先上传 BOM 文件','fsRunStatus2');return;}
 
   // 全局本地键
-  const gLocalKeys=_fsGlobalLocalKeys.map(k=>k.trim()).filter(k=>k);
+  const gLocalKeyPairs=_fsGlobalLocalKeys.map((k,i)=>({
+    name:(k||'').trim(),
+    transform:_fsGlobalLocalKeyTransforms[i]||'',
+  })).filter(k=>k.name);
+  const gLocalKeys=gLocalKeyPairs.map(k=>k.name);
+  const gLocalKeyTransforms=gLocalKeyPairs.map(k=>k.transform);
   if(!gLocalKeys.length){showInlineError('fsError','请先填写本地匹配键（本地 BOM 文件区域）','fsRunStatus2');return;}
 
   // 构建 per-sheet 配置
@@ -2482,6 +2638,7 @@ async function fsRunMatch(){
       if(!fk.length) return;
       // 本地键与飞书键取相同数量
       const lk=gLocalKeys.slice(0,fk.length);
+      const lkt=gLocalKeyTransforms.slice(0,fk.length);
       // 构建全局列映射（含per-sheet覆盖别名）
       const gfm=_fsGlobalFetchMap.filter(r=>r.std_name);
       const overrides=sc.fetch_col_aliases||{};
@@ -2493,6 +2650,7 @@ async function fsRunMatch(){
         sheet_id:s.sheetId, sheet_name:s.title,
         enabled:true,
         local_key_names:lk, feishu_key_names:fk,
+        local_key_transforms:lkt,
         fetch_col_names:sc.fetch_col_names||[],
         fetch_col_map: fetch_col_map,
         cache_key:sc.cache_key||'',
@@ -2503,8 +2661,12 @@ async function fsRunMatch(){
 
   if(!tables.length){showInlineError('fsError','没有启用的 Sheet，请先在表格库中勾选并配置列映射','fsRunStatus2');return;}
 
-  $('fsRun').disabled=true;$('fsBatchUpdate').disabled=true;
-  $('fsRunStatus2').textContent='匹配中...';
+  const runBtn=$('fsRun');
+  const oldRunText=runBtn.innerHTML;
+  runBtn.disabled=true;$('fsBatchUpdate').disabled=true;
+  runBtn.innerHTML='<span class="spinner">&#8635;</span> 匹配中';
+  $('fsRunStatus2').textContent='正在处理，完成后会自动生成结果文件';
+  show($('fsMatchWait'));
   hide($('fsResult'));clearInlineError('fsError');hide($('fsLogBox'));
 
   const config={
@@ -2523,8 +2685,10 @@ async function fsRunMatch(){
     } else {
       $('fsError').textContent=d.error||'匹配失败';show($('fsError'));$('fsRunStatus2').textContent='';
     }
-  }catch(e){$('fsError').textContent=e.message;show($('fsError'));}
-  $('fsRun').disabled=false;$('fsBatchUpdate').disabled=false;
+  }catch(e){$('fsError').textContent=e.message;show($('fsError'));$('fsRunStatus2').textContent='';}
+  hide($('fsMatchWait'));
+  runBtn.innerHTML=oldRunText;
+  runBtn.disabled=false;$('fsBatchUpdate').disabled=false;
 }
 
 // ═══════════════════ 查询BOM优选率 ═══════════════════

@@ -104,6 +104,14 @@ def _connect():
             likes INTEGER NOT NULL DEFAULT 0
         )
     ''')
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS feature_request_likes (
+            request_id TEXT NOT NULL,
+            employee_id TEXT NOT NULL,
+            liked_at REAL NOT NULL,
+            PRIMARY KEY (request_id, employee_id)
+        )
+    ''')
     _ensure_schema(conn)
     _seed_requests(conn)
     conn.commit()
@@ -183,6 +191,36 @@ def _update_request_status(request_id, status):
         conn.close()
 
 
+def _like_request(request_id, employee_id=''):
+    conn = _connect()
+    try:
+        row = conn.execute('SELECT * FROM feature_requests WHERE id = ?', (request_id,)).fetchone()
+        if not row:
+            return None, False
+
+        employee_id = str(employee_id or '').strip()[:40]
+        if not employee_id:
+            conn.execute('UPDATE feature_requests SET likes = likes + 1 WHERE id = ?', (request_id,))
+            row = conn.execute('SELECT * FROM feature_requests WHERE id = ?', (request_id,)).fetchone()
+            conn.commit()
+            return _row_to_request(row), True
+
+        try:
+            conn.execute(
+                'INSERT INTO feature_request_likes (request_id, employee_id, liked_at) VALUES (?, ?, ?)',
+                (request_id, employee_id, time.time()),
+            )
+        except sqlite3.IntegrityError:
+            return _row_to_request(row), False
+
+        conn.execute('UPDATE feature_requests SET likes = likes + 1 WHERE id = ?', (request_id,))
+        row = conn.execute('SELECT * FROM feature_requests WHERE id = ?', (request_id,)).fetchone()
+        conn.commit()
+        return _row_to_request(row), True
+    finally:
+        conn.close()
+
+
 def _clean_text(name, max_len=2000):
     return str(request.form.get(name, '') or '').strip()[:max_len]
 
@@ -250,16 +288,14 @@ def api_submit_feature_request():
 
 @feature_request_bp.route('/api/feature_requests/<request_id>/like', methods=['POST'])
 def api_like_feature_request(request_id):
-    conn = _connect()
-    try:
-        conn.execute('UPDATE feature_requests SET likes = likes + 1 WHERE id = ?', (request_id,))
-        row = conn.execute('SELECT * FROM feature_requests WHERE id = ?', (request_id,)).fetchone()
-        if not row:
-            return jsonify({'success': False, 'error': '\u9700\u6c42\u4e0d\u5b58\u5728'})
-        conn.commit()
-        return jsonify({'success': True, 'request': _row_to_request(row)})
-    finally:
-        conn.close()
+    data = request.get_json(silent=True) or {}
+    employee_id = str(data.get('employee_id') or request.form.get('employee_id') or request.args.get('employee_id') or '').strip()
+    item, liked = _like_request(request_id, employee_id)
+    if not item:
+        return jsonify({'success': False, 'error': '\u9700\u6c42\u4e0d\u5b58\u5728'})
+    if employee_id and not liked:
+        return jsonify({'success': True, 'request': item, 'already_liked': True, 'message': '\u4f60\u5df2\u7ecf\u70b9\u8d5e\u8fc7\u8be5\u9700\u6c42'})
+    return jsonify({'success': True, 'request': item, 'liked': liked})
 
 
 @feature_request_bp.route('/api/feature_requests/<request_id>/status', methods=['POST'])

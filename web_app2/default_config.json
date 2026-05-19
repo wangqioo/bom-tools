@@ -1,6 +1,11 @@
 {
   "global_local_keys": [
-    "型号"
+    "型号",
+    "厂商"
+  ],
+  "global_local_key_transforms": [
+    "",
+    "manufacturer_alias"
   ],
   "global_fetch_map": [
     "HQ料号",
@@ -19,7 +24,8 @@
           "sheet_name": "工业级和不区分优选库(用于选型)",
           "enabled": true,
           "feishu_key_names": [
-            "规格型号"
+            "规格型号",
+            "制造商"
           ],
           "fetch_col_aliases": {
             "HQ料号": "HQ编码",
@@ -40,7 +46,8 @@
           "sheet_name": "DBG通用电阻(用于物料选型)",
           "enabled": true,
           "feishu_key_names": [
-            "规格型号"
+            "规格型号",
+            "制造商"
           ],
           "fetch_col_aliases": {
             "HQ料号": "物料编码",
@@ -55,7 +62,8 @@
           "sheet_name": "DBG防硫化电阻(用于物料选型)",
           "enabled": true,
           "feishu_key_names": [
-            "规格型号"
+            "规格型号",
+            "制造商"
           ],
           "fetch_col_aliases": {
             "HQ料号": "物料编码",
@@ -76,7 +84,8 @@
           "sheet_name": "DBG电解电容优选库V1.2(用于物料选型)",
           "enabled": true,
           "feishu_key_names": [
-            "规格型号"
+            "规格型号",
+            "制造商"
           ],
           "fetch_col_aliases": {
             "HQ料号": "华勤物料号",
@@ -97,7 +106,8 @@
           "sheet_name": "功率电感器",
           "enabled": true,
           "feishu_key_names": [
-            "规格型号"
+            "规格型号",
+            "制造商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "制造商",
@@ -111,7 +121,8 @@
           "sheet_name": "TLVR",
           "enabled": true,
           "feishu_key_names": [
-            "规格型号"
+            "规格型号",
+            "制造商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "制造商",
@@ -125,7 +136,8 @@
           "sheet_name": "一般用电感器",
           "enabled": true,
           "feishu_key_names": [
-            "规格型号"
+            "规格型号",
+            "制造商"
           ],
           "fetch_col_aliases": {
             "HQ料号": "物料编码",
@@ -140,7 +152,8 @@
           "sheet_name": "网络变压器",
           "enabled": true,
           "feishu_key_names": [
-            "规格型号"
+            "规格型号",
+            "制造商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "制造商",
@@ -160,7 +173,8 @@
           "sheet_name": "DBG磁珠优选库更新(用于物料选型)",
           "enabled": true,
           "feishu_key_names": [
-            "规格型号"
+            "规格型号",
+            "制造商"
           ],
           "fetch_col_aliases": {
             "HQ料号": "物料编码",
@@ -181,7 +195,8 @@
           "sheet_name": "无源晶体",
           "enabled": true,
           "feishu_key_names": [
-            "规格型号"
+            "规格型号",
+            "制造商"
           ],
           "fetch_col_aliases": {
             "HQ料号": "物料编码",
@@ -196,7 +211,8 @@
           "sheet_name": "有源晶振",
           "enabled": true,
           "feishu_key_names": [
-            "规格型号"
+            "规格型号",
+            "制造商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "制造商",
@@ -216,7 +232,8 @@
           "sheet_name": "贴片电流保险丝",
           "enabled": true,
           "feishu_key_names": [
-            "规格型号"
+            "规格型号",
+            "制造商"
           ],
           "fetch_col_aliases": {
             "HQ料号": "物料编码",
@@ -231,7 +248,8 @@
           "sheet_name": "贴片自恢复保险丝",
           "enabled": true,
           "feishu_key_names": [
-            "规格型号"
+            "规格型号",
+            "制造商"
           ],
           "fetch_col_aliases": {
             "HQ料号": "物料编码",
@@ -252,7 +270,8 @@
           "sheet_name": "纽扣电池",
           "enabled": true,
           "feishu_key_names": [
-            "规格型号"
+            "规格型号",
+            "制造商"
           ],
           "fetch_col_aliases": {
             "HQ料号": "物料编码",
@@ -273,7 +292,8 @@
           "sheet_name": "DBG滤波器(共模扼流圈)优选库",
           "enabled": true,
           "feishu_key_names": [
-            "规格型号"
+            "规格型号",
+            "制造商"
           ],
           "fetch_col_aliases": {
             "HQ料号": "物料编码",
@@ -294,7 +314,8 @@
           "sheet_name": "多相控制器",
           "enabled": true,
           "feishu_key_names": [
-            "Part Number"
+            "Part Number",
+            "Brand"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "Brand",
@@ -308,7 +329,8 @@
           "sheet_name": "Power Stage",
           "enabled": true,
           "feishu_key_names": [
-            "Part Number"
+            "Part Number",
+            "Brand"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "Brand",
@@ -322,7 +344,8 @@
           "sheet_name": "DCDC",
           "enabled": true,
           "feishu_key_names": [
-            "Part Number"
+            "Part Number",
+            "Brand"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "Brand",
@@ -336,7 +359,8 @@
           "sheet_name": "LDO",
           "enabled": true,
           "feishu_key_names": [
-            "Part Number"
+            "Part Number",
+            "Brand"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "Brand",
@@ -350,7 +374,8 @@
           "sheet_name": "efuse",
           "enabled": true,
           "feishu_key_names": [
-            "Part Number"
+            "Part Number",
+            "Brand"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "Brand",
@@ -364,7 +389,8 @@
           "sheet_name": "load switch ",
           "enabled": true,
           "feishu_key_names": [
-            "PART NUMBER"
+            "PART NUMBER",
+            "Brand"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "Brand",
@@ -378,7 +404,8 @@
           "sheet_name": "热插拔控制器",
           "enabled": true,
           "feishu_key_names": [
-            "PART NUMBER"
+            "PART NUMBER",
+            "Brand"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "Brand",
@@ -392,7 +419,8 @@
           "sheet_name": "电压电流功率检测芯片",
           "enabled": true,
           "feishu_key_names": [
-            "Part Number"
+            "Part Number",
+            "Brand"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "Brand",
@@ -406,7 +434,8 @@
           "sheet_name": "电流检测放大器",
           "enabled": true,
           "feishu_key_names": [
-            "Part Number"
+            "Part Number",
+            "Brand"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "Brand",
@@ -420,7 +449,8 @@
           "sheet_name": "电源模组",
           "enabled": true,
           "feishu_key_names": [
-            "Part Number"
+            "Part Number",
+            "Brand"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "Brand",
@@ -440,7 +470,8 @@
           "sheet_name": "BMC",
           "enabled": true,
           "feishu_key_names": [
-            "型号"
+            "型号",
+            "制造商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "制造商",
@@ -454,7 +485,8 @@
           "sheet_name": "网络交换芯片",
           "enabled": true,
           "feishu_key_names": [
-            "Part Number"
+            "Part Number",
+            "Brand"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "Brand",
@@ -468,7 +500,8 @@
           "sheet_name": "网卡芯片&PHY",
           "enabled": true,
           "feishu_key_names": [
-            "型号"
+            "型号",
+            "制造商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "制造商",
@@ -482,7 +515,8 @@
           "sheet_name": "PCIe switch",
           "enabled": true,
           "feishu_key_names": [
-            "Part Number"
+            "Part Number",
+            "Brand"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "Brand",
@@ -496,7 +530,8 @@
           "sheet_name": "SAS Expander",
           "enabled": true,
           "feishu_key_names": [
-            "Part Number"
+            "Part Number",
+            "Brand"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "Brand",
@@ -510,7 +545,8 @@
           "sheet_name": "时序、复位芯片",
           "enabled": true,
           "feishu_key_names": [
-            "Part Number"
+            "Part Number",
+            "Brand"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "Brand",
@@ -524,7 +560,8 @@
           "sheet_name": "电平基准芯片",
           "enabled": true,
           "feishu_key_names": [
-            "Part Number"
+            "Part Number",
+            "Brand"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "Brand",
@@ -538,7 +575,8 @@
           "sheet_name": "模拟开关和多路复用器",
           "enabled": true,
           "feishu_key_names": [
-            "Part Number"
+            "Part Number",
+            "Brand"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "Brand",
@@ -552,7 +590,8 @@
           "sheet_name": "缓冲器、驱动器和收发器",
           "enabled": true,
           "feishu_key_names": [
-            "Part Number"
+            "Part Number",
+            "Brand"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "Brand",
@@ -566,7 +605,8 @@
           "sheet_name": "触发器、锁存器和寄存器",
           "enabled": true,
           "feishu_key_names": [
-            "Part Number"
+            "Part Number",
+            "Brand"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "Brand",
@@ -580,7 +620,8 @@
           "sheet_name": "温度传感器",
           "enabled": true,
           "feishu_key_names": [
-            "Part Number"
+            "Part Number",
+            "Brand"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "Brand",
@@ -594,7 +635,8 @@
           "sheet_name": "电平转换芯片 ",
           "enabled": true,
           "feishu_key_names": [
-            "Part Number"
+            "Part Number",
+            "Brand"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "Brand",
@@ -608,7 +650,8 @@
           "sheet_name": "逻辑门",
           "enabled": true,
           "feishu_key_names": [
-            "Part Number"
+            "Part Number",
+            "Brand"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "Brand",
@@ -622,7 +665,8 @@
           "sheet_name": "接口扩展芯片",
           "enabled": true,
           "feishu_key_names": [
-            "Part Number"
+            "Part Number",
+            "Brand"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "Brand",
@@ -636,7 +680,8 @@
           "sheet_name": "接口转换芯片",
           "enabled": true,
           "feishu_key_names": [
-            "Part Number"
+            "Part Number",
+            "Brand"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "Brand",
@@ -650,7 +695,8 @@
           "sheet_name": "接口控制芯片",
           "enabled": true,
           "feishu_key_names": [
-            "Part Number"
+            "Part Number",
+            "Brand"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "Brand",
@@ -664,7 +710,8 @@
           "sheet_name": "EEPROM",
           "enabled": true,
           "feishu_key_names": [
-            "Part Number"
+            "Part Number",
+            "Brand"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "Brand",
@@ -678,7 +725,8 @@
           "sheet_name": "NOR FLASH",
           "enabled": true,
           "feishu_key_names": [
-            "Part Number"
+            "Part Number",
+            "Brand"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "Brand",
@@ -692,7 +740,8 @@
           "sheet_name": "NAND FLASH",
           "enabled": true,
           "feishu_key_names": [
-            "Part Number"
+            "Part Number",
+            "Brand"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "Brand",
@@ -706,7 +755,8 @@
           "sheet_name": "DRAM",
           "enabled": true,
           "feishu_key_names": [
-            "Part Number"
+            "Part Number",
+            "Brand"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "Brand",
@@ -720,7 +770,8 @@
           "sheet_name": "UFS",
           "enabled": true,
           "feishu_key_names": [
-            "Part Number"
+            "Part Number",
+            "Brand"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "Brand",
@@ -734,7 +785,8 @@
           "sheet_name": "eMMC",
           "enabled": true,
           "feishu_key_names": [
-            "Part Number"
+            "Part Number",
+            "Brand"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "Brand",
@@ -748,7 +800,8 @@
           "sheet_name": "retimer",
           "enabled": true,
           "feishu_key_names": [
-            "型号"
+            "型号",
+            "Brand"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "Brand",
@@ -762,7 +815,8 @@
           "sheet_name": "redriver",
           "enabled": true,
           "feishu_key_names": [
-            "Part Number"
+            "Part Number",
+            "Brand"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "Brand",
@@ -776,7 +830,8 @@
           "sheet_name": "clock gen",
           "enabled": true,
           "feishu_key_names": [
-            "Part Number"
+            "Part Number",
+            "1009"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "1009",
@@ -790,7 +845,8 @@
           "sheet_name": "clock buffer",
           "enabled": true,
           "feishu_key_names": [
-            "Part Number"
+            "Part Number",
+            "Brand"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "Brand",
@@ -804,7 +860,8 @@
           "sheet_name": "RTC",
           "enabled": true,
           "feishu_key_names": [
-            "Part Number"
+            "Part Number",
+            "Brand"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "Brand",
@@ -818,7 +875,8 @@
           "sheet_name": "数据转换芯片",
           "enabled": true,
           "feishu_key_names": [
-            "Part Number"
+            "Part Number",
+            "Brand"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "Brand",
@@ -832,7 +890,8 @@
           "sheet_name": "MCU",
           "enabled": true,
           "feishu_key_names": [
-            "Part Number"
+            "Part Number",
+            "Brand"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "Brand",
@@ -846,7 +905,8 @@
           "sheet_name": "比较器",
           "enabled": true,
           "feishu_key_names": [
-            "Part Number"
+            "Part Number",
+            "Brand"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "Brand",
@@ -860,7 +920,8 @@
           "sheet_name": "放大器",
           "enabled": true,
           "feishu_key_names": [
-            "Part Number"
+            "Part Number",
+            "Brand"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "Brand",
@@ -874,7 +935,8 @@
           "sheet_name": "安全加密芯片",
           "enabled": true,
           "feishu_key_names": [
-            "Part Number"
+            "Part Number",
+            "Brand"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "Brand",
@@ -888,7 +950,8 @@
           "sheet_name": "可编程逻辑器",
           "enabled": true,
           "feishu_key_names": [
-            "Part Number"
+            "Part Number",
+            "Brand"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "Brand",
@@ -908,7 +971,8 @@
           "sheet_name": "小信号开关二极管",
           "enabled": true,
           "feishu_key_names": [
-            "规格型号"
+            "规格型号",
+            "制造商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "制造商",
@@ -922,7 +986,8 @@
           "sheet_name": "肖特基二极管",
           "enabled": true,
           "feishu_key_names": [
-            "规格型号"
+            "规格型号",
+            "制造商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "制造商",
@@ -936,7 +1001,8 @@
           "sheet_name": "齐纳二极管",
           "enabled": true,
           "feishu_key_names": [
-            "规格型号"
+            "规格型号",
+            "制造商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "制造商",
@@ -950,7 +1016,8 @@
           "sheet_name": "TVS",
           "enabled": true,
           "feishu_key_names": [
-            "规格型号"
+            "规格型号",
+            "制造商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "制造商",
@@ -964,7 +1031,8 @@
           "sheet_name": "普通LED",
           "enabled": true,
           "feishu_key_names": [
-            "Part Number"
+            "Part Number",
+            "Brand"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "Brand",
@@ -978,7 +1046,8 @@
           "sheet_name": "ESD抑制器",
           "enabled": true,
           "feishu_key_names": [
-            "Part Number"
+            "Part Number",
+            "Brand"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "Brand",
@@ -992,7 +1061,8 @@
           "sheet_name": "信号三极管",
           "enabled": true,
           "feishu_key_names": [
-            "规格型号"
+            "规格型号",
+            "制造商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "制造商",
@@ -1006,7 +1076,8 @@
           "sheet_name": "功率三极管",
           "enabled": true,
           "feishu_key_names": [
-            "规格型号"
+            "规格型号",
+            "制造商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "制造商",
@@ -1020,7 +1091,8 @@
           "sheet_name": "信号MOSFET",
           "enabled": true,
           "feishu_key_names": [
-            "Part Number"
+            "Part Number",
+            "Brand"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "Brand",
@@ -1034,7 +1106,8 @@
           "sheet_name": "功率MOSFET",
           "enabled": true,
           "feishu_key_names": [
-            "Part Number"
+            "Part Number",
+            "Brand"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "Brand",
@@ -1048,7 +1121,8 @@
           "sheet_name": "光耦",
           "enabled": true,
           "feishu_key_names": [
-            "Part Number"
+            "Part Number",
+            "Brand"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "Brand",
@@ -1068,7 +1142,8 @@
           "sheet_name": "RJ45",
           "enabled": true,
           "feishu_key_names": [
-            "供应商料号"
+            "供应商料号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1082,7 +1157,8 @@
           "sheet_name": "USB",
           "enabled": true,
           "feishu_key_names": [
-            "供应商料号"
+            "供应商料号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1096,7 +1172,8 @@
           "sheet_name": "Audio Jack",
           "enabled": true,
           "feishu_key_names": [
-            "供应商料号"
+            "供应商料号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1110,7 +1187,8 @@
           "sheet_name": "SFP",
           "enabled": true,
           "feishu_key_names": [
-            "供应商料号"
+            "供应商料号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1124,7 +1202,8 @@
           "sheet_name": "Cage",
           "enabled": true,
           "feishu_key_names": [
-            "供应商料号"
+            "供应商料号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1138,7 +1217,8 @@
           "sheet_name": "DP",
           "enabled": true,
           "feishu_key_names": [
-            "供应商料号"
+            "供应商料号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1152,7 +1232,8 @@
           "sheet_name": "HDMI",
           "enabled": true,
           "feishu_key_names": [
-            "供应商料号"
+            "供应商料号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1166,7 +1247,8 @@
           "sheet_name": "D-Sub",
           "enabled": true,
           "feishu_key_names": [
-            "供应商料号"
+            "供应商料号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1180,7 +1262,8 @@
           "sheet_name": "Combo",
           "enabled": true,
           "feishu_key_names": [
-            "供应商料号"
+            "供应商料号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1194,7 +1277,8 @@
           "sheet_name": "Din类",
           "enabled": true,
           "feishu_key_names": [
-            "供应商料号"
+            "供应商料号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1208,7 +1292,8 @@
           "sheet_name": "CPU Socket ",
           "enabled": true,
           "feishu_key_names": [
-            "供应商料号"
+            "供应商料号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1222,7 +1307,8 @@
           "sheet_name": "CPU Socket Related ",
           "enabled": true,
           "feishu_key_names": [
-            "供应商料号"
+            "供应商料号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1236,7 +1322,8 @@
           "sheet_name": "DDR",
           "enabled": true,
           "feishu_key_names": [
-            "供应商料号"
+            "供应商料号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1250,7 +1337,8 @@
           "sheet_name": "M.2",
           "enabled": true,
           "feishu_key_names": [
-            "供应商料号"
+            "供应商料号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1264,7 +1352,8 @@
           "sheet_name": "GEN Z ",
           "enabled": true,
           "feishu_key_names": [
-            "供应商料号"
+            "供应商料号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1278,7 +1367,8 @@
           "sheet_name": "PCIe ",
           "enabled": true,
           "feishu_key_names": [
-            "供应商料号"
+            "供应商料号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1292,7 +1382,8 @@
           "sheet_name": "Slim SAS",
           "enabled": true,
           "feishu_key_names": [
-            "供应商料号"
+            "供应商料号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1306,7 +1397,8 @@
           "sheet_name": "U2&U3",
           "enabled": true,
           "feishu_key_names": [
-            "供应商料号"
+            "供应商料号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1320,7 +1412,8 @@
           "sheet_name": "SATA",
           "enabled": true,
           "feishu_key_names": [
-            "供应商料号"
+            "供应商料号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1334,7 +1427,8 @@
           "sheet_name": "SAS 29Pin ",
           "enabled": true,
           "feishu_key_names": [
-            "供应商料号"
+            "供应商料号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1348,7 +1442,8 @@
           "sheet_name": "Mini SAS HD",
           "enabled": true,
           "feishu_key_names": [
-            "供应商料号"
+            "供应商料号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1362,7 +1457,8 @@
           "sheet_name": "Oculink",
           "enabled": true,
           "feishu_key_names": [
-            "供应商料号"
+            "供应商料号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1376,7 +1472,8 @@
           "sheet_name": "MCIO",
           "enabled": true,
           "feishu_key_names": [
-            "供应商料号"
+            "供应商料号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1390,7 +1487,8 @@
           "sheet_name": "高速BTB",
           "enabled": true,
           "feishu_key_names": [
-            "供应商料号"
+            "供应商料号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1404,7 +1502,8 @@
           "sheet_name": "Guide Module",
           "enabled": true,
           "feishu_key_names": [
-            "供应商料号"
+            "供应商料号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1418,7 +1517,8 @@
           "sheet_name": "高速WTB",
           "enabled": true,
           "feishu_key_names": [
-            "供应商料号"
+            "供应商料号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1432,7 +1532,8 @@
           "sheet_name": "High Power Card Edge",
           "enabled": true,
           "feishu_key_names": [
-            "供应商料号"
+            "供应商料号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1446,7 +1547,8 @@
           "sheet_name": "功率WTB",
           "enabled": true,
           "feishu_key_names": [
-            "供应商料号"
+            "供应商料号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1460,7 +1562,8 @@
           "sheet_name": "风扇连接器",
           "enabled": true,
           "feishu_key_names": [
-            "供应商料号"
+            "供应商料号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1474,7 +1577,8 @@
           "sheet_name": "功率BTB ",
           "enabled": true,
           "feishu_key_names": [
-            "供应商料号"
+            "供应商料号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1488,7 +1592,8 @@
           "sheet_name": "异形大电流",
           "enabled": true,
           "feishu_key_names": [
-            "供应商料号"
+            "供应商料号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1502,7 +1607,8 @@
           "sheet_name": "Header",
           "enabled": true,
           "feishu_key_names": [
-            "供应商料号"
+            "供应商料号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1516,7 +1622,8 @@
           "sheet_name": "Wafer ",
           "enabled": true,
           "feishu_key_names": [
-            "供应商料号"
+            "供应商料号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1530,7 +1637,8 @@
           "sheet_name": "低速BTB",
           "enabled": true,
           "feishu_key_names": [
-            "供应商料号"
+            "供应商料号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1544,7 +1652,8 @@
           "sheet_name": "Button&Switch",
           "enabled": true,
           "feishu_key_names": [
-            "供应商料号"
+            "供应商料号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1558,7 +1667,8 @@
           "sheet_name": "Flash Socket",
           "enabled": true,
           "feishu_key_names": [
-            "供应商料号"
+            "供应商料号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1572,7 +1682,8 @@
           "sheet_name": "RF",
           "enabled": true,
           "feishu_key_names": [
-            "供应商料号"
+            "供应商料号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1586,7 +1697,8 @@
           "sheet_name": "ZIF",
           "enabled": true,
           "feishu_key_names": [
-            "供应商料号"
+            "供应商料号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1600,7 +1712,8 @@
           "sheet_name": "SIM卡座",
           "enabled": true,
           "feishu_key_names": [
-            "供应商料号"
+            "供应商料号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1614,7 +1727,8 @@
           "sheet_name": "SD卡座",
           "enabled": true,
           "feishu_key_names": [
-            "供应商料号"
+            "供应商料号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1628,7 +1742,8 @@
           "sheet_name": "Battery Holder",
           "enabled": true,
           "feishu_key_names": [
-            "供应商料号"
+            "供应商料号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1642,7 +1757,8 @@
           "sheet_name": "Busbar",
           "enabled": true,
           "feishu_key_names": [
-            "供应商料号"
+            "供应商料号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1656,7 +1772,8 @@
           "sheet_name": "Speaker",
           "enabled": true,
           "feishu_key_names": [
-            "供应商料号"
+            "供应商料号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1670,7 +1787,8 @@
           "sheet_name": "跳线帽",
           "enabled": true,
           "feishu_key_names": [
-            "供应商料号"
+            "供应商料号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1684,7 +1802,8 @@
           "sheet_name": "连接器附件",
           "enabled": true,
           "feishu_key_names": [
-            "供应商料号"
+            "供应商料号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1704,7 +1823,8 @@
           "sheet_name": "SATA",
           "enabled": true,
           "feishu_key_names": [
-            "规格型号"
+            "规格型号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1718,7 +1838,8 @@
           "sheet_name": "低速信号线",
           "enabled": true,
           "feishu_key_names": [
-            "规格型号"
+            "规格型号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1732,7 +1853,8 @@
           "sheet_name": "Mini SAS HD",
           "enabled": true,
           "feishu_key_names": [
-            "规格型号"
+            "规格型号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1746,7 +1868,8 @@
           "sheet_name": "Slimline",
           "enabled": true,
           "feishu_key_names": [
-            "规格型号"
+            "规格型号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1760,7 +1883,8 @@
           "sheet_name": "MCIO",
           "enabled": true,
           "feishu_key_names": [
-            "规格型号"
+            "规格型号",
+            "品牌"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "品牌",
@@ -1774,7 +1898,8 @@
           "sheet_name": "DC供电线",
           "enabled": true,
           "feishu_key_names": [
-            "规格型号"
+            "规格型号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1788,7 +1913,8 @@
           "sheet_name": "AC电源线",
           "enabled": true,
           "feishu_key_names": [
-            "规格型号"
+            "规格型号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1802,7 +1928,8 @@
           "sheet_name": "外部高速线",
           "enabled": true,
           "feishu_key_names": [
-            "规格型号"
+            "规格型号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1816,7 +1943,8 @@
           "sheet_name": "单板焊线类（如CEM，OCP,GenZ）",
           "enabled": true,
           "feishu_key_names": [
-            "规格型号"
+            "规格型号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1830,7 +1958,8 @@
           "sheet_name": "网线",
           "enabled": true,
           "feishu_key_names": [
-            "规格型号"
+            "规格型号",
+            "供应商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "供应商",
@@ -1850,7 +1979,8 @@
           "sheet_name": "字节",
           "enabled": true,
           "feishu_key_names": [
-            "厂家型号"
+            "厂家型号",
+            "HQ制造商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "HQ制造商",
@@ -1863,7 +1993,8 @@
           "sheet_name": "阿里",
           "enabled": true,
           "feishu_key_names": [
-            "厂家型号"
+            "厂家型号",
+            "HQ制造商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "HQ制造商",
@@ -1876,7 +2007,8 @@
           "sheet_name": "腾讯",
           "enabled": true,
           "feishu_key_names": [
-            "厂家型号"
+            "厂家型号",
+            "HQ制造商"
           ],
           "fetch_col_aliases": {
             "HQ制造商": "HQ制造商",

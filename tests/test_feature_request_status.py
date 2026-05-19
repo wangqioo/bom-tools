@@ -46,6 +46,41 @@ class FeatureRequestStatusTests(unittest.TestCase):
         )
         self.assertFalse(missing_resp.get_json()["success"])
 
+    def test_feature_request_like_is_deduplicated_by_employee_id(self):
+        data = {
+            "requester": "Like Tester",
+            "employee_id": "100008",
+            "title": "Deduplicate likes",
+            "requirement": "The same employee should only like once.",
+        }
+        client = app.test_client()
+        create_resp = client.post("/api/feature_requests", data=data)
+        created = create_resp.get_json()["request"]
+
+        first_resp = client.post(
+            f"/api/feature_requests/{created['id']}/like",
+            json={"employee_id": "100008"},
+        )
+        first_payload = first_resp.get_json()
+        self.assertTrue(first_payload["success"])
+        self.assertEqual(first_payload["request"]["likes"], 1)
+        self.assertFalse(first_payload.get("already_liked", False))
+
+        second_resp = client.post(
+            f"/api/feature_requests/{created['id']}/like",
+            json={"employee_id": "100008"},
+        )
+        second_payload = second_resp.get_json()
+        self.assertTrue(second_payload["success"])
+        self.assertTrue(second_payload["already_liked"])
+        self.assertEqual(second_payload["request"]["likes"], 1)
+
+        third_resp = client.post(
+            f"/api/feature_requests/{created['id']}/like",
+            json={"employee_id": "100009"},
+        )
+        self.assertEqual(third_resp.get_json()["request"]["likes"], 2)
+
 
 if __name__ == "__main__":
     unittest.main()
