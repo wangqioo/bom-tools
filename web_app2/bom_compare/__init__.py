@@ -6,6 +6,7 @@ import uuid
 import json
 import re
 import subprocess
+from decimal import Decimal, InvalidOperation
 
 from flask import Blueprint
 
@@ -200,7 +201,8 @@ def _normalize_header(value):
     return ''.join(str(value or '').lower().split()).replace('_', '').replace('-', '')
 
 
-def _detect_common_key(left_headers, right_headers, prefer_part_no=False):
+def _detect_common_key(left_headers, right_headers, prefer_part_no=False, ignored_left_headers=None):
+    ignored_left_headers = set(ignored_left_headers or [])
     left_norm = {_normalize_header(h): h for h in left_headers if h}
     right_norm = {_normalize_header(h): h for h in right_headers if h}
     part_no_pairs = (
@@ -255,6 +257,8 @@ def _non_empty_headers(ws, header_row, headers, required_headers=None):
     return [h for h in headers if h in required or has_value.get(h)]
 
 
+def _comparable_headers(ws, fmt):
+    return _non_empty_headers(ws, fmt['header_row'], fmt['headers'])
 def _read_cadence_side_headers(path, sheet_name='', fallback_header_row=1):
     wb = _open_workbook(path, data_only=True)
     try:
@@ -276,10 +280,23 @@ def _read_hq_side_headers(path, sheet_name=''):
     wb, sheet_name, ws, fmt = _open_hq_workbook_info(path, sheet_name)
     sheets = wb.sheetnames
     headers = fmt['headers']
-    bom_sheets = [name for name in PLM_FULL_SHEETS if name in sheets] if fmt['kind'] == 'plm_full' else [sheet_name]
+    bom_sheets = _plm_full_target_sheets(wb, ['DBG业务BOM']) if fmt['kind'] == 'plm_full' else [sheet_name]
     wb.close()
     return sheet_name, headers, fmt, sheets, bom_sheets
 
+
+def _valid_plm_full_sheets(wb):
+    result = []
+    for name in wb.sheetnames:
+        try:
+            _validate_plm_full_ws(wb[name])
+            result.append(name)
+        except ValueError:
+            pass
+    return result
+
+def _plm_full_target_sheets(wb, _preferred=None):
+    return _valid_plm_full_sheets(wb)
 
 def _load_hq_side_rows(path, sheet_name, key_col, compare_cols, expand_refdes=False):
     rows, duplicates, headers = _load_rows(path, sheet_name, None, key_col, compare_cols, expand_refdes=expand_refdes)
@@ -295,6 +312,25 @@ def _is_qty_header(value):
     norm = _normalize_header(value)
     return norm in {'单耗', '数量', 'qty', 'quantity'}
 
+_NUMERIC_TEXT_RE = re.compile(r'^[+-]?(?:0|[1-9]\d*)(?:\.\d+)?$|^[+-]?0?\.\d+$')
+
+
+def _numeric_decimal(value):
+    text = _cell_str(value)
+    if not text or not _NUMERIC_TEXT_RE.match(text):
+        return None
+    try:
+        return Decimal(text)
+    except (InvalidOperation, ValueError):
+        return None
+
+
+def _field_value_equal(left_value, right_value):
+    left_num = _numeric_decimal(left_value)
+    right_num = _numeric_decimal(right_value)
+    if left_num is not None and right_num is not None:
+        return left_num == right_num
+    return _cell_str(left_value) == _cell_str(right_value)
 
 def _expand_compare_values(values, key_col, key):
     expanded = dict(values)
@@ -371,7 +407,7 @@ def _field_pairs(config_pairs, left_headers, right_headers, ignored_left_headers
 def _generic_field_equal(left_col, right_col, left_value, right_value):
     if _is_refdes_header(left_col) or _is_refdes_header(right_col):
         return set(_split_refdes(left_value)) == set(_split_refdes(right_value))
-    return left_value == right_value
+    return _field_value_equal(left_value, right_value)
 
 
 def _generic_diff_items(left_rows, right_rows, field_pairs, labels=None):
@@ -520,7 +556,8 @@ def _write_generic_compare_report(out_path, left_rows, right_rows, field_pairs, 
         sheet.auto_filter.ref = sheet.dimensions
 
     diff_items = [i for i in items if i['type'] != '一致']
-    write_table(wb.create_sheet('差异明细'), diff_items)
+    if labels.get('filename') != 'Cadence_BOM对比HQ_BOM':
+        write_table(wb.create_sheet('差异明细'), diff_items)
     write_original_rows(wb.create_sheet(_safe_sheet_title(left_only_type)), [i for i in items if i['type'] == left_only_type], 'left', left_headers)
     write_original_rows(wb.create_sheet(_safe_sheet_title(right_only_type)), [i for i in items if i['type'] == right_only_type], 'right', right_headers)
     write_table(wb.create_sheet('字段变更'), [i for i in items if i['type'] == '字段变更'])
@@ -665,7 +702,7 @@ def _diff_items(old_rows, new_rows, compare_cols):
                 if col == '位号':
                     if removed_refdes or added_refdes:
                         changed_fields.append(col)
-                elif old['values'].get(col, '') != new['values'].get(col, ''):
+                elif not _field_value_equal(old['values'].get(col, ''), new['values'].get(col, '')):
                     changed_fields.append(col)
             if (removed_refdes or added_refdes) and '位号' not in changed_fields:
                 changed_fields.append('位号')
@@ -692,7 +729,7 @@ def _hq_stats(old_rows, old_dups, new_rows, new_dups, compare_cols):
         removed_refdes, added_refdes = _refdes_delta(old_rows[key], new_rows[key])
         has_change = any(
             (removed_refdes or added_refdes) if col == '\u4f4d\u53f7'
-            else old_rows[key]['values'].get(col, '') != new_rows[key]['values'].get(col, '')
+            else not _field_value_equal(old_rows[key]['values'].get(col, ''), new_rows[key]['values'].get(col, ''))
             for col in compare_cols
         )
         (changed if has_change else unchanged).append(key)
@@ -815,7 +852,6 @@ def _write_diff_report(out_path, old_rows, new_rows, compare_cols, stats, duplic
         sheet.freeze_panes = 'A2'
         sheet.auto_filter.ref = sheet.dimensions
 
-    write_table(wb.create_sheet('差异明细'), items)
     write_table(wb.create_sheet('新增物料'), [i for i in items if i['type'] == '新增'])
     write_table(wb.create_sheet('删除物料'), [i for i in items if i['type'] == '删除'])
     write_table(wb.create_sheet('变更物料'), [i for i in items if i['type'] == '变更'])
@@ -946,20 +982,16 @@ def _write_plm_full_diff_report(out_path, sheet_results, compare_cols, old_meta=
         sheet.freeze_panes = 'A2'
         sheet.auto_filter.ref = sheet.dimensions
 
-    all_rows = []
     added_rows = []
     removed_rows = []
     changed_rows = []
     for result in sheet_results:
         sheet_name = result['sheet']
         items = result['items']
-        all_rows.extend(expanded_rows(sheet_name, items))
         added_rows.extend(expanded_rows(sheet_name, [i for i in items if i['type'] == '\u65b0\u589e']))
         removed_rows.extend(expanded_rows(sheet_name, [i for i in items if i['type'] == '\u5220\u9664']))
         changed_rows.extend(expanded_rows(sheet_name, [i for i in items if i['type'] == '\u53d8\u66f4']))
-        write_table(wb.create_sheet(_safe_sheet_title(f'{sheet_name}\u5dee\u5f02')), expanded_rows(sheet_name, items))
 
-    write_table(wb.create_sheet('\u5168\u90e8\u5dee\u5f02\u660e\u7ec6'), all_rows)
     write_table(wb.create_sheet('\u5168\u90e8\u65b0\u589e\u7269\u6599'), added_rows)
     write_table(wb.create_sheet('\u5168\u90e8\u5220\u9664\u7269\u6599'), removed_rows)
     write_table(wb.create_sheet('\u5168\u90e8\u53d8\u66f4\u7269\u6599'), changed_rows)
@@ -1030,7 +1062,7 @@ def api_generic_sheets():
         if right_file:
             right_path = _save_uploaded_hq_excel(right_file, 'bomcmp_generic_right', uid)
             right_sheet, right_headers, right_fmt, right_sheets, right_bom_sheets = _read_hq_side_headers(right_path, request.form.get('right_sheet', ''))
-            left_key, right_key = _detect_common_key(left_headers, right_headers, prefer_part_no=(compare_type == 'cadence_hq'))
+            left_key, right_key = _detect_common_key(left_headers, right_headers, prefer_part_no=(compare_type == 'cadence_hq'), ignored_left_headers=ignored_left_headers)
             result.update({
                 'right_sheets': right_sheets,
                 'right_current_sheet': right_sheet,
@@ -1150,8 +1182,8 @@ def api_local_sheets():
     try:
         wb, sheet_name, ws, fmt = _open_hq_workbook_info(path, request.form.get('sheet_name', ''))
         sheets = wb.sheetnames
-        headers = fmt['headers']
-        bom_sheets = [name for name in PLM_FULL_SHEETS if name in sheets] if fmt['kind'] == 'plm_full' else [sheet_name]
+        headers = _comparable_headers(ws, fmt)
+        bom_sheets = _plm_full_target_sheets(wb, ['DBG业务BOM']) if fmt['kind'] == 'plm_full' else [sheet_name]
         wb.close()
         return jsonify({
             'success': True,
@@ -1169,6 +1201,116 @@ def api_local_sheets():
         return jsonify({'success': False, 'error': str(e)})
 
 
+@bom_compare_bp.route('/api/bom_compare/machine_local_sheets', methods=['POST'])
+def api_machine_local_sheets():
+    file = request.files.get('file')
+    if not file:
+        return jsonify({'success': False, 'error': '\u8bf7\u4e0a\u4f20\u6587\u4ef6'})
+    uid = str(uuid.uuid4())[:8]
+    try:
+        path = _save_uploaded_hq_excel(file, "bomcmp_machine_pre", uid)
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+    try:
+        wb, sheet_name, ws, fmt = _open_hq_workbook_info(path, request.form.get('sheet_name', ''))
+        sheets = wb.sheetnames
+        headers = _comparable_headers(ws, fmt)
+        bom_sheets = _plm_full_target_sheets(wb, ['BOM']) if fmt['kind'] == 'plm_full' else [sheet_name]
+        wb.close()
+        return jsonify({
+            'success': True,
+            'sheets': sheets,
+            'current_sheet': sheet_name,
+            'headers': headers,
+            'detected_key': _detect_key(headers),
+            'format': fmt['kind'],
+            'header_row': fmt['header_row'],
+            'bom_sheets': bom_sheets,
+        })
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@bom_compare_bp.route('/api/bom_compare/machine_hq_version', methods=['POST'])
+def api_machine_hq_version_compare():
+    old_file = request.files.get('old_file')
+    new_file = request.files.get('new_file')
+    if not old_file or not new_file:
+        return jsonify({'success': False, 'error': '\u8bf7\u4e0a\u4f20\u57fa\u51c6\u7248\u672c\u548c\u5bf9\u6bd4\u7248\u672c\u6574\u673a HQ BOM'})
+
+    try:
+        config = json.loads(request.form.get('config', '{}'))
+    except Exception:
+        return jsonify({'success': False, 'error': 'config \u53c2\u6570\u683c\u5f0f\u9519\u8bef'})
+
+    key_col = str(config.get('key_col') or '').strip()
+    compare_cols = [str(c).strip() for c in config.get('compare_cols', []) if str(c).strip()]
+    if not key_col:
+        return jsonify({'success': False, 'error': '\u8bf7\u9009\u62e9\u5339\u914d\u952e\u5217'})
+    if not compare_cols:
+        return jsonify({'success': False, 'error': '\u8bf7\u81f3\u5c11\u9009\u62e9\u4e00\u4e2a\u6bd4\u5bf9\u5b57\u6bb5'})
+
+    uid = str(uuid.uuid4())[:8]
+    try:
+        old_path = _save_uploaded_hq_excel(old_file, "bomcmp_machine_old", uid)
+        new_path = _save_uploaded_hq_excel(new_file, "bomcmp_machine_new", uid)
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+    try:
+        old_meta = _load_meta(old_path, config.get('old_sheet', ''))
+        new_meta = _load_meta(new_path, config.get('new_sheet', ''))
+        old_format = old_meta.get('_format')
+        new_format = new_meta.get('_format')
+        if old_format != new_format:
+            return jsonify({'success': False, 'error': '\u4e24\u4efd BOM \u683c\u5f0f\u4e0d\u540c\uff0c\u8bf7\u4f7f\u7528\u540c\u4e00\u79cd\u6574\u673a BOM \u683c\u5f0f\u8fdb\u884c\u7248\u672c\u5bf9\u6bd4'})
+
+        if old_format == 'plm_full':
+            old_wb = _open_workbook(old_path, read_only=True, data_only=True)
+            new_wb = _open_workbook(new_path, read_only=True, data_only=True)
+            old_sheets = _plm_full_target_sheets(old_wb, ['BOM'])
+            new_sheets = _plm_full_target_sheets(new_wb, ['BOM'])
+            common_sheets = [name for name in old_sheets if name in new_sheets]
+            old_wb.close()
+            new_wb.close()
+            if not common_sheets:
+                return jsonify({'success': False, 'error': 'PLM \u5168\u91cf\u6574\u673a BOM \u672a\u627e\u5230\u53ef\u6bd4\u5bf9\u7684 BOM Sheet'})
+            sheet_results = []
+            total_stats = {k: 0 for k in ['old_total', 'new_total', 'added', 'removed', 'changed', 'unchanged', 'old_duplicates', 'new_duplicates']}
+            for sheet in common_sheets:
+                old_rows, old_dups, _ = _load_rows(old_path, sheet, PLM_FULL_HEADER_ROW, key_col, compare_cols)
+                new_rows, new_dups, _ = _load_rows(new_path, sheet, PLM_FULL_HEADER_ROW, key_col, compare_cols)
+                stats = _hq_stats(old_rows, old_dups, new_rows, new_dups, compare_cols)
+                for key in total_stats:
+                    total_stats[key] += stats.get(key, 0)
+                sheet_results.append({
+                    'sheet': sheet,
+                    'old_rows': old_rows,
+                    'new_rows': new_rows,
+                    'stats': stats,
+                    'items': _diff_items(old_rows, new_rows, compare_cols),
+                    'duplicate_notes': _duplicate_notes(old_dups, new_dups, sheet),
+                })
+            out_name = f"Machine_HQ_BOM_version_diff_{uid}.xlsx"
+            out_path = os.path.join(OUTPUT_DIR, out_name)
+            _write_plm_full_diff_report(out_path, sheet_results, compare_cols, old_meta, new_meta)
+            return jsonify({'success': True, 'download': f'/download/{out_name}', 'format': 'plm_full', 'sheets': common_sheets, **total_stats})
+
+        old_rows, old_dups, _ = _load_rows(old_path, config.get('old_sheet', ''), HQ_STANDARD_HEADER_ROW, key_col, compare_cols)
+        new_rows, new_dups, _ = _load_rows(new_path, config.get('new_sheet', ''), HQ_STANDARD_HEADER_ROW, key_col, compare_cols)
+        stats = _hq_stats(old_rows, old_dups, new_rows, new_dups, compare_cols)
+        duplicate_notes = _duplicate_notes(old_dups, new_dups)
+        out_name = f"Machine_HQ_BOM_version_diff_{uid}.xlsx"
+        out_path = os.path.join(OUTPUT_DIR, out_name)
+        _write_diff_report(out_path, old_rows, new_rows, compare_cols, stats, duplicate_notes, old_meta, new_meta)
+        return jsonify({'success': True, 'download': f'/download/{out_name}', 'format': 'standard', **stats})
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
 @bom_compare_bp.route('/api/bom_compare/hq_version', methods=['POST'])
 def api_hq_version_compare():
     old_file = request.files.get('old_file')
@@ -1208,7 +1350,9 @@ def api_hq_version_compare():
         if old_format == 'plm_full':
             old_wb = _open_workbook(old_path, read_only=True, data_only=True)
             new_wb = _open_workbook(new_path, read_only=True, data_only=True)
-            common_sheets = [name for name in PLM_FULL_SHEETS if name in old_wb.sheetnames and name in new_wb.sheetnames]
+            old_sheets = _plm_full_target_sheets(old_wb, ['DBG业务BOM'])
+            new_sheets = _plm_full_target_sheets(new_wb, ['DBG业务BOM'])
+            common_sheets = [name for name in old_sheets if name in new_sheets]
             old_wb.close()
             new_wb.close()
             if not common_sheets:

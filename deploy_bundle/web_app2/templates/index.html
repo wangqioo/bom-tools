@@ -21,6 +21,11 @@ body { font-family: -apple-system,'Segoe UI','Microsoft YaHei',sans-serif; displ
 .toolbar { background:#fff; padding:10px 20px; border-bottom:1px solid #e0e0e0; display:flex; align-items:center; gap:12px; }
 .toolbar h2 { font-size:18px; color:#1a3a5c; }
 .toolbar .badge { background:#e8f0fe; color:#1a5ad4; padding:3px 10px; border-radius:10px; font-size:11px; }
+.refresh-notice { display:none; align-items:center; justify-content:space-between; gap:12px; background:#fff7e6; border-bottom:1px solid #ffd591; color:#7a4b00; padding:9px 20px; font-size:13px; }
+.refresh-notice.show { display:flex; }
+.refresh-notice b { color:#5c3900; }
+.refresh-notice button { border:1px solid #d48806; background:#fff; color:#874d00; border-radius:6px; padding:4px 10px; font-size:12px; font-weight:600; cursor:pointer; }
+.refresh-notice button:hover { background:#fff1d6; }
 .content { flex:1; overflow-y:auto; padding:16px 20px; }
 /* === 通用组件 === */
 .section { background:#fff; border-radius:10px; padding:16px 20px; margin-bottom:12px; box-shadow:0 1px 4px rgba(0,0,0,.06); }
@@ -172,6 +177,10 @@ tr:hover td { background:#f7f9fc; }
   <div class="toolbar">
     <h2 id="toolTitle">BOM Tools</h2>
     <span class="badge" id="toolBadge">硬件设计辅助平台</span>
+  </div>
+  <div class="refresh-notice" id="refreshNotice">
+    <span><b>系统刚更新：</b>如果页面表现和最新功能不一致，请按 <b>Ctrl + F5</b> 强制刷新后再使用。</span>
+    <button type="button" id="refreshNoticeAck">知道了</button>
   </div>
   <div class="content" id="contentArea"></div>
 </div>
@@ -448,7 +457,8 @@ tr:hover td { background:#f7f9fc; }
 <!-- 子功能 Tab -->
 <div style="display:flex;gap:8px;margin-bottom:18px;border-bottom:2px solid #e0e4ef;padding-bottom:0">
   <button class="bomcmp-tab-btn active" data-bomcmp-tab="customer-hq" style="padding:6px 18px;border:none;background:none;font-size:13px;font-weight:600;color:#1a5ad4;border-bottom:2px solid #1a5ad4;margin-bottom:-2px;cursor:pointer">客户BOM对比HQ BOM</button>
-  <button class="bomcmp-tab-btn" data-bomcmp-tab="hq-version" style="padding:6px 18px;border:none;background:none;font-size:13px;font-weight:600;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer">同项目HQ BOM版本对比</button>
+  <button class="bomcmp-tab-btn" data-bomcmp-tab="hq-version" style="padding:6px 18px;border:none;background:none;font-size:13px;font-weight:600;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer">单板HQ BOM版本对比</button>
+  <button class="bomcmp-tab-btn" data-bomcmp-tab="machine-hq-version" style="padding:6px 18px;border:none;background:none;font-size:13px;font-weight:600;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer">整机HQ BOM版本对比</button>
   <button class="bomcmp-tab-btn" data-bomcmp-tab="cadence-hq" style="padding:6px 18px;border:none;background:none;font-size:13px;font-weight:600;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer">Cadence导出BOM对比HQ BOM</button>
 </div>
 
@@ -490,8 +500,8 @@ tr:hover td { background:#f7f9fc; }
 
 <div id="bomcmp-tab-hq-version" class="workflow-shell" style="display:none">
   <div class="workflow-hero">
-    <h4>同项目HQ BOM版本对比</h4>
-    <p>上传同一个项目的基准版本和对比版本 HQ BOM，按匹配键定位物料，并对选定字段输出新增、删除、变更和未变更差异报告。</p>
+    <h4>单板HQ BOM版本对比</h4>
+    <p>上传同一个单板项目的基准版本和对比版本 HQ BOM，按匹配键定位物料，并对选定字段输出新增、删除、变更和未变更差异报告。</p>
   </div>
   <div class="section"><h3>第一步：上传基准版本和对比版本</h3>
     <div class="workflow-step-desc">选择基准版本和对比版本 HQ BOM，确认 Sheet 和表头行。两份文件建议使用同一套表头。</div>
@@ -523,12 +533,55 @@ tr:hover td { background:#f7f9fc; }
     </details>
   </div>
   <div class="section"><h3>第三步：输出差异报告</h3>
-    <div class="workflow-step-desc">报告包含差异明细和统计 Sheet。重复匹配键会在统计页列出，重复项只取第一次参与比对。</div>
+    <div class="workflow-step-desc">报告包含新增、删除、变更和统计 Sheet。重复匹配键会在统计页列出，重复项只取第一次参与比对。</div>
     <button class="btn btn-primary" id="hqvRun" type="button">⚡ 开始比对</button>
     <span id="hqvStatus" style="font-size:13px;color:#888;margin-left:8px"></span>
   </div>
   <div class="result" id="hqvResult"><span class="title">✅ 比对完成</span><br><span id="hqvStats" style="display:inline-block;margin-top:6px"></span><br><a class="download" id="hqvDl" href="#">📥 下载差异报告</a></div>
   <div class="error" id="hqvError"></div>
+</div>
+
+<div id="bomcmp-tab-machine-hq-version" class="workflow-shell" style="display:none">
+  <div class="workflow-hero">
+    <h4>整机HQ BOM版本对比</h4>
+    <p>上传同一个整机项目的基准版本和对比版本 HQ BOM，按匹配键定位物料，并对选定字段输出新增、删除、变更和未变更差异报告。</p>
+  </div>
+  <div class="section"><h3>第一步：上传基准版本和对比版本</h3>
+    <div class="workflow-step-desc">选择基准版本和对比版本 整机 HQ BOM，确认 Sheet 和表头行。两份文件建议使用同一套表头。</div>
+    <div class="row"><label>基准版本 BOM：</label><input type="file" id="machvOldFile" accept=".xlsx,.xlsm,.xls" style="width:320px"></div>
+    <div class="row"><label>对比版本 BOM：</label><input type="file" id="machvNewFile" accept=".xlsx,.xlsm,.xls" style="width:320px"></div>
+    <div class="row">
+      <label>基准版本 Sheet：</label><select id="machvOldSheet" style="width:180px"><option>先选择文件</option></select>
+      <label>对比版本 Sheet：</label><select id="machvNewSheet" style="width:180px"><option>先选择文件</option></select>
+      <label>表头行：</label><input type="number" id="machvHdr" value="3" min="1" style="width:60px">
+      <button class="btn btn-sm btn-gray" id="machvRefresh" type="button">刷新列</button>
+    </div>
+    <div id="machvLoadStatus" style="font-size:12px;color:#888"></div>
+  </div>
+  <div class="section"><h3>第二步：确认比对规则</h3>
+    <div class="workflow-step-desc">系统默认按「料号」匹配同一物料。下面勾选的是需要检查变化的字段，不是匹配键候选。</div>
+    <div class="plm-info" id="machvRuleSummary">匹配规则：按「料号」匹配同一物料</div>
+    <div class="row">
+      <label style="min-width:120px">需要检查变化的字段：</label>
+      <button class="btn btn-sm btn-gray" id="machvSelectAll" type="button">全选字段</button>
+      <button class="btn btn-sm btn-gray" id="machvSelectNone" type="button">清空字段</button>
+    </div>
+    <div id="machvCompareCols" class="chk-list" style="max-height:220px"></div>
+    <details style="margin-top:10px">
+      <summary style="cursor:pointer;font-size:12px;color:#1a5ad4;font-weight:600">高级设置：修改匹配键</summary>
+      <div class="row" style="margin-top:10px">
+        <label>匹配键：</label><select id="machvKeyCol" style="width:220px"><option>先刷新列</option></select>
+        <span class="hint">匹配键用于判定两份 BOM 中哪两行是同一个物料。系统导出 HQ BOM 通常使用「料号」。</span>
+      </div>
+    </details>
+  </div>
+  <div class="section"><h3>第三步：输出差异报告</h3>
+    <div class="workflow-step-desc">报告包含新增、删除、变更和统计 Sheet。重复匹配键会在统计页列出，重复项只取第一次参与比对。</div>
+    <button class="btn btn-primary" id="machvRun" type="button">⚡ 开始比对</button>
+    <span id="machvStatus" style="font-size:13px;color:#888;margin-left:8px"></span>
+  </div>
+  <div class="result" id="machvResult"><span class="title">✅ 比对完成</span><br><span id="machvStats" style="display:inline-block;margin-top:6px"></span><br><a class="download" id="machvDl" href="#">📥 下载差异报告</a></div>
+  <div class="error" id="machvError"></div>
 </div>
 
 <div id="bomcmp-tab-cadence-hq" class="workflow-shell" style="display:none">
@@ -765,13 +818,28 @@ const TOOLS = {
   plm:    {title:'转换为上传PLM系统格式', badge:'v1.6',  tpl:'tpl-plm',
            desc:'将整机 BOM 配置表转换为 PLM 系统可导入的标准格式：序号、料号、单耗等25列，主供行填单耗，替代料自动标记主辅BOM标记。'},
   'bom-compare': {title:'BOM比对工具合集', badge:'v0.1', tpl:'tpl-bom-compare',
-           desc:'提供客户BOM对比HQ BOM、同项目HQ BOM版本对比、Cadence导出BOM对比HQ BOM三个比对子功能。'},
+           desc:'提供客户BOM对比HQ BOM、单板HQ BOM版本对比、整机HQ BOM版本对比、Cadence导出BOM对比HQ BOM四个比对子功能。'},
   'bug-report': {title:'Bug提交栏目', badge:'反馈', tpl:'tpl-bug-report',
            desc:'提交工具问题、附件和复现信息，所有记录保存在服务端，团队成员均可查看。'},
   'feature-request': {title:'需求开发工单', badge:'需求', tpl:'tpl-feature-request',
            desc:'提交新功能、流程优化和开发需求，便于后续评估、排期和跟进。'},
 };
 let curTool = null;
+const APP_NOTICE_VERSION = '2026-05-19-bom-compare-rules';
+
+function initRefreshNotice(){
+  const notice = $('refreshNotice');
+  const ack = $('refreshNoticeAck');
+  if(!notice || !ack) return;
+  const key = 'bomToolsRefreshNoticeSeen';
+  let seen = '';
+  try{ seen = localStorage.getItem(key) || ''; }catch(e){}
+  if(seen !== APP_NOTICE_VERSION) notice.classList.add('show');
+  ack.onclick = function(){
+    notice.classList.remove('show');
+    try{ localStorage.setItem(key, APP_NOTICE_VERSION); }catch(e){}
+  };
+}
 
 function showOverview(){
   curTool = null;
@@ -822,6 +890,8 @@ function initTool(tool){
   else if(tool==='manufacturer-alias') initManufacturerAlias();
   else if(window._toolInits&&window._toolInits[tool]) window._toolInits[tool]();
 }
+
+initRefreshNotice();
 
 function bugFmtTime(ts){
   if(!ts) return '';
@@ -1246,117 +1316,115 @@ function initBomCompare(){
       this.classList.add('active');
       this.style.color='#1a5ad4';
       this.style.borderBottomColor='#1a5ad4';
-      document.querySelectorAll('#bomcmp-tab-customer-hq,#bomcmp-tab-hq-version,#bomcmp-tab-cadence-hq').forEach(el=>el.style.display='none');
+      document.querySelectorAll('#bomcmp-tab-customer-hq,#bomcmp-tab-hq-version,#bomcmp-tab-machine-hq-version,#bomcmp-tab-cadence-hq').forEach(el=>el.style.display='none');
       $('bomcmp-tab-'+this.dataset.bomcmpTab).style.display='block';
     };
   });
   initGenericBomCompare('cust','customer_hq');
-  initHqVersionCompare();
+  initVersionCompare('hqv',{sheetsApi:'/api/bom_compare/local_sheets',compareApi:'/api/bom_compare/hq_version',label:'HQ BOM'});
+  initVersionCompare('machv',{sheetsApi:'/api/bom_compare/machine_local_sheets',compareApi:'/api/bom_compare/machine_hq_version',label:'整机 HQ BOM'});
   initGenericBomCompare('cad','cadence_hq');
 }
 
-function hqvGetCheckedCols(){
-  return [...document.querySelectorAll('#hqvCompareCols input[type="checkbox"]:checked')].map(x=>x.value);
+function vcState(prefix){
+  const key = '_vc_' + prefix;
+  window[key] = window[key] || {oldHeaders:[], newHeaders:[], oldFormat:'', newFormat:'', oldBomSheets:[], newBomSheets:[]};
+  return window[key];
 }
 
-function hqvRenderCompareCols(){
-  const oldHeaders=window._hqvOldHeaders||[];
-  const newHeaders=window._hqvNewHeaders||[];
-  const common=oldHeaders.filter(h=>h && newHeaders.includes(h));
-  const key=$('hqvKeyCol')?.value||'';
-  if($('hqvRuleSummary')) $('hqvRuleSummary').textContent=`匹配规则：按「${key||'料号'}」匹配同一物料`;
+function vcGetCheckedCols(prefix){
+  return [...document.querySelectorAll('#'+prefix+'CompareCols input[type="checkbox"]:checked')].map(x=>x.value);
+}
+
+function vcRenderCompareCols(prefix, opts={}){
+  const st=vcState(prefix);
+  const common=st.oldHeaders.filter(h=>h && st.newHeaders.includes(h));
+  const key=$(prefix+'KeyCol')?.value||'';
+  if($(prefix+'RuleSummary')) $(prefix+'RuleSummary').textContent=`匹配规则：按「${key||'料号'}」匹配同一物料`;
   let h='';
   common.forEach(col=>{
     const checked=col===key?'':' checked';
     h+=`<label><input type="checkbox" value="${_escH(col)}"${checked}>${_escH(col)}</label>`;
   });
-  $('hqvCompareCols').innerHTML=h || '<span style="font-size:12px;color:#888">请先加载两份 BOM 的列</span>';
+  $(prefix+'CompareCols').innerHTML=h || '<span style="font-size:12px;color:#888">请先加载两份 BOM 的列</span>';
 }
 
-async function hqvLoadOne(which){
-  const fileEl=$(which==='old'?'hqvOldFile':'hqvNewFile');
-  const sheetEl=$(which==='old'?'hqvOldSheet':'hqvNewSheet');
+async function vcLoadOne(prefix, which, sheetsApi){
+  const fileEl=$(which==='old'?prefix+'OldFile':prefix+'NewFile');
+  const sheetEl=$(which==='old'?prefix+'OldSheet':prefix+'NewSheet');
   const f=fileEl.files[0]; if(!f) return null;
   const fd=new FormData();
   fd.append('file',f);
-  fd.append('header_row',$('hqvHdr').value||1);
-  if(sheetEl.value && sheetEl.value!=='\u5148\u9009\u62e9\u6587\u4ef6' && sheetEl.value!=='\u52a0\u8f7d\u4e2d...') fd.append('sheet_name',sheetEl.value);
-  const r=await fetch('/api/bom_compare/local_sheets',{method:'POST',body:fd});
+  fd.append('header_row',$(prefix+'Hdr').value||1);
+  if(sheetEl.value && sheetEl.value!=='先选择文件' && sheetEl.value!=='加载中...') fd.append('sheet_name',sheetEl.value);
+  const r=await fetch(sheetsApi,{method:'POST',body:fd});
   const d=await r.json();
-  if(!d.success) throw new Error(d.error||'\u8bfb\u53d6\u6587\u4ef6\u5931\u8d25');
+  if(!d.success) throw new Error(d.error||'读取文件失败');
   sheetEl.innerHTML=(d.sheets||[]).map(s=>`<option${s===d.current_sheet?' selected':''}>${_escH(s)}</option>`).join('');
-  if(which==='old'){window._hqvOldHeaders=d.headers||[];window._hqvOldFormat=d.format||'';window._hqvOldBomSheets=d.bom_sheets||[];}
-  else {window._hqvNewHeaders=d.headers||[];window._hqvNewFormat=d.format||'';window._hqvNewBomSheets=d.bom_sheets||[];}
-  if(d.header_row) $('hqvHdr').value=d.header_row;
+  const st=vcState(prefix);
+  if(which==='old'){st.oldHeaders=d.headers||[];st.oldFormat=d.format||'';st.oldBomSheets=d.bom_sheets||[];}
+  else {st.newHeaders=d.headers||[];st.newFormat=d.format||'';st.newBomSheets=d.bom_sheets||[];}
+  if(d.header_row) $(prefix+'Hdr').value=d.header_row;
   return d;
 }
 
-async function hqvRefreshColumns(){
-  clearInlineError('hqvError');hide($('hqvResult'));
-  window._hqvOldHeaders=[];window._hqvNewHeaders=[];window._hqvOldFormat='';window._hqvNewFormat='';window._hqvOldBomSheets=[];window._hqvNewBomSheets=[];
-  clearSelectOptions('hqvKeyCol','\u52a0\u8f7d\u4e2d...');
-  $('hqvCompareCols').innerHTML=excelLoadingHtml('\u6b63\u5728\u8bfb\u53d6\u4e24\u4efd HQ BOM \u5217...');
-  setLoadingStatus('hqvLoadStatus','\u8bfb\u53d6\u5217\u4e2d...');
+async function vcRefreshColumns(prefix, opts){
+  clearInlineError(prefix+'Error');hide($(prefix+'Result'));
+  const st=vcState(prefix); st.oldHeaders=[];st.newHeaders=[];st.oldFormat='';st.newFormat='';st.oldBomSheets=[];st.newBomSheets=[];
+  clearSelectOptions(prefix+'KeyCol','加载中...');
+  $(prefix+'CompareCols').innerHTML=excelLoadingHtml('正在读取两份 HQ BOM 列...');
+  setLoadingStatus(prefix+'LoadStatus','读取列中...');
   try{
-    const oldData=await hqvLoadOne('old');
-    const newData=await hqvLoadOne('new');
-    const oldHeaders=window._hqvOldHeaders||[];
-    const newHeaders=window._hqvNewHeaders||[];
-    const common=oldHeaders.filter(h=>h && newHeaders.includes(h));
-    const keySel=$('hqvKeyCol');
+    const oldData=await vcLoadOne(prefix,'old',opts.sheetsApi);
+    const newData=await vcLoadOne(prefix,'new',opts.sheetsApi);
+    const common=st.oldHeaders.filter(h=>h && st.newHeaders.includes(h));
+    const keySel=$(prefix+'KeyCol');
     keySel.innerHTML=common.map(h=>`<option value="${_escH(h)}">${_escH(h)}</option>`).join('');
     const detected=(oldData&&newData&&oldData.detected_key===newData.detected_key)?oldData.detected_key:(oldData?.detected_key||newData?.detected_key||'');
     if(detected && common.includes(detected)) keySel.value=detected;
-    hqvRenderCompareCols();
-    const fmtLabel=window._hqvOldFormat==='plm_full'?'PLM \u5168\u91cf BOM':'\u6807\u51c6 HQ BOM';
-    const sheetHint=window._hqvOldFormat==='plm_full'?`\uff1b\u5c06\u6bd4\u5bf9 ${((window._hqvOldBomSheets||[]).filter(s=>(window._hqvNewBomSheets||[]).includes(s))).join('\u3001')}`:'';
-    setPlainStatus('hqvLoadStatus',`\u5df2\u8bc6\u522b\uff1a${fmtLabel}\uff0c\u5df2\u52a0\u8f7d\u5171\u540c\u5217 ${common.length} \u4e2a${sheetHint}`);
+    vcRenderCompareCols(prefix, opts);
+    const fmtLabel=st.oldFormat==='plm_full'?'PLM 全量 BOM':'标准 HQ BOM';
+    const sheetHint=st.oldFormat==='plm_full'?`；将比对 ${((st.oldBomSheets||[]).filter(s=>(st.newBomSheets||[]).includes(s))).join('、')}`:'';
+    setPlainStatus(prefix+'LoadStatus',`已识别：${fmtLabel}，已加载共同列 ${common.length} 个${sheetHint}`);
   }catch(e){
-    $('hqvCompareCols').innerHTML='<span style="font-size:12px;color:#888">\u5217\u8bfb\u53d6\u5931\u8d25</span>';
-    $('hqvLoadStatus').textContent='';
-    showInlineError('hqvError',e.message,'hqvStatus');
+    $(prefix+'CompareCols').innerHTML='<span style="font-size:12px;color:#888">列读取失败</span>';
+    $(prefix+'LoadStatus').textContent='';
+    showInlineError(prefix+'Error',e.message,prefix+'Status');
   }
 }
 
-function initHqVersionCompare(){
-  window._hqvOldHeaders=window._hqvOldHeaders||[];
-  window._hqvNewHeaders=window._hqvNewHeaders||[];
-  window._hqvOldFormat=window._hqvOldFormat||'';window._hqvNewFormat=window._hqvNewFormat||'';
-  $('hqvOldFile').onchange=hqvRefreshColumns;
-  $('hqvNewFile').onchange=hqvRefreshColumns;
-  $('hqvOldSheet').onchange=hqvRefreshColumns;
-  $('hqvNewSheet').onchange=hqvRefreshColumns;
-  $('hqvRefresh').onclick=hqvRefreshColumns;
-  $('hqvKeyCol').onchange=hqvRenderCompareCols;
-  $('hqvSelectAll').onclick=()=>document.querySelectorAll('#hqvCompareCols input[type="checkbox"]').forEach(x=>x.checked=true);
-  $('hqvSelectNone').onclick=()=>document.querySelectorAll('#hqvCompareCols input[type="checkbox"]').forEach(x=>x.checked=false);
-  $('hqvRun').onclick=async function(){
-    const oldFile=$('hqvOldFile').files[0], newFile=$('hqvNewFile').files[0];
-    if(!oldFile||!newFile){showInlineError('hqvError','请上传基准版本和对比版本 HQ BOM','hqvStatus');return;}
-    const compareCols=hqvGetCheckedCols();
-    if(!$('hqvKeyCol').value){showInlineError('hqvError','请选择匹配键列','hqvStatus');return;}
-    if(!compareCols.length){showInlineError('hqvError','请至少选择一个比对字段','hqvStatus');return;}
-    const btn=$('hqvRun');btn.disabled=true;$('hqvStatus').textContent='比对中...';
-    hide($('hqvResult'));clearInlineError('hqvError');
-    const cfg={header_row:parseInt($('hqvHdr').value)||1, old_sheet:$('hqvOldSheet').value,
-      new_sheet:$('hqvNewSheet').value, key_col:$('hqvKeyCol').value, compare_cols:compareCols};
+function initVersionCompare(prefix, opts){
+  vcState(prefix);
+  $(prefix+'OldFile').onchange=()=>vcRefreshColumns(prefix,opts);
+  $(prefix+'NewFile').onchange=()=>vcRefreshColumns(prefix,opts);
+  $(prefix+'OldSheet').onchange=()=>vcRefreshColumns(prefix,opts);
+  $(prefix+'NewSheet').onchange=()=>vcRefreshColumns(prefix,opts);
+  $(prefix+'Refresh').onclick=()=>vcRefreshColumns(prefix,opts);
+  $(prefix+'KeyCol').onchange=()=>vcRenderCompareCols(prefix,opts);
+  $(prefix+'SelectAll').onclick=()=>document.querySelectorAll('#'+prefix+'CompareCols input[type="checkbox"]').forEach(x=>x.checked=true);
+  $(prefix+'SelectNone').onclick=()=>document.querySelectorAll('#'+prefix+'CompareCols input[type="checkbox"]').forEach(x=>x.checked=false);
+  $(prefix+'Run').onclick=async function(){
+    const oldFile=$(prefix+'OldFile').files[0], newFile=$(prefix+'NewFile').files[0];
+    if(!oldFile||!newFile){showInlineError(prefix+'Error',`请上传基准版本和对比版本 ${opts.label}` ,prefix+'Status');return;}
+    const compareCols=vcGetCheckedCols(prefix);
+    if(!$(prefix+'KeyCol').value){showInlineError(prefix+'Error','请选择匹配键列',prefix+'Status');return;}
+    if(!compareCols.length){showInlineError(prefix+'Error','请至少选择一个比对字段',prefix+'Status');return;}
+    const btn=$(prefix+'Run');btn.disabled=true;$(prefix+'Status').textContent='比对中...';
+    hide($(prefix+'Result'));clearInlineError(prefix+'Error');
+    const cfg={header_row:parseInt($(prefix+'Hdr').value)||1, old_sheet:$(prefix+'OldSheet').value,
+      new_sheet:$(prefix+'NewSheet').value, key_col:$(prefix+'KeyCol').value, compare_cols:compareCols};
     const fd=new FormData();
     fd.append('old_file',oldFile);fd.append('new_file',newFile);fd.append('config',JSON.stringify(cfg));
     try{
-      const r=await fetch('/api/bom_compare/hq_version',{method:'POST',body:fd});
-      const d=await r.json();
-      if(d.success){
-        $('hqvStats').innerHTML=`新增 <b style="color:#2a8a2a">${d.added}</b> | 删除 <b style="color:#c00000">${d.removed}</b> | 变更 <b style="color:#c07000">${d.changed}</b> | 未变更 <b>${d.unchanged}</b><br>基准版本 ${d.old_total} 项，对比版本 ${d.new_total} 项`;
-        $('hqvDl').href=d.download;
-        show($('hqvResult'));$('hqvStatus').textContent='完成！';
-      }else{
-        $('hqvError').textContent=d.error||'比对失败';show($('hqvError'));$('hqvStatus').textContent='';
-      }
-    }catch(e){$('hqvError').textContent=e.message;show($('hqvError'));$('hqvStatus').textContent='';}
+      const d=await postFormJson(opts.compareApi,fd);
+      if(!d.success) throw new Error(d.error||'比对失败');
+      $(prefix+'Stats').innerHTML=`新增 <b style="color:#2a8a2a">${d.added}</b> | 删除 <b style="color:#c00000">${d.removed}</b> | 变更 <b style="color:#c07000">${d.changed}</b> | 未变更 <b>${d.unchanged}</b><br>基准版本 ${d.old_total} 项，对比版本 ${d.new_total} 项`;
+      $(prefix+'Dl').href=d.download;
+      show($(prefix+'Result'));$(prefix+'Status').textContent='完成！';
+    }catch(e){showInlineError(prefix+'Error',e.message,prefix+'Status');}
     btn.disabled=false;
   };
 }
-
 // ─── BOM ──────────────────────────────────────────────
 function updateBomPreview(headers, previewRows){
   if(!headers||!headers.length){$('bomPreview').innerHTML='';return;}

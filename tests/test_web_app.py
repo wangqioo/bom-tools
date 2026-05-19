@@ -103,7 +103,8 @@ class WebAppTests(unittest.TestCase):
         self.assertIn("BOM比对工具合集", html)
         self.assertIn("Bug提交栏目", html)
         self.assertIn("客户BOM对比HQ BOM", html)
-        self.assertIn("同项目HQ BOM版本对比", html)
+        self.assertIn("单板HQ BOM版本对比", html)
+        self.assertIn("整机HQ BOM版本对比", html)
         self.assertIn("Cadence导出BOM对比HQ BOM", html)
 
     def test_bom_detect_returns_fifty_preview_rows(self):
@@ -297,9 +298,10 @@ class WebAppTests(unittest.TestCase):
         wb = openpyxl.load_workbook(report_path, data_only=True)
         self.assertEqual(
             wb.sheetnames,
-            ["差异总览", "差异明细", "新增物料", "删除物料", "变更物料", "重复料号"],
+            ["差异总览", "新增物料", "删除物料", "变更物料", "重复料号"],
         )
-        detail = wb["差异明细"]
+        self.assertNotIn("差异明细", wb.sheetnames)
+        detail = wb["变更物料"]
         self.assertEqual(detail["A1"].value, "差异类型")
         self.assertEqual(detail["B1"].value, "料号")
         self.assertEqual(detail["C1"].value, "基准版本行号")
@@ -341,7 +343,8 @@ class WebAppTests(unittest.TestCase):
         filename = unquote(payload["download"].split("/download/", 1)[1])
         report_path = WEB_APP / "outputs" / filename
         wb = openpyxl.load_workbook(report_path, data_only=True)
-        detail = wb["差异明细"]
+        self.assertNotIn("差异明细", wb.sheetnames)
+        detail = wb["变更物料"]
         self.assertEqual(detail["C1"].value, "基准版本行号")
         self.assertEqual(detail["D1"].value, "对比版本行号")
         changed_rows = [row for row in detail.iter_rows(min_row=2, values_only=True) if row[0] == "变更"]
@@ -393,11 +396,12 @@ class WebAppTests(unittest.TestCase):
 
         filename = unquote(payload["download"].split("/download/", 1)[1])
         wb = openpyxl.load_workbook(WEB_APP / "outputs" / filename, data_only=True)
-        self.assertIn("BOM\u5dee\u5f02", wb.sheetnames)
-        self.assertIn("DBG\u4e1a\u52a1BOM\u5dee\u5f02", wb.sheetnames)
-        self.assertIn("DBGBOM\u5236\u63a7\u4fe1\u606f\u5dee\u5f02", wb.sheetnames)
-        self.assertIn("\u5168\u90e8\u5dee\u5f02\u660e\u7ec6", wb.sheetnames)
-        all_detail = wb["\u5168\u90e8\u5dee\u5f02\u660e\u7ec6"]
+        self.assertNotIn("BOM\u5dee\u5f02", wb.sheetnames)
+        self.assertNotIn("DBG\u4e1a\u52a1BOM\u5dee\u5f02", wb.sheetnames)
+        self.assertNotIn("DBGBOM\u5236\u63a7\u4fe1\u606f\u5dee\u5f02", wb.sheetnames)
+        self.assertNotIn("\u5168\u90e8\u5dee\u5f02\u660e\u7ec6", wb.sheetnames)
+        self.assertIn("\u5168\u90e8\u53d8\u66f4\u7269\u6599", wb.sheetnames)
+        all_detail = wb["\u5168\u90e8\u53d8\u66f4\u7269\u6599"]
         keys = [row[2] for row in all_detail.iter_rows(min_row=2, values_only=True)]
         self.assertNotIn("2026-05-12", keys)
         self.assertIn("A", keys)
@@ -419,6 +423,29 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(payload["current_sheet"], "BOM")
         self.assertEqual(payload["detected_key"], "料号")
         self.assertIn("单耗", payload["headers"])
+
+
+    def test_hq_version_sheets_hide_empty_compare_columns(self):
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "BOM"
+        ws.append(["料号", "PROJECT", "描述", "DESC", "项目配置名", "CFG"])
+        ws.append(["版本", "I.1", "替代项", "", "BOM名称", "BOM"])
+        ws.append(["序号", "料号", "型号", "物料描述", "单耗", "替代关系", "位号", "生产厂家", "空白扩展列"])
+        ws.append(["1", "A", "M1", "DESC", 1, "主料", "R1", "厂商A", ""])
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+
+        resp = app.test_client().post(
+            "/api/bom_compare/local_sheets",
+            data={"file": (buf, "hq.xlsx")},
+            content_type="multipart/form-data",
+        )
+        payload = resp.get_json()
+        self.assertTrue(payload["success"])
+        self.assertIn("生产厂家", payload["headers"])
+        self.assertNotIn("空白扩展列", payload["headers"])
 
     def test_hq_bom_compare_rejects_non_standard_format(self):
         data = {
@@ -538,6 +565,25 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(payload["right_only"], 1)
         self.assertEqual(payload["changed"], 1)
 
+
+    def test_machine_hq_version_treats_equivalent_numbers_as_same(self):
+        old_bytes = _hq_export_bytes([
+            ["1", "A", "M1", "", "8.0", "主料", "R1", "厂商A"],
+        ]).getvalue()
+        new_bytes = _hq_export_bytes([
+            ["1", "A", "M1", "", "8", "主料", "R1", "厂商A"],
+        ]).getvalue()
+
+        resp = app.test_client().post("/api/bom_compare/machine_hq_version", data={
+            "old_file": (io.BytesIO(old_bytes), "old.xlsx"),
+            "new_file": (io.BytesIO(new_bytes), "new.xlsx"),
+            "config": json.dumps({"key_col": "料号", "compare_cols": ["单耗"]}),
+        }, content_type="multipart/form-data")
+        payload = resp.get_json()
+        self.assertTrue(payload["success"], payload.get("error"))
+        self.assertEqual(payload["changed"], 0)
+        self.assertEqual(payload["unchanged"], 1)
+
     def test_generic_cadence_standard_export_auto_header_and_refdes_expand(self):
         refdes = "位号"
         part_no = "料号"
@@ -620,8 +666,9 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(payload["same"], 1)
         filename = unquote(payload["download"].split("/download/", 1)[1])
         wb = openpyxl.load_workbook(WEB_APP / "outputs" / filename, data_only=True)
-        detail = wb["差异明细"]
-        self.assertEqual(detail.max_row, 1)
+        self.assertNotIn("差异明细", wb.sheetnames)
+        changed_sheet = wb["字段变更"]
+        self.assertEqual(changed_sheet.max_row, 1)
         wb.close()
 
     def test_generic_cadence_ignores_empty_columns_by_default(self):

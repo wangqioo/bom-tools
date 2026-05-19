@@ -24,6 +24,7 @@ ALLOWED_ATTACHMENT_EXTS = {
     '.xlsx', '.xlsm', '.xls', '.csv', '.txt', '.log', '.zip', '.rar', '.7z',
     '.doc', '.docx', '.ppt', '.pptx', '.pdf',
 }
+ALLOWED_STATUSES = {'\u5f85\u8bc4\u4f30', '\u5df2\u7eb3\u5165', '\u5f00\u53d1\u4e2d', '\u5df2\u5b8c\u6210', '\u6682\u7f13', '\u5df2\u5173\u95ed'}
 
 SEED_REQUESTS = [
     {
@@ -169,6 +170,19 @@ def _insert_request(item):
         conn.close()
 
 
+def _update_request_status(request_id, status):
+    conn = _connect()
+    try:
+        conn.execute('UPDATE feature_requests SET status = ? WHERE id = ?', (status, request_id))
+        row = conn.execute('SELECT * FROM feature_requests WHERE id = ?', (request_id,)).fetchone()
+        if not row:
+            return None
+        conn.commit()
+        return _row_to_request(row)
+    finally:
+        conn.close()
+
+
 def _clean_text(name, max_len=2000):
     return str(request.form.get(name, '') or '').strip()[:max_len]
 
@@ -246,6 +260,18 @@ def api_like_feature_request(request_id):
         return jsonify({'success': True, 'request': _row_to_request(row)})
     finally:
         conn.close()
+
+
+@feature_request_bp.route('/api/feature_requests/<request_id>/status', methods=['POST'])
+def api_update_feature_request_status(request_id):
+    data = request.get_json(silent=True) or {}
+    status = str(data.get('status', '') or '').strip()
+    if status not in ALLOWED_STATUSES:
+        return jsonify({'success': False, 'error': '\u65e0\u6548\u7684\u9700\u6c42\u72b6\u6001'})
+    item = _update_request_status(request_id, status)
+    if not item:
+        return jsonify({'success': False, 'error': '\u9700\u6c42\u4e0d\u5b58\u5728'})
+    return jsonify({'success': True, 'request': item})
 
 
 @feature_request_bp.route('/feature_attachments/<filename>')
