@@ -101,8 +101,9 @@ class WebAppTests(unittest.TestCase):
         self.assertIn("BOM Tools", html)
         self.assertIn("飞书优选库+关系库匹配", html)
         self.assertIn("BOM比对工具合集", html)
+        self.assertIn("\u5c0f\u5de5\u5177\u5408\u96c6", html)
+        self.assertIn("\u8ba1\u7b97\u54c8\u5e0c\u503c", html)
         self.assertIn("Bug提交栏目", html)
-        self.assertIn("客户BOM对比HQ BOM", html)
         self.assertIn("单板HQ BOM版本对比", html)
         self.assertIn("整机HQ BOM版本对比", html)
         self.assertIn("Cadence导出BOM对比HQ BOM", html)
@@ -570,109 +571,46 @@ class WebAppTests(unittest.TestCase):
         self.assertIn("不支持当前文件格式", payload["error"])
 
 
-    def test_generic_customer_hq_compare_reports_differences(self):
+
+    def test_customer_hq_preview_standardizes_customer_and_hq_rows(self):
+        suffix = uuid.uuid4().hex[:8]
+        client = app.test_client()
+        client.post("/api/manufacturer_aliases", data={
+            "canonical_name": f"HQ Maker {suffix}",
+            "alias": f"Customer Maker {suffix}",
+            "source": "test",
+        })
         customer = _xlsx_bytes(
-            ["客户料号", "型号", "数量"],
-            [["A", "R1", 1], ["B", "C1", 2], ["C", "L1", 3]],
+            ["\u4f9b\u5e94\u5546", "\u89c4\u683c\u578b\u53f7", "\u6570\u91cf"],
+            [[f"Customer Maker {suffix}", "M1", 2]],
         )
         hq = _hq_export_bytes([
-            ["1", "A", "R1", "", 1, "", "", ""],
-            ["2", "B", "C2", "", 2, "", "", ""],
-            ["3", "D", "L2", "", 4, "", "", ""],
+            ["1", "P1", "M1", "", 2, "\u4e3b\u6599", "R1", f"HQ Maker {suffix}"],
         ])
-        data = {
+        resp = client.post("/api/bom_compare/customer_hq_preview", data={
             "left_file": (customer, "customer.xlsx"),
             "right_file": (hq, "hq.xlsx"),
             "config": json.dumps({
-                "compare_type": "customer_hq",
                 "left_header_row": 1,
-                "right_header_row": 3,
-                "left_key_col": "客户料号",
-                "right_key_col": "料号",
-                "field_pairs": [{"left": "型号", "right": "型号"}, {"left": "数量", "right": "单耗"}],
+                "match_mode": "identity",
+                "mapping": {
+                    "manufacturer": "\u4f9b\u5e94\u5546",
+                    "model": "\u89c4\u683c\u578b\u53f7",
+                    "quantity": "\u6570\u91cf",
+                },
             }),
-        }
-        resp = app.test_client().post(
-            "/api/bom_compare/generic",
-            data=data,
-            content_type="multipart/form-data",
-        )
+        }, content_type="multipart/form-data")
         payload = resp.get_json()
-        self.assertTrue(payload["success"])
-        self.assertEqual(payload["left_only"], 1)
-        self.assertEqual(payload["right_only"], 1)
-        self.assertEqual(payload["changed"], 1)
-        self.assertEqual(payload["same"], 1)
-        filename = unquote(payload["download"].split("/download/", 1)[1])
-        wb = openpyxl.load_workbook(WEB_APP / "outputs" / filename, data_only=True)
-        self.assertIn("差异明细", wb.sheetnames)
-        detail = wb["差异明细"]
-        self.assertEqual([cell.value for cell in detail[1]], ["差异类型", "匹配键", "客户BOM行号", "HQ BOM行号", "差异字段", "客户BOM值", "HQ BOM值"])
-        detail_types = [row[0] for row in detail.iter_rows(min_row=2, values_only=True)]
-        self.assertIn("仅客户BOM存在", detail_types)
-        self.assertIn("仅HQ BOM存在", detail_types)
-        self.assertNotIn("仅左侧存在", detail_types)
-        self.assertNotIn("仅右侧存在", detail_types)
-        changed_rows = [row for row in detail.iter_rows(min_row=2, values_only=True) if row[0] == "字段变更"]
-        self.assertEqual(len(changed_rows), 1)
-        self.assertEqual(changed_rows[0][1], "B")
-        self.assertEqual(changed_rows[0][4], "型号")
-        self.assertNotIn("数量", [row[4] for row in changed_rows])
-        self.assertIn("仅客户BOM存在", wb.sheetnames)
-        self.assertIn("仅HQ BOM存在", wb.sheetnames)
-        left_only_sheet = wb["仅客户BOM存在"]
-        right_only_sheet = wb["仅HQ BOM存在"]
-        self.assertEqual([cell.value for cell in left_only_sheet[1]][:3], ["客户料号", "型号", "数量"])
-        self.assertEqual([cell.value for cell in left_only_sheet[2]][:3], ["C", "L1", "3"])
-        self.assertEqual([cell.value for cell in right_only_sheet[1]][:8], ["序号", "料号", "型号", "物料描述", "单耗", "替代关系", "位号", "生产厂家"])
-        self.assertEqual([cell.value for cell in right_only_sheet[2]][:3], ["3", "D", "L2"])
-        wb.close()
-
-    def test_generic_customer_compare_accepts_plm_full_hq_bom_on_right(self):
-        customer_key = "\u5ba2\u6237\u6599\u53f7"
-        model = "\u578b\u53f7"
-        part_no = "\u6599\u53f7"
-        main = "\u4e3b\u6599"
-        maker_a = "\u5382\u5546A"
-        maker_b = "\u5382\u5546B"
-        dbg_sheet = "DBG\u4e1a\u52a1BOM"
-        customer_bytes = _xlsx_bytes([customer_key, model], [["A", "M1-NEW"], ["X", "MX"]]).getvalue()
-        hq_rows = {"BOM": [["1", "A", "M1", "DESC-A", 1, main, "R1", maker_a], ["2", "B", "M2", "DESC-B", 2, main, "R2", maker_b]]}
-        hq_bytes = _plm_full_bom_bytes(hq_rows).getvalue()
-        data = {
-            "left_file": (io.BytesIO(customer_bytes), "customer.xlsx"),
-            "right_file": (io.BytesIO(hq_bytes), "hq_plm.xlsx"),
-            "left_header_row": "1",
-            "right_header_row": "3",
-        }
-        sheets_resp = app.test_client().post("/api/bom_compare/generic_sheets", data=data, content_type="multipart/form-data")
-        sheets_payload = sheets_resp.get_json()
-        self.assertTrue(sheets_payload["success"])
-        self.assertEqual(sheets_payload["right_format"], "plm_full")
-        self.assertEqual(sheets_payload["right_header_row"], 8)
-        self.assertEqual(sheets_payload["right_current_sheet"], "BOM")
-        self.assertIn(dbg_sheet, sheets_payload["right_bom_sheets"])
-
-        compare_data = {
-            "left_file": (io.BytesIO(customer_bytes), "customer.xlsx"),
-            "right_file": (io.BytesIO(hq_bytes), "hq_plm.xlsx"),
-            "config": json.dumps({
-                "compare_type": "customer_hq",
-                "left_header_row": 1,
-                "right_header_row": 3,
-                "left_key_col": customer_key,
-                "right_key_col": part_no,
-                "field_pairs": [{"left": model, "right": model}],
-            }),
-        }
-        compare_resp = app.test_client().post("/api/bom_compare/generic", data=compare_data, content_type="multipart/form-data")
-        payload = compare_resp.get_json()
-        self.assertTrue(payload["success"])
-        self.assertEqual(payload["right_format"], "plm_full")
-        self.assertEqual(payload["left_only"], 1)
-        self.assertEqual(payload["right_only"], 1)
-        self.assertEqual(payload["changed"], 1)
-
+        self.assertTrue(payload["success"], payload.get("error"))
+        self.assertEqual(payload["match_mode"], "identity")
+        self.assertEqual(payload["customer_total"], 1)
+        self.assertEqual(payload["hq_total"], 1)
+        self.assertEqual(payload["customer_invalid"], 0)
+        row = payload["customer_preview"][0]
+        self.assertIn("\u578b\u53f7:M1", row["match_key"])
+        self.assertEqual(row["manufacturer_mapped"], f"HQ Maker {suffix}")
+        self.assertEqual(row["quantity"], "2")
+        self.assertEqual(payload["hq_preview"][0]["part_no"], "P1")
 
     def test_machine_hq_version_treats_equivalent_numbers_as_same(self):
         old_bytes = _hq_export_bytes([
@@ -822,6 +760,36 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(payload["same"], 1)
         self.assertIn(empty_col, payload["left_ignored_headers"])
 
+
+
+    def test_generic_compare_allows_later_valid_field_pair_when_first_is_empty(self):
+        part_no = "\u6599\u53f7"
+        model = "\u578b\u53f7"
+        left_bytes = _hq_export_bytes([
+            ["1", "A", "M1", "", 1, "\u4e3b\u6599", "R1", "\u5382\u5546A"],
+        ]).getvalue()
+        right_bytes = _hq_export_bytes([
+            ["1", "A", "M2", "", 1, "\u4e3b\u6599", "R1", "\u5382\u5546A"],
+        ]).getvalue()
+        resp = app.test_client().post("/api/bom_compare/generic", data={
+            "left_file": (io.BytesIO(left_bytes), "left.xlsx"),
+            "right_file": (io.BytesIO(right_bytes), "right.xlsx"),
+            "config": json.dumps({
+                "compare_type": "cadence_hq",
+                "left_header_row": 3,
+                "right_header_row": 3,
+                "left_key_col": part_no,
+                "right_key_col": part_no,
+                "field_pairs": [
+                    {"left": "", "right": ""},
+                    {"left": model, "right": model},
+                ],
+            }),
+        }, content_type="multipart/form-data")
+        payload = resp.get_json()
+        self.assertTrue(payload["success"], payload.get("error"))
+        self.assertEqual(payload["changed"], 1)
+
     def test_generic_cadence_compare_accepts_plm_full_hq_bom_on_right(self):
         main = "\u4e3b\u6599"
         maker_a = "\u5382\u5546A"
@@ -861,8 +829,8 @@ class WebAppTests(unittest.TestCase):
         )
         payload = resp.get_json()
         self.assertTrue(payload["success"])
-        self.assertEqual(payload["detected_left_key"], "REFDES")
-        self.assertEqual(payload["detected_right_key"], "位号")
+        self.assertEqual(payload["detected_left_key"], "PART_NUMBER")
+        self.assertEqual(payload["detected_right_key"], "料号")
 
     def test_bug_report_submit_and_list(self):
         data = {

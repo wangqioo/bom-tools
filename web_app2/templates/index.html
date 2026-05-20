@@ -157,6 +157,37 @@ tr:hover td { background:#f7f9fc; }
 #plm-tab-bom-cfg #plmQtyCfgTable { border-radius:8px; }
 #plm-tab-bom-cfg #plmQtyCfgBody input { border-color:#d7deea; }
 #plm-tab-bom-cfg #plmQtyCfgBody tr:hover td { background:#f6f9ff; }
+.hash-drop-zone { display:grid; place-items:center; min-height:220px; padding:24px; border:2px dashed #d7deea; border-radius:8px; background:#fbfcfe; cursor:pointer; transition:border-color .16s ease,background .16s ease,box-shadow .16s ease; }
+.hash-drop-zone:hover,.hash-drop-zone.dragging { border-color:#2d6cdf; background:#f4f8ff; box-shadow:0 1px 4px rgba(45,108,223,.08); }
+.hash-drop-content { text-align:center; display:grid; gap:10px; justify-items:center; color:#475063; }
+.hash-file-input { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); }
+.hash-icon { width:52px; height:52px; display:grid; place-items:center; border-radius:8px; background:#2d6cdf; color:#fff; font-size:25px; font-weight:800; }
+.hash-drop-title { font-size:16px; font-weight:700; color:#1a3a5c; }
+.hash-status { margin-top:10px; min-height:22px; font-size:12px; color:#697586; }
+.hash-status.error { color:#c00000; }
+.hash-progress-panel { display:none; margin-top:12px; border:1px solid #b7d4ff; border-radius:10px; background:#f4f8ff; padding:14px 16px; box-shadow:0 2px 10px rgba(45,108,223,.10); }
+.hash-progress-panel.show { display:block; }
+.hash-progress-head { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; margin-bottom:10px; }
+.hash-progress-stage { font-size:17px; font-weight:800; color:#163a6b; line-height:1.35; }
+.hash-progress-file { margin-top:3px; font-size:12px; color:#52657d; overflow-wrap:anywhere; }
+.hash-progress-percent { min-width:62px; text-align:right; font-size:24px; font-weight:800; color:#1a5ad4; line-height:1; }
+.hash-progress-track { height:12px; border-radius:999px; overflow:hidden; background:#dbe8ff; border:1px solid #c6d8f5; }
+.hash-progress-bar { width:0%; height:100%; border-radius:999px; background:linear-gradient(90deg,#2d6cdf,#2a8a2a); transition:width .16s ease; }
+.hash-progress-note { margin-top:8px; font-size:12px; color:#5f6d82; }
+.hash-progress-panel.error { border-color:#f0c0c0; background:#fff5f5; }
+.hash-progress-panel.error .hash-progress-stage,.hash-progress-panel.error .hash-progress-percent { color:#c00000; }
+.hash-results { display:grid; gap:12px; }
+.hash-card { background:#fff; border:1px solid #e2e8f3; border-radius:8px; padding:14px; display:grid; gap:10px; }
+.hash-meta { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+.hash-meta-item,.hash-row { min-width:0; }
+.hash-label { display:block; margin-bottom:4px; font-size:11px; color:#697586; font-weight:700; }
+.hash-value { overflow-wrap:anywhere; font-weight:700; color:#2f3a4a; }
+.hash-row { display:grid; grid-template-columns:92px minmax(0,1fr) auto; align-items:center; gap:10px; }
+.hash-row code { display:block; padding:9px 11px; border-radius:6px; background:#f1f5f9; color:#243447; font-family:Consolas,'Liberation Mono',Menlo,monospace; font-size:12px; line-height:1.45; overflow-wrap:anywhere; white-space:normal; }
+.hash-row-md5 { grid-template-columns:92px minmax(0,1fr) auto; padding:10px; border:1px solid #cfe0ff; border-radius:8px; background:#f7fbff; }
+.hash-row-md5 strong { color:#1a5ad4; font-size:15px; }
+.hash-row-md5 code { background:#fff; border:1px solid #d9e6ff; color:#102a43; font-size:15px; font-weight:700; }
+@media (max-width:720px){ .hash-meta,.hash-row { grid-template-columns:1fr; } .hash-row .btn { justify-self:start; } }
 .manual-shell { max-width:1180px; margin:0 auto; }
 .manual-hero { position:relative; overflow:hidden; border:1px solid #dbe5f2; border-radius:10px; padding:22px 24px; background:linear-gradient(135deg,#f8fbff 0%,#eef6ff 58%,#f7fafc 100%); box-shadow:0 1px 4px rgba(18,38,63,.06); }
 .manual-hero h4 { font-size:20px; color:#12345a; margin-bottom:6px; letter-spacing:0; }
@@ -201,6 +232,7 @@ tr:hover td { background:#f7f9fc; }
     <a href="#" data-tool="pref-rate"><span class="icon">📊</span>查询BOM优选率</a>
     <a href="#" data-tool="plm"><span class="icon">📤</span>转换为上传PLM系统格式</a>
     <a href="#" data-tool="bom-compare"><span class="icon">🧾</span>BOM比对工具合集</a>
+    <a href="#" data-tool="toolbox"><span class="icon">🧰</span>小工具合集</a>
     <a href="#" data-tool="bug-report"><span class="icon">🐞</span>Bug提交栏目</a>
     <a href="#" data-tool="feature-request"><span class="icon">📝</span>需求开发工单</a>
     <a href="#" data-tool="manual"><span class="icon">📖</span>工具说明书</a>
@@ -445,6 +477,48 @@ tr:hover td { background:#f7f9fc; }
 </script>
 
 <!-- ── Bug 提交栏目 ── -->
+<script type="text/html" id="tpl-toolbox">
+<div class="workflow-shell">
+  <div style="display:flex;gap:8px;margin-bottom:18px;border-bottom:2px solid #e0e4ef;padding-bottom:0">
+    <button class="toolbox-tab-btn active" type="button" style="padding:6px 18px;border:none;background:none;font-size:13px;font-weight:600;color:#1a5ad4;border-bottom:2px solid #1a5ad4;margin-bottom:-2px;cursor:pointer">计算哈希值</button>
+  </div>
+  <div class="workflow-hero">
+    <h4>计算哈希值</h4>
+    <p>在浏览器本地计算文件 MD5，文件内容不会上传到服务器。</p>
+  </div>
+
+  <div class="section">
+    <h3>① 选择文件</h3>
+    <div class="workflow-step-desc">支持拖入一个或多个文件，也可以点击选择文件。大文件计算耗时取决于浏览器读取速度。</div>
+    <label class="hash-drop-zone" id="hashDropZone">
+      <input class="hash-file-input" id="hashFileInput" type="file" multiple>
+      <span class="hash-drop-content">
+        <span class="hash-icon">#</span>
+        <span class="hash-drop-title">拖入文件，或点击选择</span>
+        <span class="btn btn-primary">选择文件</span>
+      </span>
+    </label>
+    <div class="hash-status" id="hashStatus">等待选择文件</div>
+    <div class="hash-progress-panel" id="hashProgressPanel" aria-live="polite">
+      <div class="hash-progress-head">
+        <div>
+          <div class="hash-progress-stage" id="hashProgressStage">等待开始</div>
+          <div class="hash-progress-file" id="hashProgressFile"></div>
+        </div>
+        <div class="hash-progress-percent" id="hashProgressPercent">0%</div>
+      </div>
+      <div class="hash-progress-track"><div class="hash-progress-bar" id="hashProgressBar"></div></div>
+      <div class="hash-progress-note" id="hashProgressNote">文件不会上传服务器，所有计算都在本地浏览器完成。</div>
+    </div>
+  </div>
+
+  <div class="section" id="hashResultsSection" style="display:none">
+    <h3>② 计算结果</h3>
+    <div class="hash-results" id="hashResults" aria-live="polite"></div>
+  </div>
+</div>
+</script>
+
 <script type="text/html" id="tpl-bug-report">
 <div class="workflow-shell">
 <div class="workflow-hero">
@@ -567,40 +641,51 @@ tr:hover td { background:#f7f9fc; }
   <button class="bomcmp-tab-btn" data-bomcmp-tab="cadence-hq" style="padding:6px 18px;border:none;background:none;font-size:13px;font-weight:600;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer">Cadence导出BOM对比HQ BOM</button>
 </div>
 
+
 <div id="bomcmp-tab-customer-hq" class="workflow-shell">
   <div class="workflow-hero">
     <h4>客户BOM对比HQ BOM</h4>
-    <p>上传客户 BOM 和 HQ BOM，选择匹配键与字段映射后导出差异报告。</p>
+    <p>第一版先做标准化预览：映射客户列、选择匹配模式，确认系统如何理解客户 BOM 和 HQ BOM。</p>
   </div>
   <div class="section"><h3>第一步：上传文件</h3>
-    <div class="workflow-step-desc">两份文件可使用不同格式。请分别选择 Sheet 和表头行，然后加载列。</div>
+    <div class="workflow-step-desc">客户 BOM 格式不固定；HQ BOM 按固定格式自动识别。先加载列，再做字段映射。</div>
     <div class="row"><label>客户 BOM：</label><input type="file" id="custLeftFile" accept=".xlsx,.xlsm,.xls" style="width:320px"></div>
     <div class="row"><label>HQ BOM：</label><input type="file" id="custRightFile" accept=".xlsx,.xlsm,.xls" style="width:320px"></div>
     <div class="row">
       <label>客户 Sheet：</label><select id="custLeftSheet" style="width:180px"><option>先选择文件</option></select>
       <label>客户表头行：</label><input type="number" id="custLeftHdr" value="1" min="1" style="width:60px">
       <label>HQ Sheet：</label><select id="custRightSheet" style="width:180px"><option>先选择文件</option></select>
-      <label>HQ表头行：</label><input type="number" id="custRightHdr" value="3" min="1" style="width:60px">
       <button class="btn btn-sm btn-gray" id="custRefresh" type="button">加载列</button>
     </div>
     <div id="custLoadStatus" style="font-size:12px;color:#888"></div>
   </div>
-  <div class="section"><h3>第二步：匹配键和字段映射</h3>
-    <div class="workflow-step-desc">匹配键用于判定两份 BOM 中哪些行是同一项；字段映射用于指定要比对的值。</div>
-    <div class="row">
-      <label>客户匹配键：</label><select id="custLeftKey" style="width:220px"><option>先加载列</option></select>
-      <label>HQ匹配键：</label><select id="custRightKey" style="width:220px"><option>先加载列</option></select>
+  <div class="section"><h3>第二步：标准字段映射</h3>
+    <div class="workflow-step-desc">规格型号和制造商必选；位号、数量可选。这里仅处理客户 BOM 列到标准字段的映射。</div>
+    <div class="row" style="display:grid;grid-template-columns:repeat(4,minmax(170px,1fr));gap:10px;align-items:end">
+      <label style="display:flex;flex-direction:column;gap:6px;min-width:0">规格型号：<select id="custMapModel" style="width:100%"><option value="">先加载列</option></select></label>
+      <label style="display:flex;flex-direction:column;gap:6px;min-width:0">制造商：<select id="custMapManufacturer" style="width:100%"><option value="">先加载列</option></select></label>
+      <label style="display:flex;flex-direction:column;gap:6px;min-width:0">位号：<select id="custMapRefdes" style="width:100%"><option value="">不使用位号</option></select></label>
+      <label style="display:flex;flex-direction:column;gap:6px;min-width:0">数量/用量：<select id="custMapQuantity" style="width:100%"><option value="">不映射</option></select></label>
     </div>
-    <div class="row"><button class="btn btn-sm btn-gray" id="custSelectAll" type="button">全选同名字段</button><button class="btn btn-sm btn-gray" id="custSelectNone" type="button">清空同名字段</button><button class="btn btn-sm btn-gray" id="custAddPair" type="button">添加自定义映射</button></div>
-    <div id="custCommonPairs" class="chk-list" style="max-height:160px"></div>
-    <div id="custManualPairs" style="display:flex;flex-direction:column;gap:6px;margin-top:10px"></div>
   </div>
-  <div class="section"><h3>第三步：导出报告</h3>
-    <button class="btn btn-primary" id="custRun" type="button">开始比对</button>
+  <div class="section"><h3>第三步：选择匹配模式</h3>
+    <div class="workflow-step-desc">匹配模式决定客户 BOM 和 HQ BOM 哪些行会被认为是同一个物料。没有位号的客户 BOM 建议使用型号+制造商。</div>
+    <div class="row">
+      <label>匹配模式：</label><select id="custMatchMode" style="width:240px"><option value="identity">按型号+制造商匹配</option><option value="refdes">按位号匹配</option></select>
+    </div>
+  </div>
+  <div class="section"><h3>第四步：预览标准化结果</h3>
+    <button class="btn btn-primary" id="custPreview" type="button">预览标准化结果</button>
     <span id="custStatus" style="font-size:13px;color:#888;margin-left:8px"></span>
+    <div class="error" id="custError"></div>
   </div>
-  <div class="result" id="custResult"><span class="title">比对完成</span><br><span id="custStats" style="display:inline-block;margin-top:6px"></span><br><a class="download" id="custDl" href="#">下载差异报告</a></div>
-  <div class="error" id="custError"></div>
+  <div class="section" id="custPreviewPanel" style="display:none"><h3>标准化预览</h3>
+    <div id="custPreviewStats" style="font-size:13px;color:#555;margin-bottom:10px"></div>
+    <h4 style="font-size:13px;color:#1a3a5c;margin:8px 0">客户标准化预览</h4>
+    <div class="table-wrap" style="max-height:260px"><table><thead><tr><th>原始行号</th><th>匹配键</th><th>位号</th><th>规格型号</th><th>原始制造商</th><th>映射后制造商</th><th>数量</th><th>状态</th><th>问题说明</th></tr></thead><tbody id="custCustomerPreviewRows"></tbody></table></div>
+    <h4 style="font-size:13px;color:#1a3a5c;margin:12px 0 8px">HQ标准化预览</h4>
+    <div class="table-wrap" style="max-height:260px"><table><thead><tr><th>原始行号</th><th>匹配键</th><th>位号</th><th>型号</th><th>生产厂家</th><th>映射后厂家</th><th>单耗</th><th>料号</th><th>替代关系</th><th>状态</th><th>问题说明</th></tr></thead><tbody id="custHqPreviewRows"></tbody></table></div>
+  </div>
 </div>
 
 <div id="bomcmp-tab-hq-version" class="workflow-shell" style="display:none">
@@ -918,9 +1003,11 @@ const TOOLS = {
   plm:    {title:'转换为上传PLM系统格式', badge:'v1.6',  tpl:'tpl-plm',
            desc:'将整机 BOM 配置表转换为 PLM 系统可导入的标准格式：序号、料号、单耗等25列，主供行填单耗，替代料自动标记主辅BOM标记。'},
   'bom-compare': {title:'BOM比对工具合集', badge:'v0.1', tpl:'tpl-bom-compare',
-           desc:'提供客户BOM对比HQ BOM、单板HQ BOM版本对比、整机HQ BOM版本对比、Cadence导出BOM对比HQ BOM四个比对子功能。'},
+           desc:'提供单板HQ BOM版本对比、整机HQ BOM版本对比、Cadence导出BOM对比HQ BOM三个比对子功能。'},
+  toolbox: {title:'小工具合集', badge:'工具', tpl:'tpl-toolbox',
+           desc:'提供轻量级本地小工具。当前包含文件哈希值计算，可直接在浏览器内得到 MD5。'},
   'bug-report': {title:'Bug提交栏目', badge:'反馈', tpl:'tpl-bug-report',
-            desc:'提交工具问题、附件和复现信息，所有记录保存在服务端，团队成员均可查看。'},
+             desc:'提交工具问题、附件和复现信息，所有记录保存在服务端，团队成员均可查看。'},
   'feature-request': {title:'需求开发工单', badge:'需求', tpl:'tpl-feature-request',
             desc:'提交新功能、流程优化和开发需求，便于后续评估、排期和跟进。'},
   manual: {title:'工具说明书', badge:'说明', tpl:'tpl-manual',
@@ -987,10 +1074,284 @@ function initTool(tool){
   else if(tool==='feishu') initFeishu();
   else if(tool==='plm') initPlm();
   else if(tool==='bom-compare') initBomCompare();
+  else if(tool==='toolbox') initToolbox();
   else if(tool==='bug-report') initBugReport();
   else if(tool==='feature-request') initFeatureRequest();
   else if(tool==='manufacturer-alias') initManufacturerAlias();
   else if(window._toolInits&&window._toolInits[tool]) window._toolInits[tool]();
+}
+
+const HASH_MD5_K = [
+  0xd76aa478,0xe8c7b756,0x242070db,0xc1bdceee,0xf57c0faf,0x4787c62a,0xa8304613,0xfd469501,
+  0x698098d8,0x8b44f7af,0xffff5bb1,0x895cd7be,0x6b901122,0xfd987193,0xa679438e,0x49b40821,
+  0xf61e2562,0xc040b340,0x265e5a51,0xe9b6c7aa,0xd62f105d,0x02441453,0xd8a1e681,0xe7d3fbc8,
+  0x21e1cde6,0xc33707d6,0xf4d50d87,0x455a14ed,0xa9e3e905,0xfcefa3f8,0x676f02d9,0x8d2a4c8a,
+  0xfffa3942,0x8771f681,0x6d9d6122,0xfde5380c,0xa4beea44,0x4bdecfa9,0xf6bb4b60,0xbebfbc70,
+  0x289b7ec6,0xeaa127fa,0xd4ef3085,0x04881d05,0xd9d4d039,0xe6db99e5,0x1fa27cf8,0xc4ac5665,
+  0xf4292244,0x432aff97,0xab9423a7,0xfc93a039,0x655b59c3,0x8f0ccc92,0xffeff47d,0x85845dd1,
+  0x6fa87e4f,0xfe2ce6e0,0xa3014314,0x4e0811a1,0xf7537e82,0xbd3af235,0x2ad7d2bb,0xeb86d391
+];
+const HASH_MD5_S = [
+  7,12,17,22,7,12,17,22,7,12,17,22,7,12,17,22,
+  5,9,14,20,5,9,14,20,5,9,14,20,5,9,14,20,
+  4,11,16,23,4,11,16,23,4,11,16,23,4,11,16,23,
+  6,10,15,21,6,10,15,21,6,10,15,21,6,10,15,21
+];
+
+function hashRotL(value, shift){ return (value << shift) | (value >>> (32 - shift)); }
+function hashAdd32(){ return Array.from(arguments).reduce((sum,value)=>(sum + value) >>> 0, 0); }
+function hashMd5(buffer){
+  const bytes = new Uint8Array(buffer);
+  const originalLength = bytes.length;
+  const paddedLength = (((originalLength + 8) >>> 6) + 1) << 6;
+  const padded = new Uint8Array(paddedLength);
+  padded.set(bytes);
+  padded[originalLength] = 0x80;
+  const bitLength = originalLength * 8;
+  for(let i=0;i<8;i++) padded[paddedLength - 8 + i] = Math.floor(bitLength / Math.pow(2, 8 * i)) & 0xff;
+  let a0=0x67452301,b0=0xefcdab89,c0=0x98badcfe,d0=0x10325476;
+  for(let offset=0;offset<paddedLength;offset+=64){
+    const m = new Uint32Array(16);
+    for(let i=0;i<16;i++){
+      const j = offset + i * 4;
+      m[i] = padded[j] | (padded[j+1] << 8) | (padded[j+2] << 16) | (padded[j+3] << 24);
+    }
+    let a=a0,b=b0,c=c0,d=d0;
+    for(let i=0;i<64;i++){
+      let f,g;
+      if(i<16){ f=(b & c) | ((~b) & d); g=i; }
+      else if(i<32){ f=(d & b) | ((~d) & c); g=(5*i+1)%16; }
+      else if(i<48){ f=b ^ c ^ d; g=(3*i+5)%16; }
+      else { f=c ^ (b | (~d)); g=(7*i)%16; }
+      const temp=d;
+      d=c; c=b;
+      b=hashAdd32(b, hashRotL(hashAdd32(a, f, HASH_MD5_K[i], m[g]), HASH_MD5_S[i]));
+      a=temp;
+    }
+    a0=hashAdd32(a0,a); b0=hashAdd32(b0,b); c0=hashAdd32(c0,c); d0=hashAdd32(d0,d);
+  }
+  return [a0,b0,c0,d0].flatMap(word=>[word&0xff,(word>>>8)&0xff,(word>>>16)&0xff,(word>>>24)&0xff])
+    .map(byte=>byte.toString(16).padStart(2,'0')).join('');
+}
+function hashFormatSize(bytes){
+  if(bytes === 0) return '0 B';
+  const units = ['B','KB','MB','GB','TB'];
+  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  return (bytes / Math.pow(1024, index)).toFixed(index === 0 ? 0 : 2) + ' ' + units[index];
+}
+function hashReadFileBuffer(file, onProgress){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onprogress = function(event){
+      if(event.lengthComputable && onProgress){
+        onProgress('读取文件', Math.round(event.loaded / event.total * 100));
+      }
+    };
+    reader.onload = function(){ resolve(reader.result); };
+    reader.onerror = function(){ reject(reader.error || new Error('文件读取失败')); };
+    reader.readAsArrayBuffer(file);
+  });
+}
+function hashCreateMd5Worker(){
+  const workerCode = `
+const HASH_MD5_K=${JSON.stringify(HASH_MD5_K)};
+const HASH_MD5_S=${JSON.stringify(HASH_MD5_S)};
+function hashRotL(value, shift){ return (value << shift) | (value >>> (32 - shift)); }
+function hashAdd32(){ return Array.from(arguments).reduce((sum,value)=>(sum + value) >>> 0, 0); }
+function hashMd5(buffer){
+  const bytes = new Uint8Array(buffer);
+  const originalLength = bytes.length;
+  const paddedLength = (((originalLength + 8) >>> 6) + 1) << 6;
+  const padded = new Uint8Array(paddedLength);
+  padded.set(bytes);
+  padded[originalLength] = 0x80;
+  const bitLength = originalLength * 8;
+  for(let i=0;i<8;i++) padded[paddedLength - 8 + i] = Math.floor(bitLength / Math.pow(2, 8 * i)) & 0xff;
+  let a0=0x67452301,b0=0xefcdab89,c0=0x98badcfe,d0=0x10325476;
+  for(let offset=0;offset<paddedLength;offset+=64){
+    const m = new Uint32Array(16);
+    for(let i=0;i<16;i++){
+      const j = offset + i * 4;
+      m[i] = padded[j] | (padded[j+1] << 8) | (padded[j+2] << 16) | (padded[j+3] << 24);
+    }
+    let a=a0,b=b0,c=c0,d=d0;
+    for(let i=0;i<64;i++){
+      let f,g;
+      if(i<16){ f=(b & c) | ((~b) & d); g=i; }
+      else if(i<32){ f=(d & b) | ((~d) & c); g=(5*i+1)%16; }
+      else if(i<48){ f=b ^ c ^ d; g=(3*i+5)%16; }
+      else { f=c ^ (b | (~d)); g=(7*i)%16; }
+      const temp=d;
+      d=c; c=b;
+      b=hashAdd32(b, hashRotL(hashAdd32(a, f, HASH_MD5_K[i], m[g]), HASH_MD5_S[i]));
+      a=temp;
+    }
+    a0=hashAdd32(a0,a); b0=hashAdd32(b0,b); c0=hashAdd32(c0,c); d0=hashAdd32(d0,d);
+    if(offset % 1048576 === 0) postMessage({type:'progress', pct:Math.min(99, Math.round(offset / paddedLength * 100))});
+  }
+  return [a0,b0,c0,d0].flatMap(word=>[word&0xff,(word>>>8)&0xff,(word>>>16)&0xff,(word>>>24)&0xff])
+    .map(byte=>byte.toString(16).padStart(2,'0')).join('');
+}
+onmessage = function(event){
+  try{
+    postMessage({type:'progress', pct:0});
+    const md5 = hashMd5(event.data);
+    postMessage({type:'done', md5});
+  }catch(err){
+    postMessage({type:'error', error:err && err.message ? err.message : String(err)});
+  }
+};`;
+  const url = URL.createObjectURL(new Blob([workerCode], {type:'application/javascript'}));
+  const worker = new Worker(url);
+  worker._hashWorkerUrl = url;
+  return worker;
+}
+function hashMd5InWorker(buffer, onProgress){
+  return new Promise((resolve, reject)=>{
+    if(!window.Worker){
+      resolve(hashMd5(buffer));
+      return;
+    }
+    const worker = hashCreateMd5Worker();
+    worker.onmessage = function(event){
+      const data = event.data || {};
+      if(data.type === 'progress' && onProgress) onProgress('计算 MD5', data.pct || 0);
+      if(data.type === 'done'){
+        if(onProgress) onProgress('计算 MD5', 100);
+        URL.revokeObjectURL(worker._hashWorkerUrl);
+        worker.terminate();
+        resolve(data.md5);
+      }
+      if(data.type === 'error'){
+        URL.revokeObjectURL(worker._hashWorkerUrl);
+        worker.terminate();
+        reject(new Error(data.error || 'MD5 计算失败'));
+      }
+    };
+    worker.onerror = function(event){
+      URL.revokeObjectURL(worker._hashWorkerUrl);
+      worker.terminate();
+      reject(new Error(event.message || 'MD5 计算失败'));
+    };
+    worker.postMessage(buffer, [buffer]);
+  });
+}
+function hashResultCard(file, hashes){
+  const card = document.createElement('article');
+  card.className = 'hash-card';
+  card.innerHTML =
+    '<div class="hash-meta">' +
+      '<div class="hash-meta-item"><span class="hash-label">文件名</span><span class="hash-value" data-role="name"></span></div>' +
+      '<div class="hash-meta-item"><span class="hash-label">大小</span><span class="hash-value">'+hashFormatSize(file.size)+'</span></div>' +
+      '<div class="hash-meta-item"><span class="hash-label">类型</span><span class="hash-value">'+_escH(file.type || '未知')+'</span></div>' +
+    '</div>' +
+    '<div class="hash-row hash-row-md5"><strong>MD5</strong><code>'+hashes.md5+'</code><button class="btn btn-sm btn-outline" type="button" data-copy="'+hashes.md5+'">复制</button></div>';
+  card.querySelector('[data-role="name"]').textContent = file.name;
+  return card;
+}
+async function hashCalculateFile(file){
+  return hashCalculateFileWithProgress(file);
+}
+async function hashCalculateFileWithProgress(file, onProgress){
+  const buffer = await hashReadFileBuffer(file, onProgress);
+  const md5 = await hashMd5InWorker(buffer, onProgress);
+  return {md5:md5};
+}
+async function hashCopyText(text){
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.left = '-9999px';
+  document.body.appendChild(ta);
+  ta.select();
+  document.execCommand('copy');
+  ta.remove();
+}
+function hashUpdateProgress(stage, fileName, pct, note, isError){
+  const panel = $('hashProgressPanel');
+  const stageEl = $('hashProgressStage');
+  const fileEl = $('hashProgressFile');
+  const percentEl = $('hashProgressPercent');
+  const barEl = $('hashProgressBar');
+  const noteEl = $('hashProgressNote');
+  if(!panel || !stageEl || !fileEl || !percentEl || !barEl || !noteEl) return;
+  const safePct = Math.max(0, Math.min(100, Number.isFinite(pct) ? pct : 0));
+  panel.classList.add('show');
+  panel.classList.toggle('error', !!isError);
+  stageEl.textContent = stage || '处理中';
+  fileEl.textContent = fileName || '';
+  percentEl.textContent = safePct + '%';
+  barEl.style.width = safePct + '%';
+  noteEl.textContent = note || '文件不会上传服务器，所有计算都在本地浏览器完成。';
+}
+async function hashHandleFiles(files){
+  const fileList = Array.from(files || []);
+  const statusEl = $('hashStatus');
+  const resultsEl = $('hashResults');
+  const sectionEl = $('hashResultsSection');
+  if(!fileList.length || !statusEl || !resultsEl || !sectionEl) return;
+  resultsEl.innerHTML = '';
+  sectionEl.style.display = 'block';
+  statusEl.classList.remove('error');
+  statusEl.textContent = '正在计算 '+fileList.length+' 个文件...';
+  hashUpdateProgress('准备开始', '共 '+fileList.length+' 个文件', 0, '正在准备读取文件，本工具不会上传文件。');
+  try{
+    for(let i=0;i<fileList.length;i++){
+      const file = fileList[i];
+      const fileLabel = '文件 '+(i+1)+'/'+fileList.length+'：'+file.name;
+      statusEl.textContent = fileLabel+' | 准备读取';
+      const hashes = await hashCalculateFileWithProgress(file, function(stage, pct){
+        const pctText = Number.isFinite(pct) ? ' '+pct+'%' : '';
+        statusEl.textContent = fileLabel+' | '+stage+pctText;
+        const overall = Math.round(((i + (Math.max(0, Math.min(100, pct || 0)) / 100)) / fileList.length) * 100);
+        hashUpdateProgress(stage, fileLabel, overall, stage+'：'+Math.max(0, Math.min(100, pct || 0))+'%，总进度 '+overall+'%');
+      });
+      resultsEl.appendChild(hashResultCard(file, hashes));
+    }
+    statusEl.textContent = '完成：已计算 '+fileList.length+' 个文件';
+    hashUpdateProgress('计算完成', '已计算 '+fileList.length+' 个文件', 100, '结果已生成，可复制 MD5。');
+  }catch(err){
+    statusEl.classList.add('error');
+    statusEl.textContent = '计算失败：' + (err && err.message ? err.message : err);
+    hashUpdateProgress('计算失败', '', 100, err && err.message ? err.message : String(err), true);
+  }
+}
+function initToolbox(){
+  const dropZone = $('hashDropZone');
+  const fileInput = $('hashFileInput');
+  const resultsEl = $('hashResults');
+  if(!dropZone || !fileInput || !resultsEl) return;
+  fileInput.onchange = function(event){
+    hashHandleFiles(event.target.files);
+    event.target.value = '';
+  };
+  dropZone.ondragover = function(event){
+    event.preventDefault();
+    dropZone.classList.add('dragging');
+  };
+  dropZone.ondragleave = function(){ dropZone.classList.remove('dragging'); };
+  dropZone.ondrop = function(event){
+    event.preventDefault();
+    dropZone.classList.remove('dragging');
+    hashHandleFiles(event.dataTransfer.files);
+  };
+  resultsEl.onclick = async function(event){
+    const button = event.target.closest('[data-copy]');
+    if(!button) return;
+    const original = button.textContent;
+    try{
+      await hashCopyText(button.dataset.copy || '');
+      button.textContent = '已复制';
+      setTimeout(()=>{ button.textContent = original; }, 1200);
+    }catch(e){
+      button.textContent = '复制失败';
+      setTimeout(()=>{ button.textContent = original; }, 1200);
+    }
+  };
 }
 
 initRefreshNotice();
@@ -1288,18 +1649,101 @@ function initFeatureRequest(){
 
 function cmpState(prefix){
   const key='_cmp_'+prefix;
-  if(!window[key]) window[key]={leftHeaders:[],rightHeaders:[],manualPairs:[]};
+  if(!window[key]) window[key]={leftHeaders:[],rightHeaders:[],manualPairs:[],keyPairs:[]};
   return window[key];
 }
 function cmpOptions(headers, selected){
   return (headers||[]).map(h=>`<option value="${_escH(h)}"${h===selected?' selected':''}>${_escH(h)}</option>`).join('');
 }
+
+function cmpLooksLikeManufacturerCol(name){
+  return /\u5382\u5546|\u5382\u5bb6|\u5236\u9020\u5546|\u751f\u4ea7\u5382\u5bb6|\u4f9b\u5e94\u5546|brand|manufacturer|maker/i.test(name||'');
+}
+function cmpDefaultKeyPairs(prefix){
+  const st=cmpState(prefix);
+  if(prefix!=='cust') return [];
+  const left=st.leftHeaders||[], right=st.rightHeaders||[];
+  const pick=(headers, patterns)=>headers.find(h=>patterns.some(p=>p.test(h||'')))||'';
+  const leftModel=pick(left, [/\u89c4\u683c\u578b\u53f7/, /\u578b\u53f7/, /part\s*number/i, /model/i]);
+  const rightModel=pick(right, [/\u578b\u53f7/, /\u89c4\u683c\u578b\u53f7/, /part\s*number/i, /model/i]);
+  const leftMaker=pick(left, [/\u5382\u5546/, /\u5382\u5bb6/, /\u5236\u9020\u5546/, /\u751f\u4ea7\u5382\u5bb6/, /\u4f9b\u5e94\u5546/, /brand/i, /manufacturer/i, /maker/i]);
+  const rightMaker=pick(right, [/\u751f\u4ea7\u5382\u5bb6/, /\u5382\u5546/, /\u5382\u5bb6/, /\u5236\u9020\u5546/, /\u4f9b\u5e94\u5546/, /brand/i, /manufacturer/i, /maker/i]);
+  const rows=[];
+  if(leftModel&&rightModel) rows.push({left:leftModel,right:rightModel,transform:''});
+  if(leftMaker&&rightMaker) rows.push({left:leftMaker,right:rightMaker,transform:'manufacturer_alias'});
+  return rows.length?rows:[{left:left[0]||'',right:right[0]||'',transform:''}];
+}
+function cmpEnsureKeyPairs(prefix){
+  const st=cmpState(prefix);
+  if(prefix!=='cust') return;
+  st.keyPairs=(st.keyPairs||[]).filter(p=>p.left||p.right);
+  if(!st.keyPairs.length) st.keyPairs=cmpDefaultKeyPairs(prefix);
+  if(!st.keyPairs.length) st.keyPairs=[{left:'',right:'',transform:''}];
+}
+function cmpRenderKeyPairs(prefix){
+  if(prefix!=='cust' || !$(prefix+'KeyRows')) return;
+  const st=cmpState(prefix);
+  cmpEnsureKeyPairs(prefix);
+  const left=st.leftHeaders||[], right=st.rightHeaders||[];
+  $(prefix+'KeyRows').innerHTML=(st.keyPairs||[]).map((pair,i)=>{
+    const showMap=cmpLooksLikeManufacturerCol(pair.left);
+    const checked=pair.transform==='manufacturer_alias'?' checked':'';
+    return `<div class="row" style="margin:0">
+      <label style="min-width:90px">\u5339\u914d\u952e${i+1}\uff1a</label>
+      <select data-i="${i}" data-side="left" style="width:220px"><option value="">\u5148\u52a0\u8f7d\u5217</option>${cmpOptions(left,pair.left)}</select>
+      <span>&harr;</span>
+      <select data-i="${i}" data-side="right" style="width:220px"><option value="">\u5148\u52a0\u8f7d\u5217</option>${cmpOptions(right,pair.right)}</select>
+      <label style="font-size:12px;color:#555;display:${showMap?'flex':'none'};align-items:center;gap:3px;white-space:nowrap"><input type="checkbox" data-i="${i}" data-transform="manufacturer_alias"${checked}>\u5382\u5546\u6620\u5c04</label>
+      ${(st.keyPairs||[]).length>1?`<button class="btn btn-sm btn-gray" type="button" data-remove="${i}" style="color:#c00000">\u5220\u9664</button>`:''}
+    </div>`;
+  }).join('');
+  $(prefix+'KeyRows').querySelectorAll('select').forEach(sel=>{
+    sel.onchange=function(){const p=st.keyPairs[parseInt(this.dataset.i)];p[this.dataset.side]=this.value;if(!cmpLooksLikeManufacturerCol(p.left))p.transform='';cmpRenderKeyPairs(prefix);cmpRenderPairs(prefix);};
+  });
+  $(prefix+'KeyRows').querySelectorAll('input[data-transform]').forEach(chk=>{
+    chk.onchange=function(){st.keyPairs[parseInt(this.dataset.i)].transform=this.checked?'manufacturer_alias':'';};
+  });
+  $(prefix+'KeyRows').querySelectorAll('button[data-remove]').forEach(btn=>{
+    btn.onclick=function(){st.keyPairs.splice(parseInt(this.dataset.remove),1);cmpRenderKeyPairs(prefix);cmpRenderPairs(prefix);};
+  });
+  if($(prefix+'LeftKey')) $(prefix+'LeftKey').value=(st.keyPairs[0]||{}).left||'';
+  if($(prefix+'RightKey')) $(prefix+'RightKey').value=(st.keyPairs[0]||{}).right||'';
+}
+function cmpCollectKeyConfig(prefix){
+  if(prefix==='cust') return {left_key_cols:[],right_key_cols:[],left_key_transforms:[]};
+  return {
+    left_key_cols: [$(prefix+'LeftKey')?.value].filter(Boolean),
+    right_key_cols: [$(prefix+'RightKey')?.value].filter(Boolean),
+    left_key_transforms: [''],
+  };
+}
+function cmpPopulateCustomerStandardMapping(prefix){
+  if(prefix!=='cust') return;
+  const headers=cmpState(prefix).leftHeaders||[];
+  ['Refdes','Manufacturer','Model'].forEach(name=>{
+    const el=$(prefix+'Std'+name);
+    if(el) el.innerHTML=`<option value="">${name==='Refdes'?'不使用位号':'请选择客户列'}</option>`+cmpOptions(headers,'');
+  });
+}
+function cmpCollectCustomerStandardMapping(prefix){
+  return {
+    refdes: $(prefix+'StdRefdes')?.value||'',
+    manufacturer: $(prefix+'StdManufacturer')?.value||'',
+    model: $(prefix+'StdModel')?.value||'',
+  };
+}
 function cmpRenderPairs(prefix){
   const st=cmpState(prefix);
   const left=st.leftHeaders||[], right=st.rightHeaders||[];
+  if(prefix==='cust'){
+    if($(prefix+'CommonPairs')) $(prefix+'CommonPairs').innerHTML='';
+    if($(prefix+'ManualPairs')) $(prefix+'ManualPairs').innerHTML='';
+    return;
+  }
   const common=left.filter(h=>h && right.includes(h));
-  const leftKey=$(prefix+'LeftKey')?.value||'';
-  const rightKey=$(prefix+'RightKey')?.value||'';
+  const keyCfg=cmpCollectKeyConfig(prefix);
+  const leftKey=(keyCfg.left_key_cols||[])[0]||'';
+  const rightKey=(keyCfg.right_key_cols||[])[0]||'';
   let html='';
   common.forEach(col=>{
     const checked=(col===leftKey && col===rightKey)?'':' checked';
@@ -1314,9 +1758,9 @@ function cmpRenderManualPairs(prefix){
   const rows=st.manualPairs||[];
   $(prefix+'ManualPairs').innerHTML=rows.map((pair,i)=>`<div class="row" style="margin:0">
     <label style="min-width:90px">自定义字段：</label>
-    <select data-i="${i}" data-side="left" style="width:220px">${cmpOptions(left,pair.left)}</select>
+    <select data-i="${i}" data-side="left" style="width:220px"><option value="">不选择</option>${cmpOptions(left,pair.left)}</select>
     <span>&harr;</span>
-    <select data-i="${i}" data-side="right" style="width:220px">${cmpOptions(right,pair.right)}</select>
+    <select data-i="${i}" data-side="right" style="width:220px"><option value="">不选择</option>${cmpOptions(right,pair.right)}</select>
     <button class="btn btn-sm btn-gray" type="button" data-remove="${i}" style="color:#c00000">删除</button>
   </div>`).join('');
   $(prefix+'ManualPairs').querySelectorAll('select').forEach(sel=>{
@@ -1329,41 +1773,43 @@ function cmpRenderManualPairs(prefix){
 async function cmpRefresh(prefix, compareType){
   const leftFile=$(prefix+'LeftFile').files[0], rightFile=$(prefix+'RightFile').files[0];
   const st=cmpState(prefix);
-  st.leftHeaders=[];st.rightHeaders=[];st.manualPairs=[];
-  clearSelectOptions(prefix+'LeftKey','\u52a0\u8f7d\u4e2d...');
-  clearSelectOptions(prefix+'RightKey','\u52a0\u8f7d\u4e2d...');
-  $(prefix+'CommonPairs').innerHTML=excelLoadingHtml('\u6b63\u5728\u8bfb\u53d6\u4e24\u4efd Excel \u5217...');
-  $(prefix+'ManualPairs').innerHTML='';
+  st.leftHeaders=[];st.rightHeaders=[];st.manualPairs=[];st.keyPairs=[];
+  if($(prefix+'LeftKey')) clearSelectOptions(prefix+'LeftKey','加载中...');
+  if($(prefix+'RightKey')) clearSelectOptions(prefix+'RightKey','加载中...');
+  if($(prefix+'CommonPairs')) $(prefix+'CommonPairs').innerHTML=excelLoadingHtml('正在读取两份 Excel 列...');
+  if($(prefix+'ManualPairs')) $(prefix+'ManualPairs').innerHTML='';
   hide($(prefix+'Result'));clearInlineError(prefix+'Error');
   if(!leftFile||!rightFile){
     $(prefix+'LoadStatus').textContent='';
-    $(prefix+'CommonPairs').innerHTML='<span style="font-size:12px;color:#888">\u8bf7\u5148\u4e0a\u4f20\u4e24\u4efd BOM \u6587\u4ef6</span>';
+    if($(prefix+'CommonPairs')) $(prefix+'CommonPairs').innerHTML='<span style="font-size:12px;color:#888">请先上传两份 BOM 文件</span>';
     return;
   }
-  setLoadingStatus(prefix+'LoadStatus','\u6b63\u5728\u8bfb\u53d6\u5217...');
+  setLoadingStatus(prefix+'LoadStatus','正在读取列...');
   const fd=new FormData();
-  fd.append('left_file',leftFile);fd.append('right_file',rightFile);fd.append('compare_type',compareType||'customer_hq');
+  fd.append('left_file',leftFile);fd.append('right_file',rightFile);fd.append('compare_type',compareType||'cadence_hq');
   fd.append('left_header_row',$(prefix+'LeftHdr').value||1);fd.append('right_header_row',$(prefix+'RightHdr').value||1);
   const ls=$(prefix+'LeftSheet').value, rs=$(prefix+'RightSheet').value;
-  if(ls&&ls!=='\u5148\u9009\u62e9\u6587\u4ef6'&&ls!=='\u52a0\u8f7d\u4e2d...') fd.append('left_sheet',ls);
-  if(rs&&rs!=='\u5148\u9009\u62e9\u6587\u4ef6'&&rs!=='\u52a0\u8f7d\u4e2d...') fd.append('right_sheet',rs);
+  if(ls&&ls!=='先选择文件'&&ls!=='加载中...') fd.append('left_sheet',ls);
+  if(rs&&rs!=='先选择文件'&&rs!=='加载中...') fd.append('right_sheet',rs);
   try{
     const d=await postFormJson('/api/bom_compare/generic_sheets',fd);
-    if(!d.success) throw new Error(d.error||'\u8bfb\u53d6\u5217\u5931\u8d25');
+    if(!d.success) throw new Error(d.error||'读取列失败');
     $(prefix+'LeftSheet').innerHTML=(d.left_sheets||[]).map(s=>`<option${s===d.left_current_sheet?' selected':''}>${_escH(s)}</option>`).join('');
     $(prefix+'RightSheet').innerHTML=(d.right_sheets||[]).map(s=>`<option${s===d.right_current_sheet?' selected':''}>${_escH(s)}</option>`).join('');
     st.leftHeaders=d.left_headers||[];st.rightHeaders=d.right_headers||[];
     st.leftFormat=d.left_format||'';st.rightFormat=d.right_format||'';st.rightBomSheets=d.right_bom_sheets||[];
     if(d.left_header_row) $(prefix+'LeftHdr').value=d.left_header_row;
     if(d.right_header_row) $(prefix+'RightHdr').value=d.right_header_row;
-    $(prefix+'LeftKey').innerHTML=cmpOptions(st.leftHeaders,d.detected_left_key||d.left_detected_key);
-    $(prefix+'RightKey').innerHTML=cmpOptions(st.rightHeaders,d.detected_right_key||d.right_detected_key);
+    if($(prefix+'LeftKey')) $(prefix+'LeftKey').innerHTML=cmpOptions(st.leftHeaders,d.detected_left_key||d.left_detected_key);
+    if($(prefix+'RightKey')) $(prefix+'RightKey').innerHTML=cmpOptions(st.rightHeaders,d.detected_right_key||d.right_detected_key);
+    cmpPopulateCustomerStandardMapping(prefix);
+    cmpRenderKeyPairs(prefix);
     cmpRenderPairs(prefix);
-    const rightFmt=st.rightFormat==='plm_full'?'PLM \u5168\u91cf BOM':'\u6807\u51c6 HQ BOM';
-    const rightSheetHint=st.rightFormat==='plm_full'?`\uff0cHQ \u5df2\u8bc6\u522b ${rightFmt}\uff08${(st.rightBomSheets||[]).join('\u3001')}\uff09`:`\uff0cHQ \u5df2\u8bc6\u522b ${rightFmt}`;
-    setPlainStatus(prefix+'LoadStatus',`\u5df2\u52a0\u8f7d\uff1a\u5de6\u4fa7 ${st.leftHeaders.length} \u5217\uff0c\u53f3\u4fa7 ${st.rightHeaders.length} \u5217${rightSheetHint}`);
+    const rightFmt=st.rightFormat==='plm_full'?'PLM 全量 BOM':'标准 HQ BOM';
+    const rightSheetHint=st.rightFormat==='plm_full'?`，HQ 已识别 ${rightFmt}（${(st.rightBomSheets||[]).join('、')}）`:`，HQ 已识别 ${rightFmt}`;
+    setPlainStatus(prefix+'LoadStatus',`已加载：左侧 ${st.leftHeaders.length} 列，右侧 ${st.rightHeaders.length} 列${rightSheetHint}`);
   }catch(e){
-    $(prefix+'CommonPairs').innerHTML='<span style="font-size:12px;color:#888">\u5217\u8bfb\u53d6\u5931\u8d25</span>';
+    if($(prefix+'CommonPairs')) $(prefix+'CommonPairs').innerHTML='<span style="font-size:12px;color:#888">列读取失败</span>';
     $(prefix+'LoadStatus').textContent='';showInlineError(prefix+'Error',e.message,prefix+'Status');
   }
 }
@@ -1383,33 +1829,111 @@ function initGenericBomCompare(prefix, compareType){
   $(prefix+'RightSheet').onchange=()=>cmpRefresh(prefix,compareType);
   $(prefix+'LeftHdr').onchange=()=>cmpRefresh(prefix,compareType);
   $(prefix+'RightHdr').onchange=()=>cmpRefresh(prefix,compareType);
-  $(prefix+'LeftKey').onchange=()=>cmpRenderPairs(prefix);
-  $(prefix+'RightKey').onchange=()=>cmpRenderPairs(prefix);
-  $(prefix+'SelectAll').onclick=()=>document.querySelectorAll('#'+prefix+'CommonPairs input[type="checkbox"]').forEach(x=>x.checked=true);
-  $(prefix+'SelectNone').onclick=()=>document.querySelectorAll('#'+prefix+'CommonPairs input[type="checkbox"]').forEach(x=>x.checked=false);
-  $(prefix+'AddPair').onclick=()=>{const st=cmpState(prefix);st.manualPairs.push({left:st.leftHeaders[0]||'',right:st.rightHeaders[0]||''});cmpRenderManualPairs(prefix);};
+  if($(prefix+'LeftKey')) $(prefix+'LeftKey').onchange=()=>{cmpRenderKeyPairs(prefix);cmpRenderPairs(prefix);};
+  if($(prefix+'RightKey')) $(prefix+'RightKey').onchange=()=>{cmpRenderKeyPairs(prefix);cmpRenderPairs(prefix);};
+  if($(prefix+'SelectAll')) $(prefix+'SelectAll').onclick=()=>document.querySelectorAll('#'+prefix+'CommonPairs input[type="checkbox"]').forEach(x=>x.checked=true);
+  if($(prefix+'SelectNone')) $(prefix+'SelectNone').onclick=()=>document.querySelectorAll('#'+prefix+'CommonPairs input[type="checkbox"]').forEach(x=>x.checked=false);
+  if($(prefix+'AddPair')) $(prefix+'AddPair').onclick=()=>{const st=cmpState(prefix);st.manualPairs.push({left:'',right:''});cmpRenderManualPairs(prefix);};
+  if($(prefix+'AddKey')) $(prefix+'AddKey').onclick=()=>{const st=cmpState(prefix);cmpEnsureKeyPairs(prefix);st.keyPairs.push({left:'',right:'',transform:''});cmpRenderKeyPairs(prefix);cmpRenderPairs(prefix);};
   $(prefix+'Run').onclick=async function(){
     const leftFile=$(prefix+'LeftFile').files[0], rightFile=$(prefix+'RightFile').files[0];
     if(!leftFile||!rightFile){showInlineError(prefix+'Error','请上传两份 BOM 文件',prefix+'Status');return;}
-    const fieldPairs=cmpCollectPairs(prefix);
-    if(!$(prefix+'LeftKey').value||!$(prefix+'RightKey').value){showInlineError(prefix+'Error','请先加载列并选择两侧匹配键',prefix+'Status');return;}
+    let fieldPairs=cmpCollectPairs(prefix);
+    const keyCfg=cmpCollectKeyConfig(prefix);
+    if(!keyCfg.left_key_cols.length||!keyCfg.right_key_cols.length){showInlineError(prefix+'Error','请先加载列并选择两侧匹配键',prefix+'Status');return;}
     if(!fieldPairs.length){showInlineError(prefix+'Error','请至少选择一组需要比对的字段',prefix+'Status');return;}
     const btn=$(prefix+'Run');btn.disabled=true;$(prefix+'Status').textContent='正在比对...';hide($(prefix+'Result'));clearInlineError(prefix+'Error');
     const cfg={compare_type:compareType,left_sheet:$(prefix+'LeftSheet').value,right_sheet:$(prefix+'RightSheet').value,
       left_header_row:parseInt($(prefix+'LeftHdr').value)||1,right_header_row:parseInt($(prefix+'RightHdr').value)||1,
-      left_key_col:$(prefix+'LeftKey').value,right_key_col:$(prefix+'RightKey').value,field_pairs:fieldPairs};
+      left_key_col:keyCfg.left_key_cols[0]||'',right_key_col:keyCfg.right_key_cols[0]||'',
+      left_key_cols:keyCfg.left_key_cols,right_key_cols:keyCfg.right_key_cols,left_key_transforms:keyCfg.left_key_transforms,
+      field_pairs:fieldPairs};
     const fd=new FormData();fd.append('left_file',leftFile);fd.append('right_file',rightFile);fd.append('config',JSON.stringify(cfg));
     try{
       const d=await postFormJson('/api/bom_compare/generic',fd);
       if(!d.success) throw new Error(d.error||'比对失败');
-      const leftName=compareType==='cadence_hq'?'Cadence BOM':'客户 BOM';
+      const leftName='Cadence BOM';
       const rightName='HQ BOM';
       const expandHint=d.expanded_refdes?'<br>已按位号展开逐点比对':'';
-      $(prefix+'Stats').innerHTML=`${leftName} 独有 <b style="color:#c00000">${d.left_only}</b> | ${rightName} 独有 <b style="color:#2a8a2a">${d.right_only}</b> | 字段变更 <b style="color:#c07000">${d.changed}</b> | 完全一致 <b>${d.same}</b><br>${leftName} 共 ${d.left_total} 行，${rightName} 共 ${d.right_total} 行${expandHint}`;
+      const diffText=false
+        ? `制造商差异 <b style="color:#c07000">${d.manufacturer_diff||0}</b> | 型号差异 <b style="color:#c00000">${d.model_diff||0}</b> | 二供差异 <b style="color:#c07000">${d.second_source_diff||0}</b>`
+        : `字段变更 <b style="color:#c07000">${d.changed}</b>`;
+      const leftOnlyLabel=false?'仅客户BOM存在':`${leftName} 独有`;
+      const rightOnlyLabel=false?'仅HQ BOM存在':`${rightName} 独有`;
+      $(prefix+'Stats').innerHTML=`${leftOnlyLabel} <b style="color:#c00000">${d.left_only}</b> | ${rightOnlyLabel} <b style="color:#2a8a2a">${d.right_only}</b> | ${diffText} | 完全一致 <b>${d.same}</b><br>${leftName} 共 ${d.left_total} 行，${rightName} 共 ${d.right_total} 行${expandHint}`;
       $(prefix+'Dl').href=d.download;show($(prefix+'Result'));$(prefix+'Status').textContent='完成';
     }catch(e){showInlineError(prefix+'Error',e.message,prefix+'Status');}
     btn.disabled=false;
   };
+}
+
+
+function custOptionHtml(headers, selected='', optionalText='不映射'){
+  let html=`<option value="">${optionalText}</option>`;
+  (headers||[]).forEach(h=>{if(h) html+=`<option value="${_escH(h)}"${h===selected?' selected':''}>${_escH(h)}</option>`;});
+  return html;
+}
+function custState(){window._custPreviewState=window._custPreviewState||{leftHeaders:[],rightHeaders:[]};return window._custPreviewState;}
+async function custLoadColumns(){
+  const leftFile=$('custLeftFile').files[0], rightFile=$('custRightFile').files[0];
+  hide($('custPreviewPanel'));clearInlineError('custError');
+  if(!leftFile||!rightFile){$('custLoadStatus').textContent='请先上传客户 BOM 和 HQ BOM';return;}
+  setLoadingStatus('custLoadStatus','正在读取列...');
+  const fd=new FormData();
+  fd.append('left_file',leftFile);fd.append('right_file',rightFile);fd.append('compare_type','customer_preview');
+  fd.append('left_header_row',$('custLeftHdr').value||1);
+  const ls=$('custLeftSheet').value, rs=$('custRightSheet').value;
+  if(ls&&ls!=='先选择文件'&&ls!=='加载中...') fd.append('left_sheet',ls);
+  if(rs&&rs!=='先选择文件'&&rs!=='加载中...') fd.append('right_sheet',rs);
+  try{
+    const d=await postFormJson('/api/bom_compare/generic_sheets',fd);
+    if(!d.success) throw new Error(d.error||'读取列失败');
+    $('custLeftSheet').innerHTML=(d.left_sheets||[]).map(s=>`<option${s===d.left_current_sheet?' selected':''}>${_escH(s)}</option>`).join('');
+    $('custRightSheet').innerHTML=(d.right_sheets||[]).map(s=>`<option${s===d.right_current_sheet?' selected':''}>${_escH(s)}</option>`).join('');
+    if(d.left_header_row) $('custLeftHdr').value=d.left_header_row;
+    const st=custState();st.leftHeaders=d.left_headers||[];st.rightHeaders=d.right_headers||[];
+    $('custMapModel').innerHTML=custOptionHtml(st.leftHeaders,'','请选择客户列');
+    $('custMapManufacturer').innerHTML=custOptionHtml(st.leftHeaders,'','请选择客户列');
+    $('custMapRefdes').innerHTML=custOptionHtml(st.leftHeaders,'','不使用位号');
+    $('custMapQuantity').innerHTML=custOptionHtml(st.leftHeaders,'','不映射');
+    setPlainStatus('custLoadStatus',`已加载：客户 ${st.leftHeaders.length} 列，HQ ${st.rightHeaders.length} 列`);
+  }catch(e){$('custLoadStatus').textContent='';showInlineError('custError',e.message,'custStatus');}
+}
+function custRowsHtml(rows, side){
+  return (rows||[]).map(r=>{
+    const cells=side==='customer'
+      ? [r.row,r.match_key,r.refdes,r.model,r.manufacturer_raw,r.manufacturer_mapped,r.quantity,r.status,r.issue]
+      : [r.row,r.match_key,r.refdes,r.model,r.manufacturer_raw,r.manufacturer_mapped,r.quantity,r.part_no,r.alternate,r.status,r.issue];
+    return '<tr>'+cells.map(v=>`<td>${_escH(v==null?'':String(v))}</td>`).join('')+'</tr>';
+  }).join('');
+}
+async function custRunPreview(){
+  const leftFile=$('custLeftFile').files[0], rightFile=$('custRightFile').files[0];
+  if(!leftFile||!rightFile){showInlineError('custError','请先上传客户 BOM 和 HQ BOM','custStatus');return;}
+  const mapping={model:$('custMapModel').value,manufacturer:$('custMapManufacturer').value,refdes:$('custMapRefdes').value,quantity:$('custMapQuantity').value};
+  if(!mapping.model||!mapping.manufacturer){showInlineError('custError','请先映射规格型号和制造商','custStatus');return;}
+  if($('custMatchMode').value==='refdes'&&!mapping.refdes){showInlineError('custError','按位号匹配时必须映射位号列','custStatus');return;}
+  const btn=$('custPreview');btn.disabled=true;setLoadingStatus('custStatus','正在标准化预览...');clearInlineError('custError');
+  const cfg={left_sheet:$('custLeftSheet').value,right_sheet:$('custRightSheet').value,left_header_row:parseInt($('custLeftHdr').value)||1,mapping,match_mode:$('custMatchMode').value};
+  const fd=new FormData();fd.append('left_file',leftFile);fd.append('right_file',rightFile);fd.append('config',JSON.stringify(cfg));
+  try{
+    const d=await postFormJson('/api/bom_compare/customer_hq_preview',fd);
+    if(!d.success) throw new Error(d.error||'预览失败');
+    $('custPreviewStats').innerHTML=`匹配模式：<b>${d.match_mode==='refdes'?'按位号匹配':'按型号+制造商匹配'}</b> | 客户 ${d.customer_total} 行，异常 ${d.customer_invalid} 行 | HQ ${d.hq_total} 行，异常 ${d.hq_invalid} 行`;
+    $('custCustomerPreviewRows').innerHTML=custRowsHtml(d.customer_preview,'customer')||'<tr><td colspan="10">无数据</td></tr>';
+    $('custHqPreviewRows').innerHTML=custRowsHtml(d.hq_preview,'hq')||'<tr><td colspan="11">无数据</td></tr>';
+    show($('custPreviewPanel'));setPlainStatus('custStatus','预览完成');
+  }catch(e){showInlineError('custError',e.message,'custStatus');}
+  btn.disabled=false;
+}
+function initCustomerHqPreview(){
+  $('custRefresh').onclick=custLoadColumns;
+  $('custLeftFile').onchange=custLoadColumns;
+  $('custRightFile').onchange=custLoadColumns;
+  $('custLeftSheet').onchange=custLoadColumns;
+  $('custRightSheet').onchange=custLoadColumns;
+  $('custLeftHdr').onchange=custLoadColumns;
+  $('custPreview').onclick=custRunPreview;
 }
 
 function initBomCompare(){
@@ -1427,7 +1951,7 @@ function initBomCompare(){
       $('bomcmp-tab-'+this.dataset.bomcmpTab).style.display='block';
     };
   });
-  initGenericBomCompare('cust','customer_hq');
+  initCustomerHqPreview();
   initVersionCompare('hqv',{sheetsApi:'/api/bom_compare/local_sheets',compareApi:'/api/bom_compare/hq_version',label:'HQ BOM'});
   initVersionCompare('machv',{sheetsApi:'/api/bom_compare/machine_local_sheets',compareApi:'/api/bom_compare/machine_hq_version',label:'整机 HQ BOM'});
   initGenericBomCompare('cad','cadence_hq');
