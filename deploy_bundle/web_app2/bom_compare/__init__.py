@@ -53,10 +53,10 @@ def _headers(ws, header_row):
 def _ps_single_quote(value):
     return "'" + str(value).replace("'", "''") + "'"
 
-def _convert_xls_with_excel(src_path, uid):
+def _convert_xls_with_excel(src_path, uid, prefix='bomcmp_converted'):
     if os.name != 'nt':
         raise ValueError(HQ_XLS_CONVERT_ERROR)
-    out_path = os.path.join(UPLOAD_DIR, f'bomcmp_converted_{uid}.xlsx')
+    out_path = os.path.join(UPLOAD_DIR, f'{prefix}_converted_{uid}.xlsx')
     script = (
         "$ErrorActionPreference='Stop';"
         f"$src={_ps_single_quote(src_path)};"
@@ -86,7 +86,7 @@ def _save_uploaded_hq_excel(file, prefix, uid):
     if lower.endswith('.xls') and not lower.endswith('.xlsx'):
         raw_path = os.path.join(UPLOAD_DIR, f'{prefix}_{uid}.xls')
         file.save(raw_path)
-        return _convert_xls_with_excel(raw_path, uid)
+        return _convert_xls_with_excel(raw_path, uid, prefix)
     return _save_uploaded_excel(file, prefix, uid)
 
 

@@ -4,6 +4,7 @@ import sys
 import unittest
 import uuid
 from pathlib import Path
+from unittest.mock import patch
 from urllib.parse import unquote
 
 import openpyxl
@@ -15,6 +16,7 @@ if str(WEB_APP) not in sys.path:
     sys.path.insert(0, str(WEB_APP))
 
 from app import app  # noqa: E402
+from bom_compare import _save_uploaded_hq_excel  # noqa: E402
 from feishu import _is_preferred_level, _write_cache  # noqa: E402
 from manufacturer_alias import normalize_manufacturer_name  # noqa: E402
 
@@ -419,6 +421,30 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(detail["F1"].value, "基准值")
         self.assertEqual(detail["G1"].value, "对比值")
         wb.close()
+
+    def test_xls_pair_conversion_uses_distinct_paths_for_same_request(self):
+        class DummyUpload:
+            filename = "demo.xls"
+
+            def save(self, path):
+                Path(path).write_bytes(b"xls")
+
+        converted = []
+
+        def fake_convert(src_path, uid, prefix="bomcmp_converted"):
+            out_path = WEB_APP / "uploads" / f"{prefix}_converted_{uid}.xlsx"
+            converted.append((Path(src_path).name, out_path.name))
+            return str(out_path)
+
+        with patch("bom_compare._convert_xls_with_excel", side_effect=fake_convert):
+            old_path = _save_uploaded_hq_excel(DummyUpload(), "bomcmp_old", "sameuid")
+            new_path = _save_uploaded_hq_excel(DummyUpload(), "bomcmp_new", "sameuid")
+
+        self.assertNotEqual(old_path, new_path)
+        self.assertEqual(
+            [name for _, name in converted],
+            ["bomcmp_old_converted_sameuid.xlsx", "bomcmp_new_converted_sameuid.xlsx"],
+        )
 
     def test_hq_bom_version_compare_reports_refdes_delta_as_part_change(self):
         base_bom = _hq_export_bytes(
