@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Bug 提交栏目 — Blueprint"""
+"""Bug 鎻愪氦鏍忕洰 鈥?Blueprint"""
 
 import json
 import os
@@ -117,14 +117,34 @@ def _row_to_report(row):
     return item
 
 
-def _read_reports():
+def _filter_reports(reports, status='', module='', query=''):
+    status = str(status or '').strip()
+    module = str(module or '').strip()
+    query = str(query or '').strip().lower()
+    filtered = []
+    for item in reports:
+        if status and item.get('status') != status:
+            continue
+        if module and item.get('module') != module:
+            continue
+        if query:
+            haystack = '\n'.join(str(item.get(key, '') or '') for key in (
+                'title', 'description', 'steps', 'expected', 'reporter', 'employee_id', 'module', 'severity',
+            )).lower()
+            if query not in haystack:
+                continue
+        filtered.append(item)
+    return filtered
+
+
+def _read_reports(status='', module='', query=''):
     conn = _connect()
     try:
         rows = conn.execute('SELECT * FROM bug_reports ORDER BY submitted_at DESC').fetchall()
-        return [_row_to_report(row) for row in rows]
+        reports = [_row_to_report(row) for row in rows]
+        return _filter_reports(reports, status=status, module=module, query=query)
     finally:
         conn.close()
-
 
 def _insert_report(report):
     conn = _connect()
@@ -184,8 +204,12 @@ def _save_attachments(report_id):
 
 @bug_report_bp.route('/api/bug_reports', methods=['GET'])
 def api_bug_reports():
-    return jsonify({'success': True, 'reports': _read_reports()})
-
+    reports = _read_reports(
+        status=request.args.get('status', ''),
+        module=request.args.get('module', ''),
+        query=request.args.get('q', ''),
+    )
+    return jsonify({'success': True, 'reports': reports, 'total': len(reports)})
 
 @bug_report_bp.route('/api/bug_reports', methods=['POST'])
 def api_submit_bug_report():
@@ -194,7 +218,7 @@ def api_submit_bug_report():
     title = _clean_text('title', 120)
     description = _clean_text('description', 4000)
     if not reporter or not employee_id or not title or not description:
-        return jsonify({'success': False, 'error': '请填写姓名、工号、问题标题和问题描述'})
+        return jsonify({'success': False, 'error': '璇峰～鍐欏鍚嶃€佸伐鍙枫€侀棶棰樻爣棰樺拰闂鎻忚堪'})
 
     report_id = time.strftime('%Y%m%d%H%M%S') + '-' + uuid.uuid4().hex[:6]
     try:

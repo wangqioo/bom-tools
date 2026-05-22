@@ -17,6 +17,8 @@ from shared import (
     UPLOAD_DIR, OUTPUT_DIR, _cell_str,
     _open_workbook, _save_uploaded_excel, _to_int,
 )
+from manufacturer_alias import lookup_manufacturer
+from .customer_hq import preview as customer_hq_preview
 
 
 bom_compare_bp = Blueprint('bom_compare', __name__)
@@ -31,12 +33,6 @@ HQ_FORMAT_ERROR = '\u4e0d\u652f\u6301\u5f53\u524d\u6587\u4ef6\u683c\u5f0f\u3002\
 HQ_XLS_CONVERT_ERROR = '\u65e0\u6cd5\u76f4\u63a5\u8bfb\u53d6\u8be5 .xls \u6587\u4ef6\u3002\u8bf7\u786e\u8ba4\u670d\u52a1\u5668\u4e3a Windows \u4e14\u5df2\u5b89\u88c5\u53ef\u89e3\u5bc6\u6b64\u6587\u4ef6\u7684 Excel\uff0c\u6216\u5148\u5728 Excel \u4e2d\u53e6\u5b58\u4e3a .xlsx \u540e\u518d\u4e0a\u4f20\u3002'
 
 GENERIC_COMPARE_TYPES = {
-    'customer_hq': {
-        'title': '\u5ba2\u6237BOM \u5bf9\u6bd4 HQ BOM \u5dee\u5f02\u603b\u89c8',
-        'left_label': '\u5ba2\u6237BOM',
-        'right_label': 'HQ BOM',
-        'filename': '\u5ba2\u6237BOM\u5bf9\u6bd4HQ_BOM',
-    },
     'cadence_hq': {
         'title': 'Cadence BOM \u5bf9\u6bd4 HQ BOM \u5dee\u5f02\u603b\u89c8',
         'left_label': 'Cadence BOM',
@@ -298,8 +294,10 @@ def _valid_plm_full_sheets(wb):
 def _plm_full_target_sheets(wb, _preferred=None):
     return _valid_plm_full_sheets(wb)
 
-def _load_hq_side_rows(path, sheet_name, key_col, compare_cols, expand_refdes=False):
-    rows, duplicates, headers = _load_rows(path, sheet_name, None, key_col, compare_cols, expand_refdes=expand_refdes)
+def _load_hq_side_rows(path, sheet_name, key_col, compare_cols, expand_refdes=False, key_cols=None, key_transforms=None):
+    rows, duplicates, headers = _load_rows(
+        path, sheet_name, None, key_col, compare_cols,
+        expand_refdes=expand_refdes, key_cols=key_cols, key_transforms=key_transforms)
     return rows, duplicates, headers, 0
 
 
@@ -332,6 +330,27 @@ def _field_value_equal(left_value, right_value):
         return left_num == right_num
     return _cell_str(left_value) == _cell_str(right_value)
 
+def _map_compare_key_value(value, transform=''):
+    text = _cell_str(value)
+    if transform == 'manufacturer_alias' and text:
+        match = lookup_manufacturer(text)
+        if match:
+            return _cell_str(match.get('canonical_name'))
+    return text
+
+
+def _normalize_key_config(cols, fallback_col='', transforms=None):
+    key_cols = [str(c or '').strip() for c in (cols or []) if str(c or '').strip()]
+    if not key_cols and fallback_col:
+        key_cols = [str(fallback_col).strip()]
+    key_transforms = list(transforms or [])
+    if len(key_transforms) < len(key_cols):
+        key_transforms += [''] * (len(key_cols) - len(key_transforms))
+    elif len(key_transforms) > len(key_cols):
+        key_transforms = key_transforms[:len(key_cols)]
+    return key_cols, key_transforms
+
+
 def _expand_compare_values(values, key_col, key):
     expanded = dict(values)
     if key_col in expanded:
@@ -342,16 +361,19 @@ def _expand_compare_values(values, key_col, key):
     return expanded
 
 
-def _load_generic_rows(path, sheet_name, header_row, key_col, compare_cols, expand_refdes=False):
+def _load_generic_rows(path, sheet_name, header_row, key_col, compare_cols, expand_refdes=False, key_cols=None, key_transforms=None):
     wb = _open_workbook(path, data_only=True)
     sheet_name = _pick_sheet(wb, sheet_name)
     ws = wb[sheet_name]
     headers = _headers(ws, header_row)
-    if key_col not in headers:
+    key_cols, key_transforms = _normalize_key_config(key_cols, key_col, key_transforms)
+    missing_key_cols = [col for col in key_cols if col not in headers]
+    if not key_cols or missing_key_cols:
         wb.close()
-        raise ValueError(f'匹配键列 "{key_col}" 不存在')
+        bad_col = missing_key_cols[0] if missing_key_cols else key_col
+        raise ValueError(f'\u5339\u914d\u952e\u5217 "{bad_col}" \u4e0d\u5b58\u5728')
 
-    key_idx = headers.index(key_col) + 1
+    key_indices = [(col, headers.index(col) + 1, key_transforms[i] if i < len(key_transforms) else '') for i, col in enumerate(key_cols)]
     compare_indices = [(col, headers.index(col) + 1) for col in compare_cols if col in headers]
     rows = {}
     duplicates = {}
@@ -362,18 +384,21 @@ def _load_generic_rows(path, sheet_name, header_row, key_col, compare_cols, expa
             continue
         if _row_is_import_warning(ws, ri):
             break
-        key = _cell_str(ws.cell(row=ri, column=key_idx).value)
-        if not key:
+        key_parts = [
+            _map_compare_key_value(ws.cell(row=ri, column=idx).value, transform)
+            for _, idx, transform in key_indices
+        ]
+        if not any(key_parts):
             skipped_blank_key += 1
             continue
-        keys = _split_refdes(key) if expand_refdes else [key]
+        keys = _split_refdes(key_parts[0]) if expand_refdes else ['||'.join(key_parts)]
         values = {col: _cell_str(ws.cell(row=ri, column=idx).value) for col, idx in compare_indices}
         for item_key in keys:
             if not item_key:
                 continue
             item = {
                 'row': ri,
-                'values': _expand_compare_values(values, key_col, item_key) if expand_refdes else values,
+                'values': _expand_compare_values(values, key_cols[0], item_key) if expand_refdes else values,
                 'raw': row_values,
                 'headers': headers,
             }
@@ -383,7 +408,6 @@ def _load_generic_rows(path, sheet_name, header_row, key_col, compare_cols, expa
             rows[item_key] = item
     wb.close()
     return rows, duplicates, headers, skipped_blank_key
-
 
 def _field_pairs(config_pairs, left_headers, right_headers, ignored_left_headers=None):
     ignored_left_headers = set(ignored_left_headers or [])
@@ -477,7 +501,9 @@ def _write_generic_compare_report(out_path, left_rows, right_rows, field_pairs, 
         (f"{labels['left_label']} \u7a7a\u952e\u8df3\u8fc7", stats['left_blank_keys']),
         (f"{labels['right_label']} \u7a7a\u952e\u8df3\u8fc7", stats['right_blank_keys']),
     ]
+    summary_row_by_name = {}
     for ri, (name, value) in enumerate(summary_rows, 3):
+        summary_row_by_name[name] = ri
         ws.cell(row=ri, column=1, value=name).font = Font(bold=True)
         ws.cell(row=ri, column=2, value=value)
         ws.cell(row=ri, column=1).border = bdr
@@ -555,12 +581,25 @@ def _write_generic_compare_report(out_path, left_rows, right_rows, field_pairs, 
         sheet.freeze_panes = 'A2'
         sheet.auto_filter.ref = sheet.dimensions
 
-    diff_items = [i for i in items if i['type'] != '一致']
-    if labels.get('filename') != 'Cadence_BOM对比HQ_BOM':
-        write_table(wb.create_sheet('差异明细'), diff_items)
-    write_original_rows(wb.create_sheet(_safe_sheet_title(left_only_type)), [i for i in items if i['type'] == left_only_type], 'left', left_headers)
-    write_original_rows(wb.create_sheet(_safe_sheet_title(right_only_type)), [i for i in items if i['type'] == right_only_type], 'right', right_headers)
-    write_table(wb.create_sheet('字段变更'), [i for i in items if i['type'] == '字段变更'])
+    def link_summary_row(name, sheet):
+        ri = summary_row_by_name.get(name)
+        if not ri or not sheet:
+            return
+        cell = ws.cell(row=ri, column=2)
+        cell.hyperlink = f"'{sheet.title}'!A1"
+        cell.style = 'Hyperlink'
+
+    diff_items = [i for i in items if i['type'] != '\u4e00\u81f4']
+    detail_sheet = None
+    if labels.get('filename') != 'Cadence_BOM\u5bf9\u6bd4HQ_BOM':
+        detail_sheet = wb.create_sheet('\u5dee\u5f02\u660e\u7ec6')
+        write_table(detail_sheet, diff_items)
+    left_only_sheet = wb.create_sheet(_safe_sheet_title(left_only_type))
+    write_original_rows(left_only_sheet, [i for i in items if i['type'] == left_only_type], 'left', left_headers)
+    right_only_sheet = wb.create_sheet(_safe_sheet_title(right_only_type))
+    write_original_rows(right_only_sheet, [i for i in items if i['type'] == right_only_type], 'right', right_headers)
+    changed_sheet = wb.create_sheet('\u5b57\u6bb5\u53d8\u66f4')
+    write_table(changed_sheet, [i for i in items if i['type'] == '\u5b57\u6bb5\u53d8\u66f4'])
 
     ws_dup = wb.create_sheet('\u91cd\u590d\u952e')
     ws_dup.append(['\u7c7b\u578b', '\u5339\u914d\u952e\u548c\u884c\u53f7'])
@@ -574,6 +613,16 @@ def _write_generic_compare_report(out_path, left_rows, right_rows, field_pairs, 
         for cell in row:
             cell.border = bdr
             cell.alignment = left_align
+
+    link_summary_row(f"\u4ec5 {labels['left_label']} \u5b58\u5728", left_only_sheet)
+    link_summary_row(f"\u4ec5 {labels['right_label']} \u5b58\u5728", right_only_sheet)
+    link_summary_row('\u5b57\u6bb5\u53d8\u66f4', changed_sheet)
+    link_summary_row(f"{labels['left_label']} \u91cd\u590d\u952e", ws_dup)
+    link_summary_row(f"{labels['right_label']} \u91cd\u590d\u952e", ws_dup)
+    if detail_sheet:
+        ws['D2'] = '\u67e5\u770b\u5dee\u5f02\u660e\u7ec6'
+        ws['D2'].hyperlink = f"'{detail_sheet.title}'!A1"
+        ws['D2'].style = 'Hyperlink'
 
     for sheet in wb.worksheets:
         for col in range(1, sheet.max_column + 1):
@@ -596,6 +645,8 @@ def _split_refdes(value):
     return refs or ['']
 
 
+
+
 def _format_match_key(key):
     text = str(key)
     if '||' not in text:
@@ -608,14 +659,17 @@ def _is_plm_history_header(row_values):
     return row_values[:5] == ['\u0042\u004f\u004d\u7248\u672c', '\u65e5\u671f', '\u4fee\u8ba2\u88c5\u914d\u4ef6', '\u4fee\u8ba2\u7ec4\u4ef6', '\u7ec4\u4ef6\u578b\u53f7']
 
 
-def _load_rows(path, sheet_name, header_row, key_col, compare_cols, expand_refdes=False):
+def _load_rows(path, sheet_name, header_row, key_col, compare_cols, expand_refdes=False, key_cols=None, key_transforms=None):
     wb, sheet_name, ws, fmt = _open_hq_workbook_info(path, sheet_name)
     headers = fmt['headers']
     header_row = fmt['header_row']
-    if key_col not in headers:
+    key_cols, key_transforms = _normalize_key_config(key_cols, key_col, key_transforms)
+    missing_key_cols = [col for col in key_cols if col not in headers]
+    if not key_cols or missing_key_cols:
         wb.close()
-        raise ValueError(f'\u5339\u914d\u952e\u5217 "{key_col}" \u4e0d\u5b58\u5728')
-    key_idx = headers.index(key_col) + 1
+        bad_col = missing_key_cols[0] if missing_key_cols else key_col
+        raise ValueError(f'\u5339\u914d\u952e\u5217 "{bad_col}" \u4e0d\u5b58\u5728')
+    key_indices = [(col, headers.index(col) + 1, key_transforms[i] if i < len(key_transforms) else '') for i, col in enumerate(key_cols)]
     ref_idx = headers.index('\u4f4d\u53f7') + 1 if '\u4f4d\u53f7' in headers else None
     compare_indices = [(col, headers.index(col) + 1) for col in compare_cols if col in headers]
 
@@ -631,21 +685,24 @@ def _load_rows(path, sheet_name, header_row, key_col, compare_cols, expand_refde
                 if _is_plm_history_header(next_values):
                     break
             continue
-        key = _cell_str(ws.cell(row=ri, column=key_idx).value)
-        if not key:
+        key_parts = [
+            _map_compare_key_value(ws.cell(row=ri, column=idx).value, transform)
+            for _, idx, transform in key_indices
+        ]
+        if not any(key_parts):
             continue
         values = {col: _cell_str(ws.cell(row=ri, column=idx).value) for col, idx in compare_indices}
         refdes_list = _split_refdes(ws.cell(row=ri, column=ref_idx).value) if ref_idx else []
         if refdes_list == ['']:
             refdes_list = []
-        keys = _split_refdes(key) if expand_refdes else [key]
+        keys = _split_refdes(key_parts[0]) if expand_refdes else ['||'.join(key_parts)]
         for item_key in keys:
             if not item_key:
                 continue
             item = {
                 'key': item_key,
                 'row': ri,
-                'values': _expand_compare_values(values, key_col, item_key) if expand_refdes else values,
+                'values': _expand_compare_values(values, key_cols[0], item_key) if expand_refdes else values,
                 'refdes_list': [item_key] if expand_refdes else refdes_list,
                 'raw': row_values,
                 'sheet': sheet_name,
@@ -1020,6 +1077,49 @@ def _write_plm_full_diff_report(out_path, sheet_results, compare_cols, old_meta=
 
 
 
+
+
+@bom_compare_bp.route('/api/bom_compare/customer_hq_preview', methods=['POST'])
+def api_customer_hq_preview():
+    left_file = request.files.get('left_file')
+    right_file = request.files.get('right_file')
+    if not left_file or not right_file:
+        return jsonify({'success': False, 'error': '\u8bf7\u4e0a\u4f20\u5ba2\u6237 BOM \u548c HQ BOM \u6587\u4ef6'})
+    try:
+        config = json.loads(request.form.get('config', '{}'))
+    except Exception:
+        return jsonify({'success': False, 'error': 'config \u53c2\u6570\u683c\u5f0f\u9519\u8bef'})
+    left_header_row = _to_int(config.get('left_header_row', 1), 1)
+    if left_header_row is None:
+        return jsonify({'success': False, 'error': '\u5ba2\u6237 BOM \u8868\u5934\u884c\u5fc5\u987b\u662f\u5927\u4e8e\u7b49\u4e8e 1 \u7684\u6570\u5b57'})
+    mapping = config.get('mapping') if isinstance(config.get('mapping'), dict) else {}
+    match_mode = str(config.get('match_mode') or 'identity')
+    uid = str(uuid.uuid4())[:8]
+    try:
+        left_path = _save_uploaded_excel(left_file, 'bomcmp_customer_preview_left', uid)
+        right_path = _save_uploaded_hq_excel(right_file, 'bomcmp_customer_preview_right', uid)
+        payload = customer_hq_preview(
+            left_path=left_path,
+            right_path=right_path,
+            left_sheet=config.get('left_sheet', ''),
+            right_sheet=config.get('right_sheet', ''),
+            left_header_row=left_header_row,
+            mapping=mapping,
+            match_mode=match_mode,
+            helpers={
+                'pick_sheet': _pick_sheet,
+                'headers_fn': _headers,
+                'open_hq_info': _open_hq_workbook_info,
+                'is_plm_history_header': _is_plm_history_header,
+                'normalize_header': _normalize_header,
+            },
+        )
+        return jsonify({'success': True, **payload})
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
 @bom_compare_bp.route('/api/bom_compare/generic_sheets', methods=['POST'])
 def api_generic_sheets():
     left_file = request.files.get('left_file') or request.files.get('file')
@@ -1030,7 +1130,7 @@ def api_generic_sheets():
     header_row = _to_int(request.form.get('header_row', 1), 1)
     left_header_row = _to_int(request.form.get('left_header_row', header_row), 1)
     right_header_row = _to_int(request.form.get('right_header_row', header_row), 1)
-    compare_type = str(request.form.get('compare_type') or 'customer_hq')
+    compare_type = str(request.form.get('compare_type') or 'cadence_hq')
     if header_row is None or left_header_row is None or right_header_row is None:
         return jsonify({'success': False, 'error': '\u8868\u5934\u884c\u5fc5\u987b\u662f\u5927\u4e8e\u7b49\u4e8e 1 \u7684\u6570\u5b57'})
 
@@ -1093,8 +1193,8 @@ def api_generic_compare():
     except Exception:
         return jsonify({'success': False, 'error': 'config \u53c2\u6570\u683c\u5f0f\u9519\u8bef'})
 
-    compare_type = str(config.get('compare_type') or 'customer_hq')
-    labels = GENERIC_COMPARE_TYPES.get(compare_type, GENERIC_COMPARE_TYPES['customer_hq'])
+    compare_type = str(config.get('compare_type') or 'cadence_hq')
+    labels = GENERIC_COMPARE_TYPES.get(compare_type, GENERIC_COMPARE_TYPES['cadence_hq'])
     left_header_row = _to_int(config.get('left_header_row', config.get('header_row', 1)), 1)
     right_header_row = _to_int(config.get('right_header_row', config.get('header_row', 1)), 1)
     if left_header_row is None or right_header_row is None:
@@ -1102,8 +1202,16 @@ def api_generic_compare():
 
     left_key_col = str(config.get('left_key_col') or '').strip()
     right_key_col = str(config.get('right_key_col') or '').strip()
-    if not left_key_col or not right_key_col:
+    left_key_cols, left_key_transforms = _normalize_key_config(
+        config.get('left_key_cols'), left_key_col, config.get('left_key_transforms'))
+    right_key_cols, right_key_transforms = _normalize_key_config(
+        config.get('right_key_cols'), right_key_col, config.get('right_key_transforms'))
+    if not left_key_cols or not right_key_cols:
         return jsonify({'success': False, 'error': '\u8bf7\u9009\u62e9\u4e24\u4efd BOM \u7684\u5339\u914d\u952e\u5217'})
+    if len(left_key_cols) != len(right_key_cols):
+        return jsonify({'success': False, 'error': '\u4e24\u4efd BOM \u7684\u590d\u5408\u5339\u914d\u952e\u6570\u91cf\u5fc5\u987b\u4e00\u81f4'})
+    left_key_col = left_key_cols[0]
+    right_key_col = right_key_cols[0]
 
     uid = str(uuid.uuid4())[:8]
     try:
@@ -1120,15 +1228,20 @@ def api_generic_compare():
             ignored_left_headers = []
         right_sheet, right_headers, right_fmt, _, _ = _read_hq_side_headers(right_path, config.get('right_sheet', ''))
         field_pairs = _field_pairs(config.get('field_pairs', []), left_headers, right_headers, ignored_left_headers)
-        field_pairs = [(l, r) for l, r in field_pairs if l != left_key_col or r != right_key_col]
+        key_pair_set = set(zip(left_key_cols, right_key_cols))
+        field_pairs = [(l, r) for l, r in field_pairs if (l, r) not in key_pair_set]
         if not field_pairs:
             return jsonify({'success': False, 'error': '\u8bf7\u81f3\u5c11\u9009\u62e9\u4e00\u7ec4\u9700\u8981\u6bd4\u5bf9\u7684\u5b57\u6bb5'})
 
         left_compare_cols = [l for l, _ in field_pairs]
         right_compare_cols = [r for _, r in field_pairs]
         expand_refdes = compare_type == 'cadence_hq' and _is_refdes_header(left_key_col) and _is_refdes_header(right_key_col)
-        left_rows, left_dups, _, left_blank = _load_generic_rows(left_path, left_sheet, left_fmt['header_row'], left_key_col, left_compare_cols, expand_refdes=expand_refdes)
-        right_rows, right_dups, _, right_blank = _load_hq_side_rows(right_path, right_sheet, right_key_col, right_compare_cols, expand_refdes=expand_refdes)
+        left_rows, left_dups, _, left_blank = _load_generic_rows(
+            left_path, left_sheet, left_fmt['header_row'], left_key_col, left_compare_cols,
+            expand_refdes=expand_refdes, key_cols=left_key_cols, key_transforms=left_key_transforms)
+        right_rows, right_dups, _, right_blank = _load_hq_side_rows(
+            right_path, right_sheet, right_key_col, right_compare_cols,
+            expand_refdes=expand_refdes, key_cols=right_key_cols, key_transforms=right_key_transforms)
 
         left_only = sorted(set(left_rows) - set(right_rows))
         right_only = sorted(set(right_rows) - set(left_rows))

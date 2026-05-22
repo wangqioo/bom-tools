@@ -561,7 +561,12 @@ tr:hover td { background:#f7f9fc; }
   </div>
   <div class="section"><h3>问题记录</h3>
     <div class="workflow-step-desc">按提交时间倒序展示。点击问题卡片可查看详情并修改处理状态，附件可直接打开查看。</div>
-    <div class="row">
+    <div class="row" style="flex-wrap:wrap">
+      <label>状态：</label>
+      <select id="bugFilterStatus" style="width:120px"><option value="">全部状态</option><option>待处理</option><option>处理中</option><option>已修复</option><option>已关闭</option><option>暂缓</option><option>无法复现</option></select>
+      <label>模块：</label>
+      <select id="bugFilterModule" style="width:190px"><option value="">全部模块</option><option>BOM 格式转换</option><option>飞书优选库+关系库匹配</option><option>查询BOM优选率</option><option>转换为上传PLM系统格式</option><option>BOM比对工具合集</option><option>小工具合集</option><option>平台通用</option><option>其他</option></select>
+      <input type="search" id="bugFilterQuery" placeholder="搜索标题、描述、提交人" style="width:190px">
       <button class="btn btn-sm btn-gray" id="bugRefresh" type="button">刷新记录</button>
       <span id="bugListStatus" style="font-size:12px;color:#888"></span>
     </div>
@@ -610,7 +615,7 @@ tr:hover td { background:#f7f9fc; }
     <div class="row"><label>附件：</label><input type="file" id="featureFiles" accept="image/*,.xlsx,.xlsm,.xls,.csv,.txt,.log,.zip,.rar,.7z,.doc,.docx,.ppt,.pptx,.pdf" multiple style="width:300px"><span class="hint">支持截图、Excel、CSV、Office/PDF、日志文本和压缩包</span></div>
     <button class="btn btn-primary" id="featureSubmit" type="button">提交工单</button><span id="featureStatus" style="font-size:13px;color:#888;margin-left:8px"></span><div class="error" id="featureError"></div>
   </div>
-  <div class="section"><h3>需求记录</h3><div class="workflow-step-desc">按提交时间倒序展示。点击需求卡片可查看详情并修改状态，附件可直接打开查看。</div><div class="row"><button class="btn btn-sm btn-gray" id="featureRefresh" type="button">刷新记录</button><span id="featureListStatus" style="font-size:12px;color:#888"></span></div><div id="featureList" style="display:flex;flex-direction:column;gap:10px"></div>
+  <div class="section"><h3>需求记录</h3><div class="workflow-step-desc">按提交时间倒序展示。点击需求卡片可查看详情并修改状态，附件可直接打开查看。</div><div class="row" style="flex-wrap:wrap"><label>状态：</label><select id="featureFilterStatus" style="width:120px"><option value="">全部状态</option><option>待评估</option><option>已纳入</option><option>开发中</option><option>已完成</option><option>暂缓</option><option>已关闭</option></select><label>模块：</label><select id="featureFilterModule" style="width:190px"><option value="">全部模块</option><option>BOM 格式转换</option><option>飞书优选库+关系库匹配</option><option>查询BOM优选率</option><option>转换为上传PLM系统格式</option><option>BOM比对工具合集</option><option>平台通用</option><option>其他</option></select><label>排序：</label><select id="featureSort" style="width:110px"><option value="newest">最新提交</option><option value="likes">点赞最多</option></select><input type="search" id="featureFilterQuery" placeholder="搜索标题、说明、提交人" style="width:190px"><button class="btn btn-sm btn-gray" id="featureRefresh" type="button">刷新记录</button><span id="featureListStatus" style="font-size:12px;color:#888"></span></div><div id="featureList" style="display:flex;flex-direction:column;gap:10px"></div>
     <div id="featureDetailModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.38);z-index:50;align-items:center;justify-content:center;padding:18px">
       <div style="width:min(760px,92vw);max-height:86vh;overflow:auto;background:#fff;border-radius:12px;box-shadow:0 16px 50px rgba(15,23,42,.22);padding:18px">
         <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;border-bottom:1px solid #e8edf5;padding-bottom:10px">
@@ -1462,7 +1467,14 @@ function initManufacturerAlias(){
 async function bugLoadReports(){
   $('bugListStatus').textContent='加载中...';
   try{
-    const r=await fetch('/api/bug_reports');
+    const params=new URLSearchParams();
+    const status=$('bugFilterStatus') ? $('bugFilterStatus').value.trim() : '';
+    const module=$('bugFilterModule') ? $('bugFilterModule').value.trim() : '';
+    const q=$('bugFilterQuery') ? $('bugFilterQuery').value.trim() : '';
+    if(status) params.set('status',status);
+    if(module) params.set('module',module);
+    if(q) params.set('q',q);
+    const r=await fetch('/api/bug_reports'+(params.toString()?('?'+params.toString()):''));
     const d=await r.json();
     if(!d.success) throw new Error(d.error||'加载失败');
     const reports=d.reports||[];
@@ -1529,6 +1541,8 @@ async function bugSaveStatus(){
 function initBugReport(){
   bugLoadReports();
   $('bugRefresh').onclick=bugLoadReports;
+  ['bugFilterStatus','bugFilterModule'].forEach(id=>{ if($(id)) $(id).onchange=bugLoadReports; });
+  if($('bugFilterQuery')) $('bugFilterQuery').onkeydown=e=>{if(e.key==='Enter')bugLoadReports();};
   $('bugDetailClose').onclick=bugCloseReport;
   $('bugDetailSave').onclick=bugSaveStatus;
   $('bugDetailModal').onclick=function(e){if(e.target===this) bugCloseReport();};
@@ -1566,7 +1580,16 @@ function initBugReport(){
 async function featureLoadRequests(){
   $('featureListStatus').textContent='加载中...';
   try{
-    const r=await fetch('/api/feature_requests');
+    const params=new URLSearchParams();
+    const status=$('featureFilterStatus') ? $('featureFilterStatus').value.trim() : '';
+    const module=$('featureFilterModule') ? $('featureFilterModule').value.trim() : '';
+    const q=$('featureFilterQuery') ? $('featureFilterQuery').value.trim() : '';
+    const sort=$('featureSort') ? $('featureSort').value.trim() : '';
+    if(status) params.set('status',status);
+    if(module) params.set('module',module);
+    if(q) params.set('q',q);
+    if(sort) params.set('sort',sort);
+    const r=await fetch('/api/feature_requests'+(params.toString()?('?'+params.toString()):''));
     const d=await r.json();
     if(!d.success) throw new Error(d.error||'加载失败');
     const requests=d.requests||[];
@@ -1634,6 +1657,8 @@ async function featureSaveStatus(){
 function initFeatureRequest(){
   featureLoadRequests();
   $('featureRefresh').onclick=featureLoadRequests;
+  ['featureFilterStatus','featureFilterModule','featureSort'].forEach(id=>{ if($(id)) $(id).onchange=featureLoadRequests; });
+  if($('featureFilterQuery')) $('featureFilterQuery').onkeydown=e=>{if(e.key==='Enter')featureLoadRequests();};
   $('featureDetailClose').onclick=featureCloseRequest;
   $('featureDetailSave').onclick=featureSaveStatus;
   $('featureDetailModal').onclick=function(e){if(e.target===this) featureCloseRequest();};

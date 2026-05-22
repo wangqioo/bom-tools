@@ -149,11 +149,41 @@ def _row_to_request(row):
     return item
 
 
-def _read_requests():
+def _filter_requests(items, status='', module='', query=''):
+    status = str(status or '').strip()
+    module = str(module or '').strip()
+    query = str(query or '').strip().lower()
+    filtered = []
+    for item in items:
+        if status and item.get('status') != status:
+            continue
+        if module and item.get('module') != module:
+            continue
+        if query:
+            haystack = '\n'.join(str(item.get(key, '') or '') for key in (
+                'title', 'background', 'requirement', 'value', 'acceptance',
+                'requester', 'employee_id', 'module', 'priority', 'request_type',
+            )).lower()
+            if query not in haystack:
+                continue
+        filtered.append(item)
+    return filtered
+
+
+def _sort_requests(items, sort='newest'):
+    sort = str(sort or 'newest').strip()
+    if sort == 'likes':
+        return sorted(items, key=lambda item: (-int(item.get('likes') or 0), -float(item.get('submitted_at') or 0)))
+    return sorted(items, key=lambda item: -float(item.get('submitted_at') or 0))
+
+
+def _read_requests(status='', module='', query='', sort='newest'):
     conn = _connect()
     try:
         rows = conn.execute('SELECT * FROM feature_requests ORDER BY submitted_at DESC').fetchall()
-        return [_row_to_request(row) for row in rows]
+        items = [_row_to_request(row) for row in rows]
+        items = _filter_requests(items, status=status, module=module, query=query)
+        return _sort_requests(items, sort=sort)
     finally:
         conn.close()
 
@@ -247,7 +277,13 @@ def _save_attachments(request_id):
 
 @feature_request_bp.route('/api/feature_requests', methods=['GET'])
 def api_feature_requests():
-    return jsonify({'success': True, 'requests': _read_requests()})
+    items = _read_requests(
+        status=request.args.get('status', ''),
+        module=request.args.get('module', ''),
+        query=request.args.get('q', ''),
+        sort=request.args.get('sort', 'newest'),
+    )
+    return jsonify({'success': True, 'requests': items, 'total': len(items)})
 
 
 @feature_request_bp.route('/api/feature_requests', methods=['POST'])
