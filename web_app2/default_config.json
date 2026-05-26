@@ -20,6 +20,15 @@
       "token": "shthq7d9W17DSo7cwuFhtIg7KPf",
       "sheets": [
         {
+          "sheet_id": "8wVbdD",
+          "sheet_name": "MLCC选型指导 ",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
           "sheet_id": "0WaCOa",
           "sheet_name": "工业级和不区分优选库(用于选型)",
           "enabled": true,
@@ -28,12 +37,48 @@
             "制造商"
           ],
           "fetch_col_aliases": {
+            "HQ制造商": "制造商",
+            "HQ描述": "描述",
             "HQ料号": "HQ编码",
             "HQ规格型号": "规格型号",
-            "HQ制造商": "制造商",
-            "优选等级": "PI",
-            "HQ描述": "描述"
+            "优选等级": "PI"
           }
+        },
+        {
+          "sheet_id": "1PnAfI",
+          "sheet_name": "消费级和不区分对照库(不能用于选型)",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "JaFmms",
+          "sheet_name": "MLCC一物一码全量表(不能用于选型仅用于对照规格)",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "CctR52",
+          "sheet_name": "DBG MLCC一码一物优选库变更记录",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "HqCvUt",
+          "sheet_name": "Sheet6",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
         }
       ]
     },
@@ -41,6 +86,15 @@
       "name": "电阻",
       "token": "shthqdJvubPLY8mrO8qkOMXmGiw",
       "sheets": [
+        {
+          "sheet_id": "vYJeTf",
+          "sheet_name": "DBG电阻选型指导",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
         {
           "sheet_id": "0Rfegx",
           "sheet_name": "DBG通用电阻(用于物料选型)",
@@ -54,8 +108,26 @@
             "HQ规格型号": "规格型号",
             "HQ制造商": "制造商",
             "优选等级": "PI",
-            "HQ描述": "PLM描述(调整)"
+            "HQ描述": "PLM描述"
           }
+        },
+        {
+          "sheet_id": "1nTUfq",
+          "sheet_name": "电阻一码一物全部 (整理) (2)",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "2jBEKG",
+          "sheet_name": "电阻一码一物全部 (整理)",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
         },
         {
           "sheet_id": "3hHtuU",
@@ -70,8 +142,125 @@
             "HQ规格型号": "规格型号",
             "HQ制造商": "制造商",
             "优选等级": "PI",
-            "HQ描述": "PLM描述(调整)"
+            "HQ描述": "PLM描述"
           }
+        },
+        {
+          "sheet_id": "4tLIwv",
+          "sheet_name": "电阻一码一物全部",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "5IMpFZ",
+          "sheet_name": "DBG申请一码一物表",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "6ENMSO",
+          "sheet_name": "批量导出报表",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "7dFHXZ",
+          "sheet_name": "电阻优选库拆分",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "Ii34Si",
+          "sheet_name": "DBG电阻一码一物优选库变更记录",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "cMhi4Y",
+          "sheet_name": "PLM数据1218(仅用于数据校验)",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "HjAmxQ",
+          "sheet_name": "贴片电阻现有系统优选属性汇总表(仅用于数据校验",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "hv3787",
+          "sheet_name": "Sheet11",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "iW2yCP",
+          "sheet_name": "DBG通用电阻优选库(仅用于替代组上传数据核验，选型勿用)",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "1IEvCL",
+          "sheet_name": "DBG通用电阻优选库（淘汰物料，选型勿用)",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "5DNDrm",
+          "sheet_name": "DBG防硫化电阻优选库(仅用于替代组上传数据核验，选型勿用)",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "eUCRuY",
+          "sheet_name": "DBG防硫化电阻优选库(淘汰物料，选型勿用)",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "2kOy1f",
+          "sheet_name": "合金电阻防硫化信息",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
         }
       ]
     },
@@ -79,6 +268,24 @@
       "name": "电解电容",
       "token": "shthqO56eTG9DyJX60nDaaMGp0e",
       "sheets": [
+        {
+          "sheet_id": "0rlQTS",
+          "sheet_name": "DBG电解电容优选库原始数据",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "801jrR",
+          "sheet_name": "DBG电解电容选型指导",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
         {
           "sheet_id": "snZgJO",
           "sheet_name": "DBG电解电容优选库V1.2(用于物料选型)",
@@ -88,12 +295,93 @@
             "制造商"
           ],
           "fetch_col_aliases": {
+            "HQ制造商": "制造商",
+            "HQ描述": "物料描述",
             "HQ料号": "华勤物料号",
             "HQ规格型号": "规格型号",
-            "HQ制造商": "制造商",
-            "优选等级": "PI",
-            "HQ描述": "物料描述"
+            "优选等级": "PI"
           }
+        },
+        {
+          "sheet_id": "KImaw1",
+          "sheet_name": "DBG电解电容优选库V1.2（副本）",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "ToUDmB",
+          "sheet_name": "DBG电解电容替代组  待评估 0704",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "GPOlHD",
+          "sheet_name": "DBG电解电容替代组",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "1gUtzK",
+          "sheet_name": "DBG电解电容优选库更新",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "2eCJHS",
+          "sheet_name": "电解电容",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "3buqTS",
+          "sheet_name": "批量导出报表",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "3wY6pj",
+          "sheet_name": "DBG电解电容优选库变更记录",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "nREVJa",
+          "sheet_name": "Sheet11",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "5j6Ysw",
+          "sheet_name": "Sheet12",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
         }
       ]
     },
@@ -101,6 +389,33 @@
       "name": "网络变压器/电感器",
       "token": "shthquBGGQB8twAgmJWSBwFY5he",
       "sheets": [
+        {
+          "sheet_id": "0cIgBG",
+          "sheet_name": "封面",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "1nkkTe",
+          "sheet_name": "变更履历",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "2uluSE",
+          "sheet_name": "DBG电感器选型说明",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
         {
           "sheet_id": "3TIPZk",
           "sheet_name": "功率电感器",
@@ -132,6 +447,15 @@
           }
         },
         {
+          "sheet_id": "5wFuYa",
+          "sheet_name": "功率电感器2",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
           "sheet_id": "6EnVvO",
           "sheet_name": "一般用电感器",
           "enabled": true,
@@ -140,11 +464,11 @@
             "制造商"
           ],
           "fetch_col_aliases": {
+            "HQ制造商": "制造商",
+            "HQ描述": "描述",
             "HQ料号": "物料编码",
             "HQ规格型号": "规格型号",
-            "HQ制造商": "制造商",
-            "优选等级": "PI",
-            "HQ描述": "描述"
+            "优选等级": "PI"
           }
         },
         {
@@ -161,6 +485,123 @@
             "HQ规格型号": "规格型号",
             "优选等级": "PI"
           }
+        },
+        {
+          "sheet_id": "9oiYjP",
+          "sheet_name": "优选功率电感器",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "10knBi",
+          "sheet_name": "一般用电感器 (2)",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "11wtFC",
+          "sheet_name": "功率电感器 (2)",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "12GaUF",
+          "sheet_name": "说明",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "13wQjY",
+          "sheet_name": "已停用",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "14AMHg",
+          "sheet_name": "电感应用项目",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "d47Jq4",
+          "sheet_name": "CBB物料",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "WjfIu6",
+          "sheet_name": "DBG电感优选库变更记录",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "eTrjb3",
+          "sheet_name": "DBG网络变压器优选库变更记录",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "sjuqEk",
+          "sheet_name": "物料属性0522",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "bbjuHX",
+          "sheet_name": "Sheet19",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "Z4UGxj",
+          "sheet_name": "Sheet20",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "eXCzJV",
+          "sheet_name": "量产项目已验证电感替代组",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
         }
       ]
     },
@@ -168,6 +609,33 @@
       "name": "磁珠",
       "token": "shthq1EJlpgHfBqBGNediRZdt8c",
       "sheets": [
+        {
+          "sheet_id": "0glRun",
+          "sheet_name": "封面",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "1WfcqZ",
+          "sheet_name": "变更履历",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "2urgmf",
+          "sheet_name": "DBG磁珠选型说明",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
         {
           "sheet_id": "3kRIFh",
           "sheet_name": "DBG磁珠优选库更新(用于物料选型)",
@@ -177,12 +645,102 @@
             "制造商"
           ],
           "fetch_col_aliases": {
+            "HQ制造商": "制造商",
+            "HQ描述": "新描述",
             "HQ料号": "物料编码",
             "HQ规格型号": "规格型号",
-            "HQ制造商": "制造商",
-            "优选等级": "PI",
-            "HQ描述": "新描述"
+            "优选等级": "PI"
           }
+        },
+        {
+          "sheet_id": "gOGv3T",
+          "sheet_name": "DBG磁珠优选库更新（仅用于系统数据对比不能用于选型）",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "4SxNEv",
+          "sheet_name": "DBG磁珠优选库",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "5fgPlJ",
+          "sheet_name": "批量导出报表",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "6WJyif",
+          "sheet_name": "HQ磁珠优选库",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "7eTnQC",
+          "sheet_name": "DBG磁珠优选库 (2)",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "Frtwnw",
+          "sheet_name": "DBG磁珠优选库变更记录",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "Zw9VTs",
+          "sheet_name": "Sheet9",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "hlC1st",
+          "sheet_name": "Sheet11",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "fgom6k",
+          "sheet_name": "Sheet13",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "JNPthP",
+          "sheet_name": "Sheet14",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
         }
       ]
     },
@@ -190,6 +748,33 @@
       "name": "晶体晶振",
       "token": "shthqpy6hg6hVD78VNPElmcSF6d",
       "sheets": [
+        {
+          "sheet_id": "0Jorul",
+          "sheet_name": "封面",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "1KNeSu",
+          "sheet_name": "变更履历",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "2qEAmu",
+          "sheet_name": "DBG晶体晶振选型说明",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
         {
           "sheet_id": "3wMjcf",
           "sheet_name": "无源晶体",
@@ -199,11 +784,11 @@
             "制造商"
           ],
           "fetch_col_aliases": {
+            "HQ制造商": "制造商",
+            "HQ描述": "新描述",
             "HQ料号": "物料编码",
             "HQ规格型号": "规格型号",
-            "HQ制造商": "制造商",
-            "优选等级": "DBG PI",
-            "HQ描述": "新描述"
+            "优选等级": "DBG PI"
           }
         },
         {
@@ -220,6 +805,114 @@
             "HQ规格型号": "规格型号",
             "优选等级": "DBG PI"
           }
+        },
+        {
+          "sheet_id": "5SNShA",
+          "sheet_name": "批量导出报表 (2)",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "6ORdKh",
+          "sheet_name": "批量导出报表",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "7GqPYb",
+          "sheet_name": "DBG优选库",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "8leWtS",
+          "sheet_name": "DBG优选库 (2)",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "9WgiaK",
+          "sheet_name": "HQ原始",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "10ptNG",
+          "sheet_name": "晶振应用项目",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "11wulA",
+          "sheet_name": "说明",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "M55h5W",
+          "sheet_name": "晶振应用场景 ",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "egMQ9X",
+          "sheet_name": "DBG晶体晶振优选库变更记录",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "gVlgKA",
+          "sheet_name": "无源晶体更新表",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "sUrBnD",
+          "sheet_name": "Sheet16",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "2prSyx",
+          "sheet_name": "Sheet17",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
         }
       ]
     },
@@ -227,6 +920,42 @@
       "name": "保险丝",
       "token": "shthqpsZCFkwGjn62CjRYCpKrHg",
       "sheets": [
+        {
+          "sheet_id": "0kfjwb",
+          "sheet_name": "封面",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "1IQHms",
+          "sheet_name": "变更履历",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "2WoNDm",
+          "sheet_name": "DBG保险丝选型说明",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "3lsPUC",
+          "sheet_name": "统计用",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
         {
           "sheet_id": "4uPMyK",
           "sheet_name": "贴片电流保险丝",
@@ -236,11 +965,11 @@
             "制造商"
           ],
           "fetch_col_aliases": {
+            "HQ制造商": "制造商",
+            "HQ描述": "新描述",
             "HQ料号": "物料编码",
             "HQ规格型号": "规格型号",
-            "HQ制造商": "制造商",
-            "优选等级": "PI",
-            "HQ描述": "新描述"
+            "优选等级": "PI"
           }
         },
         {
@@ -252,12 +981,30 @@
             "制造商"
           ],
           "fetch_col_aliases": {
+            "HQ制造商": "制造商",
+            "HQ描述": "新描述",
             "HQ料号": "物料编码",
             "HQ规格型号": "规格型号",
-            "HQ制造商": "制造商",
-            "优选等级": "PI",
-            "HQ描述": "新描述"
+            "优选等级": "PI"
           }
+        },
+        {
+          "sheet_id": "UAhRV9",
+          "sheet_name": "DBG保险丝优选库变更记录\t\t",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "jEwAn3",
+          "sheet_name": "Sheet8",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
         }
       ]
     },
@@ -265,6 +1012,33 @@
       "name": "纽扣电池",
       "token": "shthqngCNYdufotGIcL6Vn6gWWh",
       "sheets": [
+        {
+          "sheet_id": "0lsFkc",
+          "sheet_name": "封面",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "1EXFaq",
+          "sheet_name": "变更履历",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "2YgSaN",
+          "sheet_name": "变更记录",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
         {
           "sheet_id": "3HWybX",
           "sheet_name": "纽扣电池",
@@ -274,12 +1048,39 @@
             "制造商"
           ],
           "fetch_col_aliases": {
+            "HQ制造商": "制造商",
+            "HQ描述": "描述",
             "HQ料号": "物料编码",
             "HQ规格型号": "规格型号",
-            "HQ制造商": "制造商",
-            "优选等级": "PI",
-            "HQ描述": "描述"
+            "优选等级": "PI"
           }
+        },
+        {
+          "sheet_id": "EfE0BB",
+          "sheet_name": "纽扣电池优选库变更记录",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "4RMMyj",
+          "sheet_name": "Sheet1",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "5tPozy",
+          "sheet_name": "Sheet3",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
         }
       ]
     },
@@ -287,6 +1088,42 @@
       "name": "滤波器/共模扼流圈",
       "token": "shthqaZbFrblnh3V0A3ahhOj4Og",
       "sheets": [
+        {
+          "sheet_id": "0FAlTB",
+          "sheet_name": "封面",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "1dvFye",
+          "sheet_name": "变更履历",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "2QZDbE",
+          "sheet_name": "变更记录",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "4xxymO",
+          "sheet_name": "DBG滤波器(共模扼流圈)选型策略",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
         {
           "sheet_id": "3xrqUr",
           "sheet_name": "DBG滤波器(共模扼流圈)优选库",
@@ -296,12 +1133,30 @@
             "制造商"
           ],
           "fetch_col_aliases": {
+            "HQ制造商": "制造商",
+            "HQ描述": "描述",
             "HQ料号": "物料编码",
             "HQ规格型号": "规格型号",
-            "HQ制造商": "制造商",
-            "优选等级": "PI",
-            "HQ描述": "描述"
+            "优选等级": "PI"
           }
+        },
+        {
+          "sheet_id": "ZzoEYm",
+          "sheet_name": "DBG滤波器(共模扼流圈)优选库变更记录",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "MaikOj",
+          "sheet_name": "Sheet7",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
         }
       ]
     },
@@ -309,6 +1164,15 @@
       "name": "Power IC优选库",
       "token": "shthqz7lKPJt9UGF4FOIU1uyTUh",
       "sheets": [
+        {
+          "sheet_id": "0tIrvZ",
+          "sheet_name": "优选库",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
         {
           "sheet_id": "1UuGvI",
           "sheet_name": "多相控制器",
@@ -1138,6 +2002,42 @@
       "token": "shthqE9sVI2DkIBYkSkLcUdNxvn",
       "sheets": [
         {
+          "sheet_id": "0BUEdk",
+          "sheet_name": "封面",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "1FFtlx",
+          "sheet_name": "Change History",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "2iiMjW",
+          "sheet_name": "目录",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "3DSCoe",
+          "sheet_name": "优选规则",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
           "sheet_id": "4iUMUQ",
           "sheet_name": "RJ45",
           "enabled": true,
@@ -1819,6 +2719,24 @@
       "token": "shthqpYELkJAH7b0uPn1HRcEyLg",
       "sheets": [
         {
+          "sheet_id": "0EmGly",
+          "sheet_name": "封面",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "eOC5lE",
+          "sheet_name": "变更记录",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
           "sheet_id": "1ZoPmL",
           "sheet_name": "SATA",
           "enabled": true,
@@ -1954,6 +2872,24 @@
           }
         },
         {
+          "sheet_id": "10Jlrk",
+          "sheet_name": "供电线",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "11buae",
+          "sheet_name": "高速信号线",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
           "sheet_id": "N2SPai",
           "sheet_name": "网线",
           "enabled": true,
@@ -2015,6 +2951,24 @@
             "HQ料号": "HQ料号",
             "HQ规格型号": "HQ 规格型号"
           }
+        },
+        {
+          "sheet_id": "hnK0yS",
+          "sheet_name": "Sheet4",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
+        },
+        {
+          "sheet_id": "etidLM",
+          "sheet_name": "Sheet5",
+          "enabled": false,
+          "feishu_key_names": [
+            "制造商"
+          ],
+          "fetch_col_aliases": {}
         }
       ]
     }
