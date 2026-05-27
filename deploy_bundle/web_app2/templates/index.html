@@ -232,6 +232,7 @@ tr:hover td { background:#f7f9fc; }
     <a href="#" data-tool="pref-rate"><span class="icon">📊</span>查询BOM优选率</a>
     <a href="#" data-tool="plm"><span class="icon">📤</span>转换为上传PLM系统格式</a>
     <a href="#" data-tool="bom-compare"><span class="icon">🧾</span>BOM比对工具合集</a>
+    <a href="#" data-tool="bom-compare-copy"><span class="icon">&#128221;</span>BOM对比工具合集-新版</a>
     <a href="#" data-tool="toolbox"><span class="icon">🧰</span>小工具合集</a>
     <a href="#" data-tool="bug-report"><span class="icon">🐞</span>Bug提交栏目</a>
     <a href="#" data-tool="feature-request"><span class="icon">📝</span>需求开发工单</a>
@@ -1009,6 +1010,8 @@ const TOOLS = {
            desc:'将整机 BOM 配置表转换为 PLM 系统可导入的标准格式：序号、料号、单耗等25列，主供行填单耗，替代料自动标记主辅BOM标记。'},
   'bom-compare': {title:'BOM比对工具合集', badge:'v0.1', tpl:'tpl-bom-compare',
            desc:'提供单板HQ BOM版本对比、整机HQ BOM版本对比、Cadence导出BOM对比HQ BOM三个比对子功能。'},
+  'bom-compare-copy': {title:'BOM\u5bf9\u6bd4\u5de5\u5177\u5408\u96c6-\u65b0\u7248', badge:'copy', tpl:'tpl-bom-compare',
+           desc:'\u590d\u5236\u5f53\u524d BOM \u5bf9\u6bd4\u5de5\u5177\u5408\u96c6\uff0c\u4fdd\u7559\u76f8\u540c\u529f\u80fd\u4f9b\u540e\u7eed\u72ec\u7acb\u8c03\u6574\u3002'},
   toolbox: {title:'小工具合集', badge:'工具', tpl:'tpl-toolbox',
            desc:'提供轻量级本地小工具。当前包含文件哈希值计算，可直接在浏览器内得到 MD5。'},
   'bug-report': {title:'Bug提交栏目', badge:'反馈', tpl:'tpl-bug-report',
@@ -1079,6 +1082,7 @@ function initTool(tool){
   else if(tool==='feishu') initFeishu();
   else if(tool==='plm') initPlm();
   else if(tool==='bom-compare') initBomCompare();
+  else if(tool==='bom-compare-copy') initBomCompare('/api/bom_compare_clone');
   else if(tool==='toolbox') initToolbox();
   else if(tool==='bug-report') initBugReport();
   else if(tool==='feature-request') initFeatureRequest();
@@ -1817,7 +1821,7 @@ async function cmpRefresh(prefix, compareType){
   if(ls&&ls!=='先选择文件'&&ls!=='加载中...') fd.append('left_sheet',ls);
   if(rs&&rs!=='先选择文件'&&rs!=='加载中...') fd.append('right_sheet',rs);
   try{
-    const d=await postFormJson('/api/bom_compare/generic_sheets',fd);
+    const d=await postFormJson(apiPrefix+'/generic_sheets',fd);
     if(!d.success) throw new Error(d.error||'读取列失败');
     $(prefix+'LeftSheet').innerHTML=(d.left_sheets||[]).map(s=>`<option${s===d.left_current_sheet?' selected':''}>${_escH(s)}</option>`).join('');
     $(prefix+'RightSheet').innerHTML=(d.right_sheets||[]).map(s=>`<option${s===d.right_current_sheet?' selected':''}>${_escH(s)}</option>`).join('');
@@ -1845,7 +1849,7 @@ function cmpCollectPairs(prefix){
   const seen=new Set();
   return pairs.filter(p=>{const k=p.left+'\u0000'+p.right;if(seen.has(k))return false;seen.add(k);return true;});
 }
-function initGenericBomCompare(prefix, compareType){
+function initGenericBomCompare(prefix, compareType, apiPrefix='/api/bom_compare'){
   cmpState(prefix);
   $(prefix+'Refresh').onclick=()=>cmpRefresh(prefix,compareType);
   $(prefix+'LeftFile').onchange=()=>cmpRefresh(prefix,compareType);
@@ -1875,7 +1879,7 @@ function initGenericBomCompare(prefix, compareType){
       field_pairs:fieldPairs};
     const fd=new FormData();fd.append('left_file',leftFile);fd.append('right_file',rightFile);fd.append('config',JSON.stringify(cfg));
     try{
-      const d=await postFormJson('/api/bom_compare/generic',fd);
+      const d=await postFormJson(apiPrefix+'/generic',fd);
       if(!d.success) throw new Error(d.error||'比对失败');
       const leftName='Cadence BOM';
       const rightName='HQ BOM';
@@ -1911,7 +1915,7 @@ async function custLoadColumns(){
   if(ls&&ls!=='先选择文件'&&ls!=='加载中...') fd.append('left_sheet',ls);
   if(rs&&rs!=='先选择文件'&&rs!=='加载中...') fd.append('right_sheet',rs);
   try{
-    const d=await postFormJson('/api/bom_compare/generic_sheets',fd);
+    const d=await postFormJson(apiPrefix+'/generic_sheets',fd);
     if(!d.success) throw new Error(d.error||'读取列失败');
     $('custLeftSheet').innerHTML=(d.left_sheets||[]).map(s=>`<option${s===d.left_current_sheet?' selected':''}>${_escH(s)}</option>`).join('');
     $('custRightSheet').innerHTML=(d.right_sheets||[]).map(s=>`<option${s===d.right_current_sheet?' selected':''}>${_escH(s)}</option>`).join('');
@@ -1942,7 +1946,7 @@ async function custRunPreview(){
   const cfg={left_sheet:$('custLeftSheet').value,right_sheet:$('custRightSheet').value,left_header_row:parseInt($('custLeftHdr').value)||1,mapping,match_mode:$('custMatchMode').value};
   const fd=new FormData();fd.append('left_file',leftFile);fd.append('right_file',rightFile);fd.append('config',JSON.stringify(cfg));
   try{
-    const d=await postFormJson('/api/bom_compare/customer_hq_preview',fd);
+    const d=await postFormJson(apiPrefix+'/customer_hq_preview',fd);
     if(!d.success) throw new Error(d.error||'预览失败');
     $('custPreviewStats').innerHTML=`匹配模式：<b>${d.match_mode==='refdes'?'按位号匹配':'按型号+制造商匹配'}</b> | 客户 ${d.customer_total} 行，异常 ${d.customer_invalid} 行 | HQ ${d.hq_total} 行，异常 ${d.hq_invalid} 行`;
     $('custCustomerPreviewRows').innerHTML=custRowsHtml(d.customer_preview,'customer')||'<tr><td colspan="10">无数据</td></tr>';
@@ -1961,7 +1965,7 @@ function initCustomerHqPreview(){
   $('custPreview').onclick=custRunPreview;
 }
 
-function initBomCompare(){
+function initBomCompare(apiPrefix='/api/bom_compare'){
   document.querySelectorAll('.bomcmp-tab-btn').forEach(btn=>{
     btn.onclick=function(){
       document.querySelectorAll('.bomcmp-tab-btn').forEach(b=>{
@@ -1977,9 +1981,9 @@ function initBomCompare(){
     };
   });
   initCustomerHqPreview();
-  initVersionCompare('hqv',{sheetsApi:'/api/bom_compare/local_sheets',compareApi:'/api/bom_compare/hq_version',label:'HQ BOM'});
-  initVersionCompare('machv',{sheetsApi:'/api/bom_compare/machine_local_sheets',compareApi:'/api/bom_compare/machine_hq_version',label:'整机 HQ BOM'});
-  initGenericBomCompare('cad','cadence_hq');
+  initVersionCompare('hqv',{sheetsApi:apiPrefix+'/local_sheets',compareApi:apiPrefix+'/hq_version',label:'HQ BOM'});
+  initVersionCompare('machv',{sheetsApi:apiPrefix+'/machine_local_sheets',compareApi:apiPrefix+'/machine_hq_version',label:'整机 HQ BOM'});
+  initGenericBomCompare('cad','cadence_hq',apiPrefix);
 }
 
 function vcState(prefix){

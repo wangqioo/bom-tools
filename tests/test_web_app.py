@@ -446,6 +446,83 @@ class WebAppTests(unittest.TestCase):
             ["bomcmp_old_converted_sameuid.xlsx", "bomcmp_new_converted_sameuid.xlsx"],
         )
 
+    def test_clone_hq_bom_version_exports_single_detail_sheet_with_full_attrs(self):
+        headers = ["序号", "料号", "型号", "物料描述", "单耗", "替代关系", "位号", "生产厂家", "制程", "是否量产标识"]
+
+        def build(rows):
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.title = "BOM"
+            ws.append(["料号", "PROJECT", "描述", "DESC", "项目配置名", "CFG"])
+            ws.append(["版本", "I.1", "替代项", "", "BOM名称", "BOM"])
+            ws.append(headers)
+            for row in rows:
+                ws.append(row)
+            buf = io.BytesIO()
+            wb.save(buf)
+            buf.seek(0)
+            return buf
+
+        base_bom = build([
+            ["1", "A", "M1", "DESC-A", 1, "", "R1", "厂商A", "SMT", "是"],
+            ["2", "B", "M2", "DESC-B", 2, "", "C1", "厂商B", "DIP", "否"],
+            ["4", "D", "M4", "DESC-D", 5, "", "U1", "厂商D", "DIP", "否"],
+        ])
+        compare_bom = build([
+            ["1", "A", "M1X", "DESC-A", 3, "", "R1,R2", "厂商A", "SMT2", "否"],
+            ["2", "B", "M2", "DESC-B", 2, "", "C1", "厂商B", "DIP", "否"],
+            ["3", "C", "M3", "DESC-C", 4, "", "L1", "厂商C", "SMT", "是"],
+        ])
+        resp = app.test_client().post(
+            "/api/bom_compare_clone/hq_version",
+            data={
+                "old_file": (base_bom, "base.xlsx"),
+                "new_file": (compare_bom, "compare.xlsx"),
+                "config": json.dumps({
+                    "key_col": "料号",
+                    "compare_cols": ["型号", "单耗", "位号", "制程", "是否量产标识"],
+                }),
+            },
+            content_type="multipart/form-data",
+        )
+        payload = resp.get_json()
+        self.assertTrue(payload["success"], payload)
+        report_path = WEB_APP / "outputs" / payload["download"].split("/")[-1]
+        wb = openpyxl.load_workbook(report_path, data_only=True)
+        self.assertEqual(wb.sheetnames, ["差异总览", "差异明细"])
+        detail = wb["差异明细"]
+        headers_out = [cell.value for cell in detail[1]]
+        self.assertIn("差异类型合集", headers_out)
+        self.assertIn("基准用量", headers_out)
+        self.assertIn("对比用量", headers_out)
+        self.assertIn("基准位号", headers_out)
+        self.assertIn("对比位号", headers_out)
+        self.assertIn("基准制程", headers_out)
+        self.assertIn("对比制程", headers_out)
+        self.assertIn("基准是否量产标识", headers_out)
+        self.assertIn("对比是否量产标识", headers_out)
+        self.assertNotIn("基准完整属性", headers_out)
+        self.assertNotIn("对比完整属性", headers_out)
+        rows = list(detail.iter_rows(min_row=2, values_only=True))
+        by_key = {row[1]: row for row in rows}
+        self.assertNotIn("B", by_key)
+        self.assertIn("型号变更", by_key["A"][0])
+        self.assertIn("用量变更", by_key["A"][0])
+        self.assertIn("位号变更", by_key["A"][0])
+        self.assertIn("制程变更", by_key["A"][0])
+        self.assertIn("量产标识变更", by_key["A"][0])
+        self.assertEqual(by_key["D"][0], "删除")
+        self.assertEqual(by_key["D"][7], "5")
+        self.assertEqual(by_key["D"][9], "U1")
+        self.assertEqual(by_key["D"][11], "DIP")
+        self.assertEqual(by_key["D"][13], "否")
+        self.assertEqual(by_key["C"][0], "新增")
+        self.assertEqual(by_key["C"][8], "4")
+        self.assertEqual(by_key["C"][10], "L1")
+        self.assertEqual(by_key["C"][12], "SMT")
+        self.assertEqual(by_key["C"][14], "是")
+        wb.close()
+
     def test_hq_bom_version_compare_reports_refdes_delta_as_part_change(self):
         base_bom = _hq_export_bytes(
             [["1", "A", "M1", "DESC-A", 3, "", "R1,R2,R3", "厂商A"]]
@@ -879,6 +956,25 @@ class WebAppTests(unittest.TestCase):
         self.assertTrue(list_payload["success"])
         self.assertTrue(any(item["id"] == payload["report"]["id"] for item in list_payload["reports"]))
         self.assertTrue(any(item["id"] == "seed-bug-bom-header-detect" for item in list_payload["reports"]))
+
+    def test_bug_report_defaults_and_validation_messages_are_readable(self):
+        client = app.test_client()
+        missing_resp = client.post("/api/bug_reports", data={"reporter": "张三"})
+        missing_payload = missing_resp.get_json()
+        self.assertFalse(missing_payload["success"])
+        self.assertIn("问题标题", missing_payload["error"])
+
+        create_resp = client.post("/api/bug_reports", data={
+            "reporter": "默认值测试",
+            "employee_id": "100013",
+            "title": "默认字段检查",
+            "description": "未填写模块和严重程度时应使用可读默认值",
+        })
+        payload = create_resp.get_json()
+        self.assertTrue(payload["success"])
+        self.assertEqual(payload["report"]["module"], "未指定")
+        self.assertEqual(payload["report"]["severity"], "一般")
+        self.assertEqual(payload["report"]["status"], "待处理")
 
     def test_bug_report_accepts_excel_attachment(self):
         data = {

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Bug 鎻愪氦鏍忕洰 鈥?Blueprint"""
+"""Bug 閹绘劒姘﹂弽蹇曟窗 閳?Blueprint"""
 
 import json
 import os
@@ -218,7 +218,7 @@ def api_submit_bug_report():
     title = _clean_text('title', 120)
     description = _clean_text('description', 4000)
     if not reporter or not employee_id or not title or not description:
-        return jsonify({'success': False, 'error': '璇峰～鍐欏鍚嶃€佸伐鍙枫€侀棶棰樻爣棰樺拰闂鎻忚堪'})
+        return jsonify({'success': False, 'error': '请填写姓名、工号、问题标题和问题描述'})
 
     report_id = time.strftime('%Y%m%d%H%M%S') + '-' + uuid.uuid4().hex[:6]
     try:
