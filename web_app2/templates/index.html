@@ -232,7 +232,6 @@ tr:hover td { background:#f7f9fc; }
     <a href="#" data-tool="pref-rate"><span class="icon">📊</span>查询BOM优选率</a>
     <a href="#" data-tool="plm"><span class="icon">📤</span>转换为上传PLM系统格式</a>
     <a href="#" data-tool="bom-compare"><span class="icon">🧾</span>BOM比对工具合集</a>
-    <a href="#" data-tool="bom-compare-copy"><span class="icon">&#128221;</span>BOM对比工具合集-新版</a>
     <a href="#" data-tool="toolbox"><span class="icon">🧰</span>小工具合集</a>
     <a href="#" data-tool="bug-report"><span class="icon">🐞</span>Bug提交栏目</a>
     <a href="#" data-tool="feature-request"><span class="icon">📝</span>需求开发工单</a>
@@ -682,8 +681,10 @@ tr:hover td { background:#f7f9fc; }
   </div>
   <div class="section"><h3>第四步：预览标准化结果</h3>
     <button class="btn btn-primary" id="custPreview" type="button">预览标准化结果</button>
+    <button class="btn btn-outline" id="custExport" type="button">下载详细比对报告</button>
     <span id="custStatus" style="font-size:13px;color:#888;margin-left:8px"></span>
     <div class="error" id="custError"></div>
+    <div class="result" id="custExportResult"><span class="title">详细比对报告已生成</span><br><span id="custExportStats" style="display:inline-block;margin-top:6px"></span><br><a class="download" id="custExportDl" href="#">下载详细比对报告</a></div>
   </div>
   <div class="section" id="custPreviewPanel" style="display:none"><h3>标准化预览</h3>
     <div id="custPreviewStats" style="font-size:13px;color:#555;margin-bottom:10px"></div>
@@ -1010,8 +1011,6 @@ const TOOLS = {
            desc:'将整机 BOM 配置表转换为 PLM 系统可导入的标准格式：序号、料号、单耗等25列，主供行填单耗，替代料自动标记主辅BOM标记。'},
   'bom-compare': {title:'BOM比对工具合集', badge:'v0.1', tpl:'tpl-bom-compare',
            desc:'提供单板HQ BOM版本对比、整机HQ BOM版本对比、Cadence导出BOM对比HQ BOM三个比对子功能。'},
-  'bom-compare-copy': {title:'BOM\u5bf9\u6bd4\u5de5\u5177\u5408\u96c6-\u65b0\u7248', badge:'copy', tpl:'tpl-bom-compare',
-           desc:'\u590d\u5236\u5f53\u524d BOM \u5bf9\u6bd4\u5de5\u5177\u5408\u96c6\uff0c\u4fdd\u7559\u76f8\u540c\u529f\u80fd\u4f9b\u540e\u7eed\u72ec\u7acb\u8c03\u6574\u3002'},
   toolbox: {title:'小工具合集', badge:'工具', tpl:'tpl-toolbox',
            desc:'提供轻量级本地小工具。当前包含文件哈希值计算，可直接在浏览器内得到 MD5。'},
   'bug-report': {title:'Bug提交栏目', badge:'反馈', tpl:'tpl-bug-report',
@@ -1082,7 +1081,6 @@ function initTool(tool){
   else if(tool==='feishu') initFeishu();
   else if(tool==='plm') initPlm();
   else if(tool==='bom-compare') initBomCompare();
-  else if(tool==='bom-compare-copy') initBomCompare('/api/bom_compare_clone');
   else if(tool==='toolbox') initToolbox();
   else if(tool==='bug-report') initBugReport();
   else if(tool==='feature-request') initFeatureRequest();
@@ -1799,7 +1797,7 @@ function cmpRenderManualPairs(prefix){
     btn.onclick=function(){st.manualPairs.splice(parseInt(this.dataset.remove),1);cmpRenderManualPairs(prefix);};
   });
 }
-async function cmpRefresh(prefix, compareType){
+async function cmpRefresh(prefix, compareType, apiPrefix='/api/bom_compare'){
   const leftFile=$(prefix+'LeftFile').files[0], rightFile=$(prefix+'RightFile').files[0];
   const st=cmpState(prefix);
   st.leftHeaders=[];st.rightHeaders=[];st.manualPairs=[];st.keyPairs=[];
@@ -1851,13 +1849,13 @@ function cmpCollectPairs(prefix){
 }
 function initGenericBomCompare(prefix, compareType, apiPrefix='/api/bom_compare'){
   cmpState(prefix);
-  $(prefix+'Refresh').onclick=()=>cmpRefresh(prefix,compareType);
-  $(prefix+'LeftFile').onchange=()=>cmpRefresh(prefix,compareType);
-  $(prefix+'RightFile').onchange=()=>cmpRefresh(prefix,compareType);
-  $(prefix+'LeftSheet').onchange=()=>cmpRefresh(prefix,compareType);
-  $(prefix+'RightSheet').onchange=()=>cmpRefresh(prefix,compareType);
-  $(prefix+'LeftHdr').onchange=()=>cmpRefresh(prefix,compareType);
-  $(prefix+'RightHdr').onchange=()=>cmpRefresh(prefix,compareType);
+  $(prefix+'Refresh').onclick=()=>cmpRefresh(prefix,compareType,apiPrefix);
+  $(prefix+'LeftFile').onchange=()=>cmpRefresh(prefix,compareType,apiPrefix);
+  $(prefix+'RightFile').onchange=()=>cmpRefresh(prefix,compareType,apiPrefix);
+  $(prefix+'LeftSheet').onchange=()=>cmpRefresh(prefix,compareType,apiPrefix);
+  $(prefix+'RightSheet').onchange=()=>cmpRefresh(prefix,compareType,apiPrefix);
+  $(prefix+'LeftHdr').onchange=()=>cmpRefresh(prefix,compareType,apiPrefix);
+  $(prefix+'RightHdr').onchange=()=>cmpRefresh(prefix,compareType,apiPrefix);
   if($(prefix+'LeftKey')) $(prefix+'LeftKey').onchange=()=>{cmpRenderKeyPairs(prefix);cmpRenderPairs(prefix);};
   if($(prefix+'RightKey')) $(prefix+'RightKey').onchange=()=>{cmpRenderKeyPairs(prefix);cmpRenderPairs(prefix);};
   if($(prefix+'SelectAll')) $(prefix+'SelectAll').onclick=()=>document.querySelectorAll('#'+prefix+'CommonPairs input[type="checkbox"]').forEach(x=>x.checked=true);
@@ -1903,7 +1901,7 @@ function custOptionHtml(headers, selected='', optionalText='不映射'){
   return html;
 }
 function custState(){window._custPreviewState=window._custPreviewState||{leftHeaders:[],rightHeaders:[]};return window._custPreviewState;}
-async function custLoadColumns(){
+async function custLoadColumns(apiPrefix='/api/bom_compare'){
   const leftFile=$('custLeftFile').files[0], rightFile=$('custRightFile').files[0];
   hide($('custPreviewPanel'));clearInlineError('custError');
   if(!leftFile||!rightFile){$('custLoadStatus').textContent='请先上传客户 BOM 和 HQ BOM';return;}
@@ -1936,7 +1934,7 @@ function custRowsHtml(rows, side){
     return '<tr>'+cells.map(v=>`<td>${_escH(v==null?'':String(v))}</td>`).join('')+'</tr>';
   }).join('');
 }
-async function custRunPreview(){
+async function custRunPreview(apiPrefix='/api/bom_compare'){
   const leftFile=$('custLeftFile').files[0], rightFile=$('custRightFile').files[0];
   if(!leftFile||!rightFile){showInlineError('custError','请先上传客户 BOM 和 HQ BOM','custStatus');return;}
   const mapping={model:$('custMapModel').value,manufacturer:$('custMapManufacturer').value,refdes:$('custMapRefdes').value,quantity:$('custMapQuantity').value};
@@ -1955,14 +1953,33 @@ async function custRunPreview(){
   }catch(e){showInlineError('custError',e.message,'custStatus');}
   btn.disabled=false;
 }
-function initCustomerHqPreview(){
-  $('custRefresh').onclick=custLoadColumns;
-  $('custLeftFile').onchange=custLoadColumns;
-  $('custRightFile').onchange=custLoadColumns;
-  $('custLeftSheet').onchange=custLoadColumns;
-  $('custRightSheet').onchange=custLoadColumns;
-  $('custLeftHdr').onchange=custLoadColumns;
-  $('custPreview').onclick=custRunPreview;
+async function custRunExport(apiPrefix='/api/bom_compare'){
+  const leftFile=$('custLeftFile').files[0], rightFile=$('custRightFile').files[0];
+  if(!leftFile||!rightFile){showInlineError('custError','请先上传客户 BOM 和 HQ BOM','custStatus');return;}
+  const mapping={model:$('custMapModel').value,manufacturer:$('custMapManufacturer').value,refdes:$('custMapRefdes').value,quantity:$('custMapQuantity').value};
+  if(!mapping.model||!mapping.manufacturer){showInlineError('custError','请先映射规格型号和制造商','custStatus');return;}
+  if($('custMatchMode').value==='refdes'&&!mapping.refdes){showInlineError('custError','按位号匹配时必须映射位号列','custStatus');return;}
+  const btn=$('custExport');btn.disabled=true;setLoadingStatus('custStatus','正在生成详细比对报告...');clearInlineError('custError');hide($('custExportResult'));
+  const cfg={left_sheet:$('custLeftSheet').value,right_sheet:$('custRightSheet').value,left_header_row:parseInt($('custLeftHdr').value)||1,mapping,match_mode:$('custMatchMode').value};
+  const fd=new FormData();fd.append('left_file',leftFile);fd.append('right_file',rightFile);fd.append('config',JSON.stringify(cfg));
+  try{
+    const d=await postFormJson(apiPrefix+'/customer_hq_export',fd);
+    if(!d.success) throw new Error(d.error||'导出失败');
+    $('custExportStats').innerHTML=`匹配成功 <b>${d.matched}</b> | 字段差异 <b style="color:#c07000">${d.changed}</b> | 仅客户存在 <b style="color:#c00000">${d.customer_only}</b> | 仅HQ存在 <b style="color:#2a8a2a">${d.hq_only}</b> | 异常行 <b>${(d.customer_invalid||0)+(d.hq_invalid||0)}</b>`;
+    $('custExportDl').href=d.download;
+    show($('custExportResult'));setPlainStatus('custStatus','报告已生成');
+  }catch(e){showInlineError('custError',e.message,'custStatus');}
+  btn.disabled=false;
+}
+function initCustomerHqPreview(apiPrefix='/api/bom_compare'){
+  $('custRefresh').onclick=()=>custLoadColumns(apiPrefix);
+  $('custLeftFile').onchange=()=>custLoadColumns(apiPrefix);
+  $('custRightFile').onchange=()=>custLoadColumns(apiPrefix);
+  $('custLeftSheet').onchange=()=>custLoadColumns(apiPrefix);
+  $('custRightSheet').onchange=()=>custLoadColumns(apiPrefix);
+  $('custLeftHdr').onchange=()=>custLoadColumns(apiPrefix);
+  $('custPreview').onclick=()=>custRunPreview(apiPrefix);
+  $('custExport').onclick=()=>custRunExport(apiPrefix);
 }
 
 function initBomCompare(apiPrefix='/api/bom_compare'){
@@ -1980,7 +1997,7 @@ function initBomCompare(apiPrefix='/api/bom_compare'){
       $('bomcmp-tab-'+this.dataset.bomcmpTab).style.display='block';
     };
   });
-  initCustomerHqPreview();
+  initCustomerHqPreview(apiPrefix);
   initVersionCompare('hqv',{sheetsApi:apiPrefix+'/local_sheets',compareApi:apiPrefix+'/hq_version',label:'HQ BOM'});
   initVersionCompare('machv',{sheetsApi:apiPrefix+'/machine_local_sheets',compareApi:apiPrefix+'/machine_hq_version',label:'整机 HQ BOM'});
   initGenericBomCompare('cad','cadence_hq',apiPrefix);

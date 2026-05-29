@@ -19,6 +19,7 @@ from shared import (
 )
 from manufacturer_alias import lookup_manufacturer
 from .customer_hq import preview as customer_hq_preview
+from .customer_hq_export import build_report as customer_hq_build_report
 
 
 bom_compare_bp = Blueprint('bom_compare', __name__)
@@ -27,6 +28,7 @@ HQ_STANDARD_HEADER_ROW = 3
 HQ_STANDARD_HEADERS = ['\u5e8f\u53f7', '\u6599\u53f7', '\u578b\u53f7', '\u7269\u6599\u63cf\u8ff0', '\u5355\u8017', '\u66ff\u4ee3\u5173\u7cfb', '\u4f4d\u53f7', '\u751f\u4ea7\u5382\u5bb6']
 PLM_FULL_HEADER_ROW = 8
 PLM_FULL_SHEETS = ['BOM', 'DBG\u4e1a\u52a1BOM', 'DBGBOM\u5236\u63a7\u4fe1\u606f']
+PLM_FULL_MERGE_SHEETS = ['BOM', 'DBG\u4e1a\u52a1BOM']
 CADENCE_STANDARD_HEADER_ROW = 3
 CADENCE_REQUIRED_HEADERS = ['\u5e8f\u53f7', '\u6599\u53f7', '\u578b\u53f7', '\u5355\u8017', '\u4f4d\u53f7']
 HQ_FORMAT_ERROR = '\u4e0d\u652f\u6301\u5f53\u524d\u6587\u4ef6\u683c\u5f0f\u3002\u8bf7\u4e0a\u4f20\u7cfb\u7edf\u5bfc\u51fa\u7684\u6807\u51c6 HQ BOM\uff0c\u6216 PLM \u5168\u91cf BOM\uff1a\u4e24\u7c7b\u683c\u5f0f\u90fd\u5fc5\u987b\u5305\u542b\u5e8f\u53f7\u3001\u6599\u53f7\u3001\u578b\u53f7\u3001\u7269\u6599\u63cf\u8ff0\u3001\u5355\u8017\u3001\u66ff\u4ee3\u5173\u7cfb\u3001\u4f4d\u53f7\u3001\u751f\u4ea7\u5382\u5bb6\u7b49\u5217\u3002'
@@ -292,7 +294,8 @@ def _valid_plm_full_sheets(wb):
     return result
 
 def _plm_full_target_sheets(wb, _preferred=None):
-    return _valid_plm_full_sheets(wb)
+    valid = set(_valid_plm_full_sheets(wb))
+    return [name for name in PLM_FULL_MERGE_SHEETS if name in valid]
 
 def _load_hq_side_rows(path, sheet_name, key_col, compare_cols, expand_refdes=False, key_cols=None, key_transforms=None):
     rows, duplicates, headers = _load_rows(
@@ -692,6 +695,11 @@ def _load_rows(path, sheet_name, header_row, key_col, compare_cols, expand_refde
         if not any(key_parts):
             continue
         values = {col: _cell_str(ws.cell(row=ri, column=idx).value) for col, idx in compare_indices}
+        all_values = {
+            header: value
+            for header, value in zip(headers, row_values)
+            if header and value
+        }
         refdes_list = _split_refdes(ws.cell(row=ri, column=ref_idx).value) if ref_idx else []
         if refdes_list == ['']:
             refdes_list = []
@@ -703,6 +711,8 @@ def _load_rows(path, sheet_name, header_row, key_col, compare_cols, expand_refde
                 'key': item_key,
                 'row': ri,
                 'values': _expand_compare_values(values, key_cols[0], item_key) if expand_refdes else values,
+                'all_values': all_values,
+                'headers': headers,
                 'refdes_list': [item_key] if expand_refdes else refdes_list,
                 'raw': row_values,
                 'sheet': sheet_name,
@@ -713,6 +723,73 @@ def _load_rows(path, sheet_name, header_row, key_col, compare_cols, expand_refde
             rows[item_key] = item
     wb.close()
     return rows, duplicates, headers
+
+
+
+def _merge_plm_full_item(key, primary, secondary, compare_cols, headers):
+    source = primary or secondary
+    values = {}
+    all_values = {}
+    for col in compare_cols:
+        primary_value = (primary.get('values') or {}).get(col, '') if primary else ''
+        secondary_value = (secondary.get('values') or {}).get(col, '') if secondary else ''
+        values[col] = primary_value if primary_value != '' else secondary_value
+    for header in headers:
+        primary_value = (primary.get('all_values') or {}).get(header, '') if primary else ''
+        secondary_value = (secondary.get('all_values') or {}).get(header, '') if secondary else ''
+        value = primary_value if primary_value != '' else secondary_value
+        if value:
+            all_values[header] = value
+    row = source.get('row', '') if source else ''
+    if not primary and secondary:
+        row = f"{secondary.get('sheet', '')}:{secondary.get('row', '')}"
+    return {
+        'key': key,
+        'row': row,
+        'values': values,
+        'all_values': all_values,
+        'headers': headers,
+        'refdes_list': source.get('refdes_list', []) if source else [],
+        'raw': source.get('raw', []) if source else [],
+        'sheet': '+'.join(PLM_FULL_MERGE_SHEETS),
+    }
+
+
+def _merge_plm_duplicate_rows(target, sheet_name, duplicates):
+    for key, rows in duplicates.items():
+        target.setdefault(key, []).extend(f'{sheet_name}:{row}' for row in rows)
+
+
+def _load_plm_full_merged_rows(path, key_col, compare_cols):
+    wb = _open_workbook(path, read_only=True, data_only=True)
+    target_sheets = _plm_full_target_sheets(wb)
+    wb.close()
+    if not target_sheets:
+        raise ValueError('PLM \u5168\u91cf BOM \u672a\u627e\u5230\u53ef\u63d0\u53d6\u7684 BOM \u6216 DBG\u4e1a\u52a1BOM Sheet')
+
+    rows_by_sheet = {}
+    duplicates = {}
+    merged_headers = []
+    seen_headers = set()
+    for sheet in target_sheets:
+        rows, sheet_dups, headers = _load_rows(path, sheet, PLM_FULL_HEADER_ROW, key_col, compare_cols)
+        rows_by_sheet[sheet] = rows
+        _merge_plm_duplicate_rows(duplicates, sheet, sheet_dups)
+        for header in headers:
+            if header and header not in seen_headers:
+                merged_headers.append(header)
+                seen_headers.add(header)
+
+    primary_rows = rows_by_sheet.get('BOM', {})
+    secondary_rows = rows_by_sheet.get('DBG\u4e1a\u52a1BOM', {})
+    all_keys = set()
+    for rows in rows_by_sheet.values():
+        all_keys.update(rows.keys())
+    merged_rows = {
+        key: _merge_plm_full_item(key, primary_rows.get(key), secondary_rows.get(key), compare_cols, merged_headers)
+        for key in all_keys
+    }
+    return merged_rows, duplicates, merged_headers, target_sheets
 
 
 
@@ -821,6 +898,10 @@ def _write_diff_report(out_path, old_rows, new_rows, compare_cols, stats, duplic
         '变更': PatternFill('solid', fgColor='FFF9C4'),
         '未变更': PatternFill('solid', fgColor='F5F5F5'),
     }
+    change_group_fills = [
+        PatternFill('solid', fgColor='FFF9C4'),
+        PatternFill('solid', fgColor='EAF2F8'),
+    ]
     bdr = Border(left=Side(style='thin'), right=Side(style='thin'),
                  top=Side(style='thin'), bottom=Side(style='thin'))
     center = Alignment(horizontal='center', vertical='center')
@@ -882,6 +963,11 @@ def _write_diff_report(out_path, old_rows, new_rows, compare_cols, stats, duplic
                 yield item, field, old_value, new_value
 
     def write_table(sheet, table_items):
+        group_fill_by_key = {}
+        for item in table_items:
+            key = item.get('key')
+            if key not in group_fill_by_key:
+                group_fill_by_key[key] = change_group_fills[len(group_fill_by_key) % len(change_group_fills)]
         for ci, header in enumerate(detail_headers, 1):
             c = sheet.cell(row=1, column=ci, value=header)
             c.font = Font(bold=True)
@@ -900,7 +986,7 @@ def _write_diff_report(out_path, old_rows, new_rows, compare_cols, stats, duplic
                 old_value,
                 new_value,
             ]
-            row_fill = fills[item['type']]
+            row_fill = group_fill_by_key.get(item.get('key'), fills[item['type']]) if item['type'] == '\u53d8\u66f4' else fills[item['type']]
             for ci, value in enumerate(row_values, 1):
                 c = sheet.cell(row=ri, column=ci, value=value)
                 c.alignment = center if ci in (1, 3, 4) else left
@@ -909,8 +995,43 @@ def _write_diff_report(out_path, old_rows, new_rows, compare_cols, stats, duplic
         sheet.freeze_panes = 'A2'
         sheet.auto_filter.ref = sheet.dimensions
 
-    write_table(wb.create_sheet('新增物料'), [i for i in items if i['type'] == '新增'])
-    write_table(wb.create_sheet('删除物料'), [i for i in items if i['type'] == '删除'])
+    def source_headers(table_items, side):
+        result = []
+        seen = set()
+        for item in table_items:
+            source = item.get(side) or {}
+            values = source.get('all_values') or {}
+            for header in source.get('headers') or values.keys():
+                if header in values and header not in seen:
+                    result.append(header)
+                    seen.add(header)
+        return result
+
+    def write_source_table(sheet, table_items, side):
+        line_header = '对比版本行号' if side == 'new' else '基准版本行号'
+        source_cols = source_headers(table_items, side)
+        headers = ['差异类型', '料号', line_header] + source_cols
+        for ci, header in enumerate(headers, 1):
+            c = sheet.cell(row=1, column=ci, value=header)
+            c.font = Font(bold=True)
+            c.alignment = center
+            c.border = bdr
+            c.fill = header_fill
+        for ri, item in enumerate(table_items, 2):
+            source = item.get(side) or {}
+            values = source.get('all_values') or {}
+            row_values = [item['type'], item['key'], source.get('row', '')] + [values.get(col, '') for col in source_cols]
+            row_fill = fills[item['type']]
+            for ci, value in enumerate(row_values, 1):
+                c = sheet.cell(row=ri, column=ci, value=value)
+                c.alignment = center if ci in (1, 3) else left
+                c.border = bdr
+                c.fill = row_fill
+        sheet.freeze_panes = 'A2'
+        sheet.auto_filter.ref = sheet.dimensions
+
+    write_source_table(wb.create_sheet('新增物料'), [i for i in items if i['type'] == '新增'], 'new')
+    write_source_table(wb.create_sheet('删除物料'), [i for i in items if i['type'] == '删除'], 'old')
     write_table(wb.create_sheet('变更物料'), [i for i in items if i['type'] == '变更'])
 
     ws_dup = wb.create_sheet('重复料号')
@@ -931,151 +1052,6 @@ def _write_diff_report(out_path, old_rows, new_rows, compare_cols, stats, duplic
         for col in range(1, sheet.max_column + 1):
             sheet.column_dimensions[get_column_letter(col)].width = 16 if col not in (2, 5, 6, 7) else 28
     wb.save(out_path)
-
-
-
-def _write_plm_full_diff_report(out_path, sheet_results, compare_cols, old_meta=None, new_meta=None):
-    wb = Workbook()
-    ws = wb.active
-    ws.title = '\u5dee\u5f02\u603b\u89c8'
-
-    fills = {
-        '\u65b0\u589e': PatternFill('solid', fgColor='E8F5E9'),
-        '\u5220\u9664': PatternFill('solid', fgColor='FFEBEE'),
-        '\u53d8\u66f4': PatternFill('solid', fgColor='FFF9C4'),
-        '\u672a\u53d8\u66f4': PatternFill('solid', fgColor='F5F5F5'),
-    }
-    bdr = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
-    center = Alignment(horizontal='center', vertical='center')
-    left = Alignment(horizontal='left', vertical='center')
-    header_fill = PatternFill('solid', fgColor='D9EAF7')
-    title_fill = PatternFill('solid', fgColor='1F4E78')
-    title_font = Font(bold=True, color='FFFFFF', size=14)
-    old_meta = old_meta or {}
-    new_meta = new_meta or {}
-
-    ws.merge_cells('A1:I1')
-    ws['A1'] = 'PLM \u5168\u91cf BOM \u7248\u672c\u5dee\u5f02\u603b\u89c8'
-    ws['A1'].font = title_font
-    ws['A1'].fill = title_fill
-    ws['A1'].alignment = center
-    meta_rows = [
-        ('\u9879\u76ee\u914d\u7f6e\u540d', new_meta.get('\u9879\u76ee\u914d\u7f6e\u540d') or old_meta.get('\u9879\u76ee\u914d\u7f6e\u540d', '')),
-        ('BOM\u540d\u79f0', new_meta.get('BOM\u540d\u79f0') or old_meta.get('BOM\u540d\u79f0', '')),
-        ('\u57fa\u51c6\u7248\u672c\u53f7', old_meta.get('\u7248\u672c', '')),
-        ('\u5bf9\u6bd4\u7248\u672c\u53f7', new_meta.get('\u7248\u672c', '')),
-        ('\u63d0\u4ea4\u65f6\u95f4', new_meta.get('\u63d0\u4ea4\u65f6\u95f4') or old_meta.get('\u63d0\u4ea4\u65f6\u95f4', '')),
-        ('\u91cf\u4ea7/\u8bd5\u4ea7', new_meta.get('\u91cf\u4ea7/\u8bd5\u4ea7') or old_meta.get('\u91cf\u4ea7/\u8bd5\u4ea7', '')),
-    ]
-    for ri, (name, value) in enumerate(meta_rows, 3):
-        ws.cell(row=ri, column=1, value=name).font = Font(bold=True)
-        ws.cell(row=ri, column=2, value=value)
-        ws.cell(row=ri, column=1).border = bdr
-        ws.cell(row=ri, column=2).border = bdr
-
-    summary_header_row = 11
-    summary_headers = ['Sheet', '\u57fa\u51c6\u7248\u672c\u552f\u4e00\u6599\u53f7\u6570', '\u5bf9\u6bd4\u7248\u672c\u552f\u4e00\u6599\u53f7\u6570', '\u65b0\u589e', '\u5220\u9664', '\u53d8\u66f4', '\u672a\u53d8\u66f4', '\u57fa\u51c6\u91cd\u590d\u952e', '\u5bf9\u6bd4\u91cd\u590d\u952e']
-    for ci, header in enumerate(summary_headers, 1):
-        c = ws.cell(row=summary_header_row, column=ci, value=header)
-        c.font = Font(bold=True)
-        c.fill = header_fill
-        c.border = bdr
-        c.alignment = center
-    total = {k: 0 for k in ['old_total', 'new_total', 'added', 'removed', 'changed', 'unchanged', 'old_duplicates', 'new_duplicates']}
-    for ri, result in enumerate(sheet_results, summary_header_row + 1):
-        stats = result['stats']
-        for key in total:
-            total[key] += stats.get(key, 0)
-        values = [result['sheet'], stats['old_total'], stats['new_total'], stats['added'], stats['removed'], stats['changed'], stats['unchanged'], stats['old_duplicates'], stats['new_duplicates']]
-        for ci, value in enumerate(values, 1):
-            c = ws.cell(row=ri, column=ci, value=value)
-            c.border = bdr
-            c.alignment = center if ci != 1 else left
-    total_row = summary_header_row + 1 + len(sheet_results)
-    values = ['\u5408\u8ba1', total['old_total'], total['new_total'], total['added'], total['removed'], total['changed'], total['unchanged'], total['old_duplicates'], total['new_duplicates']]
-    for ci, value in enumerate(values, 1):
-        c = ws.cell(row=total_row, column=ci, value=value)
-        c.font = Font(bold=True)
-        c.border = bdr
-        c.alignment = center if ci != 1 else left
-
-    detail_headers = ['Sheet', '\u5dee\u5f02\u7c7b\u578b', '\u6599\u53f7', '\u57fa\u51c6\u7248\u672c\u884c\u53f7', '\u5bf9\u6bd4\u7248\u672c\u884c\u53f7', '\u53d8\u66f4\u5b57\u6bb5', '\u57fa\u51c6\u503c', '\u5bf9\u6bd4\u503c']
-
-    def changed_values(item, field):
-        old = item['old']
-        new = item['new']
-        if field == '\u4f4d\u53f7':
-            return '\u3001'.join(item.get('removed_refdes', [])), '\u3001'.join(item.get('added_refdes', []))
-        return (
-            old['values'].get(field, '') if old else '',
-            new['values'].get(field, '') if new else '',
-        )
-
-    def expanded_rows(sheet_name, table_items):
-        for item in table_items:
-            fields = item['changed_fields'] if item['type'] == '\u53d8\u66f4' and item['changed_fields'] else ['']
-            for field in fields:
-                old_value, new_value = changed_values(item, field) if field else ('', '')
-                yield sheet_name, item, field, old_value, new_value
-
-    def write_table(sheet, rows):
-        for ci, header in enumerate(detail_headers, 1):
-            c = sheet.cell(row=1, column=ci, value=header)
-            c.font = Font(bold=True)
-            c.alignment = center
-            c.border = bdr
-            c.fill = header_fill
-        ri = 2
-        for sheet_name, item, field, old_value, new_value in rows:
-            old = item['old']
-            new = item['new']
-            values = [sheet_name, item['type'], item['key'], old['row'] if old else '', new['row'] if new else '', field, old_value, new_value]
-            for ci, value in enumerate(values, 1):
-                c = sheet.cell(row=ri, column=ci, value=value)
-                c.alignment = center if ci in (1, 2, 4, 5) else left
-                c.border = bdr
-                c.fill = fills[item['type']]
-            ri += 1
-        sheet.freeze_panes = 'A2'
-        sheet.auto_filter.ref = sheet.dimensions
-
-    added_rows = []
-    removed_rows = []
-    changed_rows = []
-    for result in sheet_results:
-        sheet_name = result['sheet']
-        items = result['items']
-        added_rows.extend(expanded_rows(sheet_name, [i for i in items if i['type'] == '\u65b0\u589e']))
-        removed_rows.extend(expanded_rows(sheet_name, [i for i in items if i['type'] == '\u5220\u9664']))
-        changed_rows.extend(expanded_rows(sheet_name, [i for i in items if i['type'] == '\u53d8\u66f4']))
-
-    write_table(wb.create_sheet('\u5168\u90e8\u65b0\u589e\u7269\u6599'), added_rows)
-    write_table(wb.create_sheet('\u5168\u90e8\u5220\u9664\u7269\u6599'), removed_rows)
-    write_table(wb.create_sheet('\u5168\u90e8\u53d8\u66f4\u7269\u6599'), changed_rows)
-
-    ws_dup = wb.create_sheet('\u91cd\u590d\u6599\u53f7')
-    ws_dup.append(['\u7c7b\u578b', '\u6599\u53f7\u548c\u884c\u53f7'])
-    for cell in ws_dup[1]:
-        cell.font = Font(bold=True)
-        cell.fill = header_fill
-        cell.border = bdr
-    for result in sheet_results:
-        for note in result['duplicate_notes']:
-            kind = '\u57fa\u51c6\u7248\u672c' if '\u57fa\u51c6\u7248\u672c' in note else '\u5bf9\u6bd4\u7248\u672c'
-            ws_dup.append([kind, note])
-    for row in ws_dup.iter_rows():
-        for cell in row:
-            cell.border = bdr
-            cell.alignment = left
-
-    for sheet in wb.worksheets:
-        for col in range(1, sheet.max_column + 1):
-            sheet.column_dimensions[get_column_letter(col)].width = 16 if col not in (1, 3, 6, 7, 8) else 28
-    wb.save(out_path)
-
-
-
-
 
 
 
@@ -1120,6 +1096,53 @@ def api_customer_hq_preview():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
+@bom_compare_bp.route('/api/bom_compare/customer_hq_export', methods=['POST'])
+def api_customer_hq_export():
+    left_file = request.files.get('left_file')
+    right_file = request.files.get('right_file')
+    if not left_file or not right_file:
+        return jsonify({'success': False, 'error': '请上传客户 BOM 和 HQ BOM 文件'})
+    try:
+        config = json.loads(request.form.get('config', '{}'))
+    except Exception:
+        return jsonify({'success': False, 'error': 'config 参数格式错误'})
+    left_header_row = _to_int(config.get('left_header_row', 1), 1)
+    if left_header_row is None:
+        return jsonify({'success': False, 'error': '客户 BOM 表头行必须是大于等于 1 的数字'})
+    mapping = config.get('mapping') if isinstance(config.get('mapping'), dict) else {}
+    match_mode = str(config.get('match_mode') or 'identity')
+    uid = str(uuid.uuid4())[:8]
+    try:
+        left_path = _save_uploaded_excel(left_file, 'bomcmp_customer_export_left', uid)
+        right_path = _save_uploaded_hq_excel(right_file, 'bomcmp_customer_export_right', uid)
+        out_name = f"Customer_BOM_vs_HQ_BOM_detail_{uid}.xlsx"
+        out_path = os.path.join(OUTPUT_DIR, out_name)
+        stats = customer_hq_build_report(
+            out_path=out_path,
+            left_path=left_path,
+            right_path=right_path,
+            left_sheet=config.get('left_sheet', ''),
+            right_sheet=config.get('right_sheet', ''),
+            left_header_row=left_header_row,
+            mapping=mapping,
+            match_mode=match_mode,
+            helpers={
+                'pick_sheet': _pick_sheet,
+                'headers_fn': _headers,
+                'open_hq_info': _open_hq_workbook_info,
+                'is_plm_history_header': _is_plm_history_header,
+                'normalize_header': _normalize_header,
+            },
+            meta={
+                'left_filename': left_file.filename or '',
+                'right_filename': right_file.filename or '',
+            },
+        )
+        return jsonify({'success': True, 'download': f'/download/{out_name}', **stats})
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
 @bom_compare_bp.route('/api/bom_compare/generic_sheets', methods=['POST'])
 def api_generic_sheets():
     left_file = request.files.get('left_file') or request.files.get('file')
@@ -1382,35 +1405,17 @@ def api_machine_hq_version_compare():
             return jsonify({'success': False, 'error': '\u4e24\u4efd BOM \u683c\u5f0f\u4e0d\u540c\uff0c\u8bf7\u4f7f\u7528\u540c\u4e00\u79cd\u6574\u673a BOM \u683c\u5f0f\u8fdb\u884c\u7248\u672c\u5bf9\u6bd4'})
 
         if old_format == 'plm_full':
-            old_wb = _open_workbook(old_path, read_only=True, data_only=True)
-            new_wb = _open_workbook(new_path, read_only=True, data_only=True)
-            old_sheets = _plm_full_target_sheets(old_wb, ['BOM'])
-            new_sheets = _plm_full_target_sheets(new_wb, ['BOM'])
+            old_rows, old_dups, _, old_sheets = _load_plm_full_merged_rows(old_path, key_col, compare_cols)
+            new_rows, new_dups, _, new_sheets = _load_plm_full_merged_rows(new_path, key_col, compare_cols)
             common_sheets = [name for name in old_sheets if name in new_sheets]
-            old_wb.close()
-            new_wb.close()
             if not common_sheets:
-                return jsonify({'success': False, 'error': 'PLM \u5168\u91cf\u6574\u673a BOM \u672a\u627e\u5230\u53ef\u6bd4\u5bf9\u7684 BOM Sheet'})
-            sheet_results = []
-            total_stats = {k: 0 for k in ['old_total', 'new_total', 'added', 'removed', 'changed', 'unchanged', 'old_duplicates', 'new_duplicates']}
-            for sheet in common_sheets:
-                old_rows, old_dups, _ = _load_rows(old_path, sheet, PLM_FULL_HEADER_ROW, key_col, compare_cols)
-                new_rows, new_dups, _ = _load_rows(new_path, sheet, PLM_FULL_HEADER_ROW, key_col, compare_cols)
-                stats = _hq_stats(old_rows, old_dups, new_rows, new_dups, compare_cols)
-                for key in total_stats:
-                    total_stats[key] += stats.get(key, 0)
-                sheet_results.append({
-                    'sheet': sheet,
-                    'old_rows': old_rows,
-                    'new_rows': new_rows,
-                    'stats': stats,
-                    'items': _diff_items(old_rows, new_rows, compare_cols),
-                    'duplicate_notes': _duplicate_notes(old_dups, new_dups, sheet),
-                })
+                return jsonify({'success': False, 'error': 'PLM \u5168\u91cf\u6574\u673a BOM \u672a\u627e\u5230\u53ef\u6bd4\u5bf9\u7684 BOM \u6216 DBG\u4e1a\u52a1BOM Sheet'})
+            stats = _hq_stats(old_rows, old_dups, new_rows, new_dups, compare_cols)
+            duplicate_notes = _duplicate_notes(old_dups, new_dups)
             out_name = f"Machine_HQ_BOM_version_diff_{uid}.xlsx"
             out_path = os.path.join(OUTPUT_DIR, out_name)
-            _write_plm_full_diff_report(out_path, sheet_results, compare_cols, old_meta, new_meta)
-            return jsonify({'success': True, 'download': f'/download/{out_name}', 'format': 'plm_full', 'sheets': common_sheets, **total_stats})
+            _write_diff_report(out_path, old_rows, new_rows, compare_cols, stats, duplicate_notes, old_meta, new_meta)
+            return jsonify({'success': True, 'download': f'/download/{out_name}', 'format': 'plm_full', 'sheets': common_sheets, **stats})
 
         old_rows, old_dups, _ = _load_rows(old_path, config.get('old_sheet', ''), HQ_STANDARD_HEADER_ROW, key_col, compare_cols)
         new_rows, new_dups, _ = _load_rows(new_path, config.get('new_sheet', ''), HQ_STANDARD_HEADER_ROW, key_col, compare_cols)
@@ -1461,35 +1466,17 @@ def api_hq_version_compare():
             return jsonify({'success': False, 'error': '\u4e24\u4efd BOM \u683c\u5f0f\u4e0d\u540c\uff0c\u8bf7\u4f7f\u7528\u540c\u4e00\u79cd\u5bfc\u51fa\u683c\u5f0f\u8fdb\u884c\u7248\u672c\u5bf9\u6bd4'})
 
         if old_format == 'plm_full':
-            old_wb = _open_workbook(old_path, read_only=True, data_only=True)
-            new_wb = _open_workbook(new_path, read_only=True, data_only=True)
-            old_sheets = _plm_full_target_sheets(old_wb, ['DBG业务BOM'])
-            new_sheets = _plm_full_target_sheets(new_wb, ['DBG业务BOM'])
+            old_rows, old_dups, _, old_sheets = _load_plm_full_merged_rows(old_path, key_col, compare_cols)
+            new_rows, new_dups, _, new_sheets = _load_plm_full_merged_rows(new_path, key_col, compare_cols)
             common_sheets = [name for name in old_sheets if name in new_sheets]
-            old_wb.close()
-            new_wb.close()
             if not common_sheets:
-                return jsonify({'success': False, 'error': 'PLM \u5168\u91cf BOM \u672a\u627e\u5230\u53ef\u6bd4\u5bf9\u7684 BOM Sheet'})
-            sheet_results = []
-            total_stats = {k: 0 for k in ['old_total', 'new_total', 'added', 'removed', 'changed', 'unchanged', 'old_duplicates', 'new_duplicates']}
-            for sheet in common_sheets:
-                old_rows, old_dups, _ = _load_rows(old_path, sheet, PLM_FULL_HEADER_ROW, key_col, compare_cols)
-                new_rows, new_dups, _ = _load_rows(new_path, sheet, PLM_FULL_HEADER_ROW, key_col, compare_cols)
-                stats = _hq_stats(old_rows, old_dups, new_rows, new_dups, compare_cols)
-                for key in total_stats:
-                    total_stats[key] += stats.get(key, 0)
-                sheet_results.append({
-                    'sheet': sheet,
-                    'old_rows': old_rows,
-                    'new_rows': new_rows,
-                    'stats': stats,
-                    'items': _diff_items(old_rows, new_rows, compare_cols),
-                    'duplicate_notes': _duplicate_notes(old_dups, new_dups, sheet),
-                })
+                return jsonify({'success': False, 'error': 'PLM \u5168\u91cf BOM \u672a\u627e\u5230\u53ef\u6bd4\u5bf9\u7684 BOM \u6216 DBG\u4e1a\u52a1BOM Sheet'})
+            stats = _hq_stats(old_rows, old_dups, new_rows, new_dups, compare_cols)
+            duplicate_notes = _duplicate_notes(old_dups, new_dups)
             out_name = f"PLM_full_BOM_version_diff_{uid}.xlsx"
             out_path = os.path.join(OUTPUT_DIR, out_name)
-            _write_plm_full_diff_report(out_path, sheet_results, compare_cols, old_meta, new_meta)
-            return jsonify({'success': True, 'download': f'/download/{out_name}', 'format': 'plm_full', 'sheets': common_sheets, **total_stats})
+            _write_diff_report(out_path, old_rows, new_rows, compare_cols, stats, duplicate_notes, old_meta, new_meta)
+            return jsonify({'success': True, 'download': f'/download/{out_name}', 'format': 'plm_full', 'sheets': common_sheets, **stats})
 
         old_rows, old_dups, _ = _load_rows(old_path, config.get('old_sheet', ''), header_row, key_col, compare_cols)
         new_rows, new_dups, _ = _load_rows(new_path, config.get('new_sheet', ''), header_row, key_col, compare_cols)

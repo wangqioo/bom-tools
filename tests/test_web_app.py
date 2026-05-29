@@ -420,6 +420,32 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(detail["E1"].value, "变更字段")
         self.assertEqual(detail["F1"].value, "基准值")
         self.assertEqual(detail["G1"].value, "对比值")
+        added_sheet = wb["新增物料"]
+        added_headers = [cell.value for cell in added_sheet[1]]
+        self.assertIn("序号", added_headers)
+        self.assertIn("物料描述", added_headers)
+        self.assertIn("生产厂家", added_headers)
+        self.assertIn("位号", added_headers)
+        added_row = {header: added_sheet.cell(row=2, column=idx + 1).value for idx, header in enumerate(added_headers)}
+        self.assertEqual(added_row["料号"], "D")
+        self.assertEqual(added_row["序号"], "4")
+        self.assertEqual(added_row["物料描述"], "DESC-D")
+        self.assertEqual(added_row["生产厂家"], "\u5382\u5546D")
+        self.assertEqual(added_row["位号"], "L2")
+
+        removed_sheet = wb["删除物料"]
+        removed_headers = [cell.value for cell in removed_sheet[1]]
+        self.assertIn("序号", removed_headers)
+        self.assertIn("物料描述", removed_headers)
+        self.assertIn("生产厂家", removed_headers)
+        self.assertIn("位号", removed_headers)
+        removed_row = {header: removed_sheet.cell(row=2, column=idx + 1).value for idx, header in enumerate(removed_headers)}
+        self.assertEqual(removed_row["料号"], "C")
+        self.assertEqual(removed_row["序号"], "3")
+        self.assertEqual(removed_row["物料描述"], "DESC-C")
+        self.assertEqual(removed_row["生产厂家"], "\u5382\u5546C")
+        self.assertEqual(removed_row["位号"], "L1")
+
         wb.close()
 
     def test_xls_pair_conversion_uses_distinct_paths_for_same_request(self):
@@ -446,7 +472,7 @@ class WebAppTests(unittest.TestCase):
             ["bomcmp_old_converted_sameuid.xlsx", "bomcmp_new_converted_sameuid.xlsx"],
         )
 
-    def test_clone_hq_bom_version_exports_single_detail_sheet_with_full_attrs(self):
+    def test_hq_bom_version_exports_single_detail_sheet_with_full_attrs(self):
         headers = ["序号", "料号", "型号", "物料描述", "单耗", "替代关系", "位号", "生产厂家", "制程", "是否量产标识"]
 
         def build(rows):
@@ -474,7 +500,7 @@ class WebAppTests(unittest.TestCase):
             ["3", "C", "M3", "DESC-C", 4, "", "L1", "厂商C", "SMT", "是"],
         ])
         resp = app.test_client().post(
-            "/api/bom_compare_clone/hq_version",
+            "/api/bom_compare/hq_version",
             data={
                 "old_file": (base_bom, "base.xlsx"),
                 "new_file": (compare_bom, "compare.xlsx"),
@@ -489,38 +515,35 @@ class WebAppTests(unittest.TestCase):
         self.assertTrue(payload["success"], payload)
         report_path = WEB_APP / "outputs" / payload["download"].split("/")[-1]
         wb = openpyxl.load_workbook(report_path, data_only=True)
-        self.assertEqual(wb.sheetnames, ["差异总览", "差异明细"])
-        detail = wb["差异明细"]
-        headers_out = [cell.value for cell in detail[1]]
-        self.assertIn("差异类型合集", headers_out)
-        self.assertIn("基准用量", headers_out)
-        self.assertIn("对比用量", headers_out)
-        self.assertIn("基准位号", headers_out)
-        self.assertIn("对比位号", headers_out)
-        self.assertIn("基准制程", headers_out)
-        self.assertIn("对比制程", headers_out)
-        self.assertIn("基准是否量产标识", headers_out)
-        self.assertIn("对比是否量产标识", headers_out)
-        self.assertNotIn("基准完整属性", headers_out)
-        self.assertNotIn("对比完整属性", headers_out)
-        rows = list(detail.iter_rows(min_row=2, values_only=True))
-        by_key = {row[1]: row for row in rows}
+        self.assertEqual(wb.sheetnames, ["\u5dee\u5f02\u603b\u89c8", "\u65b0\u589e\u7269\u6599", "\u5220\u9664\u7269\u6599", "\u53d8\u66f4\u7269\u6599", "\u91cd\u590d\u6599\u53f7"])
+        changed = wb["\u53d8\u66f4\u7269\u6599"]
+        changed_rows = list(changed.iter_rows(min_row=2, values_only=True))
+        by_key = {row[1]: row for row in changed_rows}
         self.assertNotIn("B", by_key)
-        self.assertIn("型号变更", by_key["A"][0])
-        self.assertIn("用量变更", by_key["A"][0])
-        self.assertIn("位号变更", by_key["A"][0])
-        self.assertIn("制程变更", by_key["A"][0])
-        self.assertIn("量产标识变更", by_key["A"][0])
-        self.assertEqual(by_key["D"][0], "删除")
-        self.assertEqual(by_key["D"][7], "5")
-        self.assertEqual(by_key["D"][9], "U1")
-        self.assertEqual(by_key["D"][11], "DIP")
-        self.assertEqual(by_key["D"][13], "否")
-        self.assertEqual(by_key["C"][0], "新增")
-        self.assertEqual(by_key["C"][8], "4")
-        self.assertEqual(by_key["C"][10], "L1")
-        self.assertEqual(by_key["C"][12], "SMT")
-        self.assertEqual(by_key["C"][14], "是")
+        self.assertEqual(by_key["A"][0], "\u53d8\u66f4")
+        self.assertIn(by_key["A"][4], {"\u578b\u53f7", "\u5355\u8017", "\u4f4d\u53f7", "\u5236\u7a0b", "\u662f\u5426\u91cf\u4ea7\u6807\u8bc6"})
+
+        row_fills = [row[0].fill.fgColor.rgb for row in changed.iter_rows(min_row=2) if row[1].value == "A"]
+        self.assertGreater(len(row_fills), 1)
+        self.assertEqual(len(set(row_fills)), 1)
+
+        removed = wb["\u5220\u9664\u7269\u6599"]
+        removed_headers = [cell.value for cell in removed[1]]
+        removed_row = {header: removed.cell(row=2, column=idx + 1).value for idx, header in enumerate(removed_headers)}
+        self.assertEqual(removed_row["\u6599\u53f7"], "D")
+        self.assertEqual(removed_row["\u5355\u8017"], "5")
+        self.assertEqual(removed_row["\u4f4d\u53f7"], "U1")
+        self.assertEqual(removed_row["\u5236\u7a0b"], "DIP")
+        self.assertEqual(removed_row["\u662f\u5426\u91cf\u4ea7\u6807\u8bc6"], "\u5426")
+
+        added = wb["\u65b0\u589e\u7269\u6599"]
+        added_headers = [cell.value for cell in added[1]]
+        added_row = {header: added.cell(row=2, column=idx + 1).value for idx, header in enumerate(added_headers)}
+        self.assertEqual(added_row["\u6599\u53f7"], "C")
+        self.assertEqual(added_row["\u5355\u8017"], "4")
+        self.assertEqual(added_row["\u4f4d\u53f7"], "L1")
+        self.assertEqual(added_row["\u5236\u7a0b"], "SMT")
+        self.assertEqual(added_row["\u662f\u5426\u91cf\u4ea7\u6807\u8bc6"], "\u662f")
         wb.close()
 
     def test_hq_bom_version_compare_reports_refdes_delta_as_part_change(self):
@@ -567,7 +590,7 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(changed_rows[0][6], "R4")
         wb.close()
 
-    def test_plm_full_bom_version_compare_reads_three_sheets_and_ignores_history(self):
+    def test_plm_full_bom_version_compare_merges_bom_and_dbg_sheets(self):
         bom = "BOM"
         dbg = "DBG\u4e1a\u52a1BOM"
         ctrl = "DBGBOM\u5236\u63a7\u4fe1\u606f"
@@ -579,44 +602,71 @@ class WebAppTests(unittest.TestCase):
         first_process = "\u9996\u5236\u7a0b"
         loss = "\u635f\u8017\u7387"
         fixed_loss = "\u56fa\u5b9a\u5907\u635f\u503c"
+        model = "\u578b\u53f7"
         old_rows = {
             bom: [["1", "A", "M1", "DESC-A", 1, main, "R1", maker_a], ["2", "B", "M2", "DESC-B", 2, main, "R2", maker_b]],
-            dbg: [["1", "A", "M1", "DESC-A", 1, main, "R1", maker_a, {total_qty: 1, first_process: "SMT"}], ["2", "B", "M2", "DESC-B", 2, main, "R2", maker_b, {total_qty: 2, first_process: "SMT"}]],
-            ctrl: [["1", "A", "M1", "DESC-A", 1, main, "R1", maker_a, {total_qty: 1, loss: "0.005", fixed_loss: "50", first_process: "SMT"}], ["2", "B", "M2", "DESC-B", 2, main, "R2", maker_b, {total_qty: 2, loss: "0.005", fixed_loss: "50", first_process: "SMT"}]],
+            dbg: [["1", "A", "M1-DBG", "DESC-A", 1, main, "R1", maker_a, {total_qty: 1, first_process: "SMT"}], ["2", "B", "M2-DBG", "DESC-B", 2, main, "R2", maker_b, {total_qty: 2, first_process: "SMT"}]],
+            ctrl: [["1", "A", "M1-CTRL", "DESC-A", 1, main, "R1", maker_a, {total_qty: 1, loss: "0.005", fixed_loss: "50", first_process: "SMT"}], ["2", "B", "M2-CTRL", "DESC-B", 2, main, "R2", maker_b, {total_qty: 2, loss: "0.005", fixed_loss: "50", first_process: "SMT"}]],
         }
         new_rows = {
             bom: [["1", "A", "M1-NEW", "DESC-A", 1, main, "R1", maker_a], ["3", "C", "M3", "DESC-C", 3, main, "R3", maker_c]],
-            dbg: [["1", "A", "M1-NEW", "DESC-A", 1, main, "R1", maker_a, {total_qty: 1, first_process: "SMT"}], ["3", "C", "M3", "DESC-C", 3, main, "R3", maker_c, {total_qty: 3, first_process: "SMT"}]],
-            ctrl: [["1", "A", "M1-NEW", "DESC-A", 1, main, "R1", maker_a, {total_qty: 1, loss: "0.01", fixed_loss: "50", first_process: "SMT"}], ["3", "C", "M3", "DESC-C", 3, main, "R3", maker_c, {total_qty: 3, loss: "0.005", fixed_loss: "50", first_process: "SMT"}]],
+            dbg: [["1", "A", "M1-NEW-DBG", "DESC-A", 1, main, "R1", maker_a, {total_qty: 1, first_process: "SMT"}], ["3", "C", "M3-DBG", "DESC-C", 3, main, "R3", maker_c, {total_qty: 3, first_process: "SMT"}]],
+            ctrl: [["1", "A", "M1-NEW-CTRL", "DESC-A", 1, main, "R1", maker_a, {total_qty: 1, loss: "0.01", fixed_loss: "50", first_process: "SMT"}], ["3", "C", "M3-CTRL", "DESC-C", 3, main, "R3", maker_c, {total_qty: 3, loss: "0.005", fixed_loss: "50", first_process: "SMT"}], ["4", "D", "M4-CTRL", "DESC-D", 4, main, "R4", maker_c, {loss: "0.99"}]],
         }
         data = {
             "old_file": (_plm_full_bom_bytes(old_rows), "old_plm.xlsx"),
             "new_file": (_plm_full_bom_bytes(new_rows), "new_plm.xlsx"),
-            "config": json.dumps({"key_col": "\u6599\u53f7", "compare_cols": ["\u578b\u53f7", loss]}),
+            "config": json.dumps({"key_col": "\u6599\u53f7", "compare_cols": [model, first_process, loss]}),
         }
         resp = app.test_client().post("/api/bom_compare/hq_version", data=data, content_type="multipart/form-data")
         payload = resp.get_json()
         self.assertTrue(payload["success"])
         self.assertEqual(payload["format"], "plm_full")
-        self.assertEqual(payload["sheets"], [bom, dbg, ctrl])
-        self.assertEqual(payload["old_total"], 6)
-        self.assertEqual(payload["new_total"], 6)
-        self.assertEqual(payload["added"], 3)
-        self.assertEqual(payload["removed"], 3)
-        self.assertEqual(payload["changed"], 3)
+        self.assertEqual(payload["sheets"], [bom, dbg])
+        self.assertEqual(payload["old_total"], 2)
+        self.assertEqual(payload["new_total"], 2)
+        self.assertEqual(payload["added"], 1)
+        self.assertEqual(payload["removed"], 1)
+        self.assertEqual(payload["changed"], 1)
         self.assertEqual(payload["unchanged"], 0)
 
         filename = unquote(payload["download"].split("/download/", 1)[1])
         wb = openpyxl.load_workbook(WEB_APP / "outputs" / filename, data_only=True)
-        self.assertNotIn("BOM\u5dee\u5f02", wb.sheetnames)
-        self.assertNotIn("DBG\u4e1a\u52a1BOM\u5dee\u5f02", wb.sheetnames)
-        self.assertNotIn("DBGBOM\u5236\u63a7\u4fe1\u606f\u5dee\u5f02", wb.sheetnames)
-        self.assertNotIn("\u5168\u90e8\u5dee\u5f02\u660e\u7ec6", wb.sheetnames)
-        self.assertIn("\u5168\u90e8\u53d8\u66f4\u7269\u6599", wb.sheetnames)
-        all_detail = wb["\u5168\u90e8\u53d8\u66f4\u7269\u6599"]
-        keys = [row[2] for row in all_detail.iter_rows(min_row=2, values_only=True)]
-        self.assertNotIn("2026-05-12", keys)
-        self.assertIn("A", keys)
+        self.assertIn("\u65b0\u589e\u7269\u6599", wb.sheetnames)
+        self.assertIn("\u5220\u9664\u7269\u6599", wb.sheetnames)
+        self.assertIn("\u53d8\u66f4\u7269\u6599", wb.sheetnames)
+        self.assertNotIn("\u5168\u90e8\u65b0\u589e\u7269\u6599", wb.sheetnames)
+        self.assertNotIn("\u5168\u90e8\u5220\u9664\u7269\u6599", wb.sheetnames)
+        self.assertNotIn("\u5168\u90e8\u53d8\u66f4\u7269\u6599", wb.sheetnames)
+
+        added_sheet = wb["\u65b0\u589e\u7269\u6599"]
+        added_headers = [cell.value for cell in added_sheet[1]]
+        self.assertNotIn("Sheet", added_headers)
+        self.assertIn("\u5e8f\u53f7", added_headers)
+        self.assertIn("\u7269\u6599\u63cf\u8ff0", added_headers)
+        self.assertIn(first_process, added_headers)
+        added_rows = [dict(zip(added_headers, row)) for row in added_sheet.iter_rows(min_row=2, values_only=True)]
+        added = next(row for row in added_rows if row["\u6599\u53f7"] == "C")
+        self.assertEqual(added["\u5e8f\u53f7"], "3")
+        self.assertEqual(added["\u7269\u6599\u63cf\u8ff0"], "DESC-C")
+        self.assertEqual(added[model], "M3")
+        self.assertEqual(added[first_process], "SMT")
+
+        removed_sheet = wb["\u5220\u9664\u7269\u6599"]
+        removed_headers = [cell.value for cell in removed_sheet[1]]
+        self.assertNotIn("Sheet", removed_headers)
+        self.assertIn(first_process, removed_headers)
+        removed_rows = [dict(zip(removed_headers, row)) for row in removed_sheet.iter_rows(min_row=2, values_only=True)]
+        removed = next(row for row in removed_rows if row["\u6599\u53f7"] == "B")
+        self.assertEqual(removed[model], "M2")
+        self.assertEqual(removed[first_process], "SMT")
+
+        changed_sheet = wb["\u53d8\u66f4\u7269\u6599"]
+        changed_rows = list(changed_sheet.iter_rows(min_row=2, values_only=True))
+        self.assertEqual([row[1] for row in changed_rows], ["A"])
+        self.assertEqual(changed_rows[0][4], model)
+        self.assertEqual(changed_rows[0][5], "M1")
+        self.assertEqual(changed_rows[0][6], "M1-NEW")
         wb.close()
 
 
