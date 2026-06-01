@@ -450,3 +450,68 @@ def api_spec_extract():
                         'count': len(values), 'skipped_excluded': skipped_excluded})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
+
+
+
+@plm_bp.route('/api/plm/auto_spec_reverse', methods=['POST'])
+def api_auto_spec_reverse():
+    """Run an integrated Playwright PLM automation feature."""
+    username = (request.form.get('username') or '').strip()
+    password = request.form.get('password') or ''
+    f = request.files.get('file')
+    if not username:
+        return jsonify({'success': False, 'error': '请输入账号'})
+    if not password:
+        return jsonify({'success': False, 'error': '请输入密码'})
+    if not f:
+        return jsonify({'success': False, 'error': '请选择需要上传的 Excel 文件'})
+
+    uid = str(uuid.uuid4())[:8]
+    try:
+        in_path = _save_uploaded_excel(f, 'plm_auto', uid)
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+    logs = []
+
+    def add_log(message):
+        logs.append(str(message))
+
+    try:
+        from pathlib import Path as _Path
+        from playwright.sync_api import sync_playwright
+        from .automation import require_feature, run_plm_feature
+
+        feature = require_feature('spec_reverse_material')
+        with sync_playwright() as playwright:
+            output_path = run_plm_feature(
+                playwright,
+                username=username,
+                password=password,
+                feature=feature,
+                upload_file=_Path(in_path),
+                output_dir=_Path(OUTPUT_DIR),
+                headless=False,
+                log=add_log,
+            )
+    except ImportError as e:
+        return jsonify({
+            'success': False,
+            'error': '缺少 Playwright 依赖，请在 BOM 工具环境安装 requirements.txt 并执行 playwright install chromium',
+            'log': chr(10).join(logs + [str(e)]),
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e), 'log': chr(10).join(logs)})
+
+    output_path = str(output_path)
+    if not os.path.exists(output_path):
+        return jsonify({'success': False, 'error': '自动化完成但未找到导出文件', 'log': chr(10).join(logs)})
+
+    out_name = os.path.basename(output_path)
+    return jsonify({
+        'success': True,
+        'download': f'/download/{out_name}',
+        'filename': out_name,
+        'source_path': output_path,
+        'log': chr(10).join(logs),
+    })

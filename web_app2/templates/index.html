@@ -231,6 +231,7 @@ tr:hover td { background:#f7f9fc; }
     <a href="#" data-tool="manufacturer-alias"><span class="icon">&#127991;</span>厂商命名映射表</a>
     <a href="#" data-tool="pref-rate"><span class="icon">📊</span>查询BOM优选率</a>
     <a href="#" data-tool="plm"><span class="icon">📤</span>转换为上传PLM系统格式</a>
+    <a href="#" data-tool="plm-auto"><span class="icon">&#127760;</span>PLM网页自动化</a>
     <a href="#" data-tool="bom-compare"><span class="icon">🧾</span>BOM比对工具合集</a>
     <a href="#" data-tool="toolbox"><span class="icon">🧰</span>小工具合集</a>
     <a href="#" data-tool="bug-report"><span class="icon">🐞</span>Bug提交栏目</a>
@@ -474,9 +475,43 @@ tr:hover td { background:#f7f9fc; }
 <div class="error" id="seError"></div>
 </div>
 </div>
+
+
 </script>
 
 <!-- ── Bug 提交栏目 ── -->
+
+
+<!-- -- PLM web automation -- -->
+<script type="text/html" id="tpl-plm-auto">
+<div style="display:flex;gap:8px;margin-bottom:18px;border-bottom:2px solid #e0e4ef;padding-bottom:0">
+  <button class="plm-auto-tab-btn active" type="button" style="padding:6px 18px;border:none;background:none;font-size:13px;font-weight:600;color:#1a5ad4;border-bottom:2px solid #1a5ad4;margin-bottom:-2px;cursor:pointer">规格型号反查物料</button>
+</div>
+<div class="workflow-shell">
+<div class="workflow-hero">
+  <h4>规格型号反查物料</h4>
+  <p>上传规格型号反查文件，自动登录 EIP/PLM，执行查询并下载“结果导出”文件。</p>
+</div>
+<div class="section"><h3>第一步：填写登录信息</h3>
+  <div class="row"><label>账号：</label><input type="text" id="paUser" value="" autocomplete="username" style="width:220px"></div>
+  <div class="row"><label>密码：</label><input type="password" id="paPass" autocomplete="current-password" style="width:220px"></div>
+</div>
+<div class="section"><h3>第二步：选择上传文件</h3>
+  <div class="row"><label>文件路径：</label><input type="file" id="paFile" accept=".xlsx,.xlsm,.xls" style="width:360px"></div>
+</div>
+<div class="section"><h3>第三步：运行自动化</h3>
+  <button class="btn btn-primary" id="paRun">开始自动查询导出</button>
+  <span id="paStatus" style="font-size:13px;margin-left:10px;color:#888"></span>
+</div>
+<div class="result" id="paResult">
+  <span class="title">导出完成</span>
+  <div id="paStats" style="margin-top:6px;font-size:13px"></div>
+  <a class="download" id="paDl" href="#">下载 PLM 导出结果</a>
+</div>
+<div class="error" id="paError"></div>
+<div id="paLogBox" style="display:none;margin-top:10px"><h4 style="margin:0 0 6px;font-size:13px">执行日志</h4><pre id="paLog" style="font-size:12px;background:#1a1a2e;color:#e0e0e0;padding:10px;border-radius:6px;max-height:220px;overflow:auto;white-space:pre-wrap;font-family:Consolas,'Courier New',monospace"></pre></div>
+</div>
+</script>
 <script type="text/html" id="tpl-toolbox">
 <div class="workflow-shell">
   <div style="display:flex;gap:8px;margin-bottom:18px;border-bottom:2px solid #e0e4ef;padding-bottom:0">
@@ -1009,6 +1044,8 @@ const TOOLS = {
                desc:'按 HQ料号 在所有优选库缓存中查找优选等级，输出含优选率统计的 Excel 结果文件。'},
   plm:    {title:'转换为上传PLM系统格式', badge:'v1.6',  tpl:'tpl-plm',
            desc:'将整机 BOM 配置表转换为 PLM 系统可导入的标准格式：序号、料号、单耗等25列，主供行填单耗，替代料自动标记主辅BOM标记。'},
+  'plm-auto': {title:'PLM网页自动化', badge:'自动化', tpl:'tpl-plm-auto',
+           desc:'自动登录 EIP/PLM，按标准流程上传文件、查询并导出结果。当前包含规格型号反查物料。'},
   'bom-compare': {title:'BOM比对工具合集', badge:'v0.1', tpl:'tpl-bom-compare',
            desc:'提供单板HQ BOM版本对比、整机HQ BOM版本对比、Cadence导出BOM对比HQ BOM三个比对子功能。'},
   toolbox: {title:'小工具合集', badge:'工具', tpl:'tpl-toolbox',
@@ -1080,6 +1117,7 @@ function initTool(tool){
   if(tool==='bom') initBom();
   else if(tool==='feishu') initFeishu();
   else if(tool==='plm') initPlm();
+  else if(tool==='plm-auto') initPlmAuto();
   else if(tool==='bom-compare') initBomCompare();
   else if(tool==='toolbox') initToolbox();
   else if(tool==='bug-report') initBugReport();
@@ -2448,6 +2486,50 @@ function initPlm(){
 }
 
 // ─── 规格型号提取 ─────────────────────────────────────
+
+
+function initPlmAuto(){
+  $('paRun').onclick=plmAutoRun;
+}
+
+async function plmAutoRun(){
+  const f=$('paFile').files[0];
+  const user=($('paUser').value||'').trim();
+  const pass=$('paPass').value||'';
+  if(!user){showInlineError('paError','请输入账号','paStatus');return;}
+  if(!pass){showInlineError('paError','请输入密码','paStatus');return;}
+  if(!f){showInlineError('paError','请选择需要上传的 Excel 文件','paStatus');return;}
+  const btn=$('paRun');
+  btn.disabled=true;
+  $('paStatus').textContent='正在运行，浏览器会自动打开并操作 PLM...';
+  hide($('paResult'));hide($('paLogBox'));clearInlineError('paError');
+  const fd=new FormData();
+  fd.append('username',user);
+  fd.append('password',pass);
+  fd.append('file',f);
+  try{
+    const r=await fetch('/api/plm/auto_spec_reverse',{method:'POST',body:fd});
+    const d=await r.json();
+    if(d.success){
+      $('paDl').href=d.download;
+      $('paStats').textContent=d.filename||'PLM 导出文件已生成';
+      $('paStatus').textContent='完成！';
+      show($('paResult'));
+      if(d.log){$('paLog').textContent=d.log;show($('paLogBox'));}
+    }else{
+      $('paError').textContent=d.error||'自动化执行失败';
+      show($('paError'));
+      $('paStatus').textContent='';
+      if(d.log){$('paLog').textContent=d.log;show($('paLogBox'));}
+    }
+  }catch(e){
+    $('paError').textContent=e.message;
+    show($('paError'));
+    $('paStatus').textContent='';
+  }
+  btn.disabled=false;
+}
+
 async function seLoadFile(){
   const f=$('seFile').files[0];
   clearInlineError('seError');hide($('seResult'));
