@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """PLM 上传工具 — Blueprint"""
 
 import os, uuid, re, json
@@ -506,6 +506,61 @@ def api_auto_spec_reverse():
     output_path = str(output_path)
     if not os.path.exists(output_path):
         return jsonify({'success': False, 'error': '自动化完成但未找到导出文件', 'log': chr(10).join(logs)})
+
+    out_name = os.path.basename(output_path)
+    return jsonify({
+        'success': True,
+        'download': f'/download/{out_name}',
+        'filename': out_name,
+        'source_path': output_path,
+        'log': chr(10).join(logs),
+    })
+
+@plm_bp.route('/api/plm/auto_hq_attachments', methods=['POST'])
+def api_auto_hq_attachments():
+    """Download selected PLM attachments for one HQ material number."""
+    username = (request.form.get('username') or '').strip()
+    password = request.form.get('password') or ''
+    hqpn = (request.form.get('hqpn') or '').strip()
+    if not username:
+        return jsonify({'success': False, 'error': '请输入账号'})
+    if not password:
+        return jsonify({'success': False, 'error': '请输入密码'})
+    if not hqpn:
+        return jsonify({'success': False, 'error': '请输入 HQ 料号'})
+
+    logs = []
+
+    def add_log(message):
+        logs.append(str(message))
+
+    try:
+        from pathlib import Path as _Path
+        from playwright.sync_api import sync_playwright
+        from .automation import run_hq_attachment_download
+
+        with sync_playwright() as playwright:
+            output_path = run_hq_attachment_download(
+                playwright,
+                username=username,
+                password=password,
+                hqpn=hqpn,
+                output_dir=_Path(OUTPUT_DIR),
+                headless=False,
+                log=add_log,
+            )
+    except ImportError as e:
+        return jsonify({
+            'success': False,
+            'error': '缺少 Playwright 依赖，请安装 requirements.txt 并执行 playwright install chromium',
+            'log': chr(10).join(logs + [str(e)]),
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e), 'log': chr(10).join(logs)})
+
+    output_path = str(output_path)
+    if not os.path.exists(output_path):
+        return jsonify({'success': False, 'error': '自动化完成但未找到下载文件', 'log': chr(10).join(logs)})
 
     out_name = os.path.basename(output_path)
     return jsonify({

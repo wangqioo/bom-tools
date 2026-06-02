@@ -485,15 +485,16 @@ tr:hover td { background:#f7f9fc; }
 <!-- -- PLM web automation -- -->
 <script type="text/html" id="tpl-plm-auto">
 <div style="display:flex;gap:8px;margin-bottom:18px;border-bottom:2px solid #e0e4ef;padding-bottom:0">
-  <button class="plm-auto-tab-btn active" type="button" style="padding:6px 18px;border:none;background:none;font-size:13px;font-weight:600;color:#1a5ad4;border-bottom:2px solid #1a5ad4;margin-bottom:-2px;cursor:pointer">规格型号反查物料</button>
+  <button class="plm-auto-tab-btn active" type="button" data-pa-tab="spec" style="padding:6px 18px;border:none;background:none;font-size:13px;font-weight:600;color:#1a5ad4;border-bottom:2px solid #1a5ad4;margin-bottom:-2px;cursor:pointer">规格型号反查物料</button>
+  <button class="plm-auto-tab-btn" type="button" data-pa-tab="attach" style="padding:6px 18px;border:none;background:none;font-size:13px;font-weight:600;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer">HQ附件下载</button>
 </div>
-<div class="workflow-shell">
+<div class="workflow-shell" id="paTabSpec">
 <div class="workflow-hero">
   <h4>规格型号反查物料</h4>
   <p>上传规格型号反查文件，自动登录 EIP/PLM，执行查询并下载“结果导出”文件。</p>
 </div>
 <div class="section"><h3>第一步：填写登录信息</h3>
-  <div class="row"><label>账号：</label><input type="text" id="paUser" value="" autocomplete="username" style="width:220px"></div>
+  <div class="row"><label>账号：</label><input type="text" id="paUser" value="100448405" autocomplete="username" style="width:220px"></div>
   <div class="row"><label>密码：</label><input type="password" id="paPass" autocomplete="current-password" style="width:220px"></div>
 </div>
 <div class="section"><h3>第二步：选择上传文件</h3>
@@ -510,6 +511,30 @@ tr:hover td { background:#f7f9fc; }
 </div>
 <div class="error" id="paError"></div>
 <div id="paLogBox" style="display:none;margin-top:10px"><h4 style="margin:0 0 6px;font-size:13px">执行日志</h4><pre id="paLog" style="font-size:12px;background:#1a1a2e;color:#e0e0e0;padding:10px;border-radius:6px;max-height:220px;overflow:auto;white-space:pre-wrap;font-family:Consolas,'Courier New',monospace"></pre></div>
+</div>
+<div class="workflow-shell" id="paTabAttach" style="display:none">
+<div class="workflow-hero">
+  <h4>HQ附件下载</h4>
+  <p>输入 HQ 料号，自动进入 PLM 搜索结果第一条的内容页，勾选附件并下载选定文件。</p>
+</div>
+<div class="section"><h3>第一步：填写登录信息</h3>
+  <div class="row"><label>账号：</label><input type="text" id="paAttUser" value="100448405" autocomplete="username" style="width:220px"></div>
+  <div class="row"><label>密码：</label><input type="password" id="paAttPass" autocomplete="current-password" style="width:220px"></div>
+</div>
+<div class="section"><h3>第二步：输入 HQ 料号</h3>
+  <div class="row"><label>HQ 料号：</label><input type="text" id="paAttHqpn" placeholder="如 HQ172010044T0" style="width:260px"></div>
+</div>
+<div class="section"><h3>第三步：运行自动化</h3>
+  <button class="btn btn-primary" id="paAttRun">开始下载附件</button>
+  <span id="paAttStatus" style="font-size:13px;margin-left:10px;color:#888"></span>
+</div>
+<div class="result" id="paAttResult">
+  <span class="title">下载完成</span>
+  <div id="paAttStats" style="margin-top:6px;font-size:13px"></div>
+  <a class="download" id="paAttDl" href="#">下载 PLM 附件</a>
+</div>
+<div class="error" id="paAttError"></div>
+<div id="paAttLogBox" style="display:none;margin-top:10px"><h4 style="margin:0 0 6px;font-size:13px">执行日志</h4><pre id="paAttLog" style="font-size:12px;background:#1a1a2e;color:#e0e0e0;padding:10px;border-radius:6px;max-height:220px;overflow:auto;white-space:pre-wrap;font-family:Consolas,'Courier New',monospace"></pre></div>
 </div>
 </script>
 <script type="text/html" id="tpl-toolbox">
@@ -2490,6 +2515,24 @@ function initPlm(){
 
 function initPlmAuto(){
   $('paRun').onclick=plmAutoRun;
+  $('paAttRun').onclick=plmAutoAttachmentRun;
+  $('paAttHqpn').addEventListener('input',()=>{
+    const cleaned=($('paAttHqpn').value||'').replace(/\s+/g,'');
+    if($('paAttHqpn').value!==cleaned) $('paAttHqpn').value=cleaned;
+  });
+  document.querySelectorAll('.plm-auto-tab-btn').forEach(btn=>{
+    btn.onclick=()=>{
+      const tab=btn.dataset.paTab;
+      document.querySelectorAll('.plm-auto-tab-btn').forEach(b=>{
+        const active=b.dataset.paTab===tab;
+        b.style.color=active?'#1a5ad4':'#888';
+        b.style.borderBottomColor=active?'#1a5ad4':'transparent';
+        b.classList.toggle('active',active);
+      });
+      $('paTabSpec').style.display=tab==='spec'?'flex':'none';
+      $('paTabAttach').style.display=tab==='attach'?'flex':'none';
+    };
+  });
 }
 
 async function plmAutoRun(){
@@ -2526,6 +2569,44 @@ async function plmAutoRun(){
     $('paError').textContent=e.message;
     show($('paError'));
     $('paStatus').textContent='';
+  }
+  btn.disabled=false;
+}
+
+async function plmAutoAttachmentRun(){
+  const user=($('paAttUser').value||'').trim();
+  const pass=$('paAttPass').value||'';
+  const hqpn=($('paAttHqpn').value||'').replace(/\s+/g,'');
+  if(!user){showInlineError('paAttError','请输入账号','paAttStatus');return;}
+  if(!pass){showInlineError('paAttError','请输入密码','paAttStatus');return;}
+  if(!hqpn){showInlineError('paAttError','请输入 HQ 料号','paAttStatus');return;}
+  const btn=$('paAttRun');
+  btn.disabled=true;
+  $('paAttStatus').textContent='正在运行，浏览器会自动打开并操作 PLM...';
+  hide($('paAttResult'));hide($('paAttLogBox'));clearInlineError('paAttError');
+  const fd=new FormData();
+  fd.append('username',user);
+  fd.append('password',pass);
+  fd.append('hqpn',hqpn);
+  try{
+    const r=await fetch('/api/plm/auto_hq_attachments',{method:'POST',body:fd});
+    const d=await r.json();
+    if(d.success){
+      $('paAttDl').href=d.download;
+      $('paAttStats').textContent=d.filename||'PLM 附件已下载';
+      $('paAttStatus').textContent='完成！';
+      show($('paAttResult'));
+      if(d.log){$('paAttLog').textContent=d.log;show($('paAttLogBox'));}
+    }else{
+      $('paAttError').textContent=d.error||'自动化执行失败';
+      show($('paAttError'));
+      $('paAttStatus').textContent='';
+      if(d.log){$('paAttLog').textContent=d.log;show($('paAttLogBox'));}
+    }
+  }catch(e){
+    $('paAttError').textContent=e.message;
+    show($('paAttError'));
+    $('paAttStatus').textContent='';
   }
   btn.disabled=false;
 }
