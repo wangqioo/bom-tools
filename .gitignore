@@ -13,3 +13,4 @@ deploy_bundle/web_app2/feature_requests/
 deploy_bundle/web_app2/manufacturer_aliases/
 web_app2/bug_reports/
 *.zip
+deploy_bundle/ms-playwright/

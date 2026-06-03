@@ -68,6 +68,11 @@ if %errorlevel% neq 0 (
 )
 
 :: Check Playwright browser runtime for PLM web automation
+if "%PLAYWRIGHT_BROWSERS_PATH%"=="" (
+    if exist "%~dp0ms-playwright\" (
+        set "PLAYWRIGHT_BROWSERS_PATH=%~dp0ms-playwright"
+    )
+)
 venv\Scripts\python.exe -c "from pathlib import Path; import os,sys; root=Path(os.environ.get('PLAYWRIGHT_BROWSERS_PATH') or Path.home()/'AppData/Local/ms-playwright'); sys.exit(0 if any(root.glob('chromium*')) else 1)" >nul 2>&1
 if %errorlevel% neq 0 (
     echo.

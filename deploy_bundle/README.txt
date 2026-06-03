@@ -7,7 +7,7 @@ No internet connection is required if Python is already installed.
 
 PREREQUISITES
   - Windows 10/11 or Windows Server 2016+
-  - Python 3.10, 3.11, 3.12 or 3.14 installed from python.org
+  - Python 3.10, 3.11, 3.12, 3.13 or 3.14 installed from python.org
   - During Python installation, CHECK "Add Python to PATH"
   - Do NOT use the Microsoft Store Python version
 
@@ -58,11 +58,16 @@ OFFLINE DEPENDENCIES
 
 PLAYWRIGHT CHROMIUM
   PLM web automation needs the Playwright Chromium browser runtime.
+  If ms-playwright/ is present next to install_and_run.bat, install_and_run.bat
+  automatically uses it when PLAYWRIGHT_BROWSERS_PATH is not already set.
+  Note: the source repository may not include ms-playwright/ because Chromium
+  contains files larger than GitHub's normal per-file limit. Keep it in the
+  full offline package or distribute it as a separate release asset.
   Online target server:
       venv\Scripts\python.exe -m playwright install chromium
   Offline target server:
-      Include a prepared ms-playwright Chromium cache with the bundle, or set
-      PLAYWRIGHT_BROWSERS_PATH to the folder that contains the Chromium cache.
+      Keep the bundled ms-playwright/ folder next to install_and_run.bat, or set
+      PLAYWRIGHT_BROWSERS_PATH to another folder that contains the Chromium cache.
   Without this browser runtime, the normal BOM tools still start, but PLM web
   automation will fail when launching Chromium.
 
@@ -76,4 +81,5 @@ TROUBLESHOOTING
   - LAN users cannot open:
       Use the server LAN IP, not localhost, and check firewall inbound rules.
   - PLM web automation cannot launch Chromium:
-      Install Chromium with Playwright or provide the offline ms-playwright cache.
+      Keep the bundled ms-playwright folder, install Chromium with Playwright,
+      or set PLAYWRIGHT_BROWSERS_PATH to an existing Chromium cache.
