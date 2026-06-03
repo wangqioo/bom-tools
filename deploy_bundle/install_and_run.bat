@@ -67,6 +67,19 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
+:: Check Playwright browser runtime for PLM web automation
+venv\Scripts\python.exe -c "from pathlib import Path; import os,sys; root=Path(os.environ.get('PLAYWRIGHT_BROWSERS_PATH') or Path.home()/'AppData/Local/ms-playwright'); sys.exit(0 if any(root.glob('chromium*')) else 1)" >nul 2>&1
+if %errorlevel% neq 0 (
+    echo.
+    echo [WARN] Playwright Chromium browser runtime was not found.
+    echo        PLM web automation requires Chromium.
+    echo        Online install command:
+    echo          venv\Scripts\python.exe -m playwright install chromium
+    echo        Offline deployment must include the ms-playwright Chromium cache
+    echo        or set PLAYWRIGHT_BROWSERS_PATH to a folder that contains it.
+    echo.
+)
+
 :: Start server
 echo [3/3] Starting web server...
 if "%PORT%"=="" set PORT=5000

@@ -46,14 +46,25 @@ INCLUDED TOOLS
   - Manufacturer naming alias map
   - BOM preferred-rate query
   - PLM upload format conversion
+  - PLM web automation for spec reverse material lookup
   - BOM compare tool collection
   - Bug submission with status management
   - Demand development work orders with likes
 
 OFFLINE DEPENDENCIES
-  wheels/ includes Flask, openpyxl, requests, waitress, and transitive deps.
+  wheels/ includes Flask, openpyxl, requests, playwright, waitress, and transitive deps.
   The installer uses:
       pip install --no-index --find-links wheels -r requirements.txt
+
+PLAYWRIGHT CHROMIUM
+  PLM web automation needs the Playwright Chromium browser runtime.
+  Online target server:
+      venv\Scripts\python.exe -m playwright install chromium
+  Offline target server:
+      Include a prepared ms-playwright Chromium cache with the bundle, or set
+      PLAYWRIGHT_BROWSERS_PATH to the folder that contains the Chromium cache.
+  Without this browser runtime, the normal BOM tools still start, but PLM web
+  automation will fail when launching Chromium.
 
 TROUBLESHOOTING
   - Python not found:
@@ -64,3 +75,5 @@ TROUBLESHOOTING
       Set another PORT before running install_and_run.bat.
   - LAN users cannot open:
       Use the server LAN IP, not localhost, and check firewall inbound rules.
+  - PLM web automation cannot launch Chromium:
+      Install Chromium with Playwright or provide the offline ms-playwright cache.
