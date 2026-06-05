@@ -1,0 +1,181 @@
+<script type="text/html" id="tpl-bom-compare">
+<!-- 子功能 Tab -->
+<div style="display:flex;gap:8px;margin-bottom:18px;border-bottom:2px solid #e0e4ef;padding-bottom:0">
+  <button class="bomcmp-tab-btn active" data-bomcmp-tab="customer-hq" style="padding:6px 18px;border:none;background:none;font-size:13px;font-weight:600;color:#1a5ad4;border-bottom:2px solid #1a5ad4;margin-bottom:-2px;cursor:pointer">客户BOM对比HQ BOM</button>
+  <button class="bomcmp-tab-btn" data-bomcmp-tab="hq-version" style="padding:6px 18px;border:none;background:none;font-size:13px;font-weight:600;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer">单板HQ BOM版本对比</button>
+  <button class="bomcmp-tab-btn" data-bomcmp-tab="machine-hq-version" style="padding:6px 18px;border:none;background:none;font-size:13px;font-weight:600;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer">整机HQ BOM版本对比</button>
+  <button class="bomcmp-tab-btn" data-bomcmp-tab="cadence-hq" style="padding:6px 18px;border:none;background:none;font-size:13px;font-weight:600;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer">Cadence导出BOM对比HQ BOM</button>
+</div>
+
+
+<div id="bomcmp-tab-customer-hq" class="workflow-shell">
+  <div class="workflow-hero">
+    <h4>客户BOM对比HQ BOM</h4>
+    <p>第一版先做标准化预览：映射客户列、选择匹配模式，确认系统如何理解客户 BOM 和 HQ BOM。</p>
+  </div>
+  <div class="section"><h3>第一步：上传文件</h3>
+    <div class="workflow-step-desc">客户 BOM 格式不固定；HQ BOM 按固定格式自动识别。先加载列，再做字段映射。</div>
+    <div class="row"><label>客户 BOM：</label><input type="file" id="custLeftFile" accept=".xlsx,.xlsm,.xls" style="width:320px"></div>
+    <div class="row"><label>HQ BOM：</label><input type="file" id="custRightFile" accept=".xlsx,.xlsm,.xls" style="width:320px"></div>
+    <div class="row">
+      <label>客户 Sheet：</label><select id="custLeftSheet" style="width:180px"><option>先选择文件</option></select>
+      <label>客户表头行：</label><input type="number" id="custLeftHdr" value="1" min="1" style="width:60px">
+      <label>HQ Sheet：</label><select id="custRightSheet" style="width:180px"><option>先选择文件</option></select>
+      <button class="btn btn-sm btn-gray" id="custRefresh" type="button">加载列</button>
+    </div>
+    <div id="custLoadStatus" style="font-size:12px;color:#888"></div>
+  </div>
+  <div class="section"><h3>第二步：标准字段映射</h3>
+    <div class="workflow-step-desc">规格型号和制造商必选；位号、数量可选。这里仅处理客户 BOM 列到标准字段的映射。</div>
+    <div class="row" style="display:grid;grid-template-columns:repeat(4,minmax(170px,1fr));gap:10px;align-items:end">
+      <label style="display:flex;flex-direction:column;gap:6px;min-width:0">规格型号：<select id="custMapModel" style="width:100%"><option value="">先加载列</option></select></label>
+      <label style="display:flex;flex-direction:column;gap:6px;min-width:0">制造商：<select id="custMapManufacturer" style="width:100%"><option value="">先加载列</option></select></label>
+      <label style="display:flex;flex-direction:column;gap:6px;min-width:0">位号：<select id="custMapRefdes" style="width:100%"><option value="">不使用位号</option></select></label>
+      <label style="display:flex;flex-direction:column;gap:6px;min-width:0">数量/用量：<select id="custMapQuantity" style="width:100%"><option value="">不映射</option></select></label>
+    </div>
+  </div>
+  <div class="section"><h3>第三步：选择匹配模式</h3>
+    <div class="workflow-step-desc">匹配模式决定客户 BOM 和 HQ BOM 哪些行会被认为是同一个物料。没有位号的客户 BOM 建议使用型号+制造商。</div>
+    <div class="row">
+      <label>匹配模式：</label><select id="custMatchMode" style="width:240px"><option value="identity">按型号+制造商匹配</option><option value="refdes">按位号匹配</option></select>
+    </div>
+  </div>
+  <div class="section"><h3>第四步：预览标准化结果</h3>
+    <button class="btn btn-primary" id="custPreview" type="button">预览标准化结果</button>
+    <button class="btn btn-outline" id="custExport" type="button">下载详细比对报告</button>
+    <span id="custStatus" style="font-size:13px;color:#888;margin-left:8px"></span>
+    <div class="error" id="custError"></div>
+    <div class="result" id="custExportResult"><span class="title">详细比对报告已生成</span><br><span id="custExportStats" style="display:inline-block;margin-top:6px"></span><br><a class="download" id="custExportDl" href="#">下载详细比对报告</a></div>
+  </div>
+  <div class="section" id="custPreviewPanel" style="display:none"><h3>标准化预览</h3>
+    <div id="custPreviewStats" style="font-size:13px;color:#555;margin-bottom:10px"></div>
+    <h4 style="font-size:13px;color:#1a3a5c;margin:8px 0">客户标准化预览</h4>
+    <div class="table-wrap" style="max-height:260px"><table><thead><tr><th>原始行号</th><th>匹配键</th><th>位号</th><th>规格型号</th><th>原始制造商</th><th>映射后制造商</th><th>数量</th><th>状态</th><th>问题说明</th></tr></thead><tbody id="custCustomerPreviewRows"></tbody></table></div>
+    <h4 style="font-size:13px;color:#1a3a5c;margin:12px 0 8px">HQ标准化预览</h4>
+    <div class="table-wrap" style="max-height:260px"><table><thead><tr><th>原始行号</th><th>匹配键</th><th>位号</th><th>型号</th><th>生产厂家</th><th>映射后厂家</th><th>单耗</th><th>料号</th><th>替代关系</th><th>状态</th><th>问题说明</th></tr></thead><tbody id="custHqPreviewRows"></tbody></table></div>
+  </div>
+</div>
+
+<div id="bomcmp-tab-hq-version" class="workflow-shell" style="display:none">
+  <div class="workflow-hero">
+    <h4>单板HQ BOM版本对比</h4>
+    <p>上传同一个单板项目的基准版本和对比版本 HQ BOM，按匹配键定位物料，并对选定字段输出新增、删除、变更和未变更差异报告。</p>
+  </div>
+  <div class="section"><h3>第一步：上传基准版本和对比版本</h3>
+    <div class="workflow-step-desc">选择基准版本和对比版本 HQ BOM，确认 Sheet 和表头行。两份文件建议使用同一套表头。</div>
+    <div class="row"><label>基准版本 BOM：</label><input type="file" id="hqvOldFile" accept=".xlsx,.xlsm,.xls" style="width:320px"></div>
+    <div class="row"><label>对比版本 BOM：</label><input type="file" id="hqvNewFile" accept=".xlsx,.xlsm,.xls" style="width:320px"></div>
+    <div class="row">
+      <label>基准版本 Sheet：</label><select id="hqvOldSheet" style="width:180px"><option>先选择文件</option></select>
+      <label>对比版本 Sheet：</label><select id="hqvNewSheet" style="width:180px"><option>先选择文件</option></select>
+      <label>表头行：</label><input type="number" id="hqvHdr" value="3" min="1" style="width:60px">
+      <button class="btn btn-sm btn-gray" id="hqvRefresh" type="button">刷新列</button>
+    </div>
+    <div id="hqvLoadStatus" style="font-size:12px;color:#888"></div>
+  </div>
+  <div class="section"><h3>第二步：确认比对规则</h3>
+    <div class="workflow-step-desc">系统默认按「料号」匹配同一物料。下面勾选的是需要检查变化的字段，不是匹配键候选。</div>
+    <div class="plm-info" id="hqvRuleSummary">匹配规则：按「料号」匹配同一物料</div>
+    <div class="row">
+      <label style="min-width:120px">需要检查变化的字段：</label>
+      <button class="btn btn-sm btn-gray" id="hqvSelectAll" type="button">全选字段</button>
+      <button class="btn btn-sm btn-gray" id="hqvSelectNone" type="button">清空字段</button>
+    </div>
+    <div id="hqvCompareCols" class="chk-list" style="max-height:220px"></div>
+    <details style="margin-top:10px">
+      <summary style="cursor:pointer;font-size:12px;color:#1a5ad4;font-weight:600">高级设置：修改匹配键</summary>
+      <div class="row" style="margin-top:10px">
+        <label>匹配键：</label><select id="hqvKeyCol" style="width:220px"><option>先刷新列</option></select>
+        <span class="hint">匹配键用于判定两份 BOM 中哪两行是同一个物料。系统导出 HQ BOM 通常使用「料号」。</span>
+      </div>
+    </details>
+  </div>
+  <div class="section"><h3>第三步：输出差异报告</h3>
+    <div class="workflow-step-desc">报告包含新增、删除、变更和统计 Sheet。重复匹配键会在统计页列出，重复项只取第一次参与比对。</div>
+    <button class="btn btn-primary" id="hqvRun" type="button">⚡ 开始比对</button>
+    <span id="hqvStatus" style="font-size:13px;color:#888;margin-left:8px"></span>
+  </div>
+  <div class="result" id="hqvResult"><span class="title">✅ 比对完成</span><br><span id="hqvStats" style="display:inline-block;margin-top:6px"></span><br><a class="download" id="hqvDl" href="#">📥 下载差异报告</a></div>
+  <div class="error" id="hqvError"></div>
+</div>
+
+<div id="bomcmp-tab-machine-hq-version" class="workflow-shell" style="display:none">
+  <div class="workflow-hero">
+    <h4>整机HQ BOM版本对比</h4>
+    <p>上传同一个整机项目的基准版本和对比版本 HQ BOM，按匹配键定位物料，并对选定字段输出新增、删除、变更和未变更差异报告。</p>
+  </div>
+  <div class="section"><h3>第一步：上传基准版本和对比版本</h3>
+    <div class="workflow-step-desc">选择基准版本和对比版本 整机 HQ BOM，确认 Sheet 和表头行。两份文件建议使用同一套表头。</div>
+    <div class="row"><label>基准版本 BOM：</label><input type="file" id="machvOldFile" accept=".xlsx,.xlsm,.xls" style="width:320px"></div>
+    <div class="row"><label>对比版本 BOM：</label><input type="file" id="machvNewFile" accept=".xlsx,.xlsm,.xls" style="width:320px"></div>
+    <div class="row">
+      <label>基准版本 Sheet：</label><select id="machvOldSheet" style="width:180px"><option>先选择文件</option></select>
+      <label>对比版本 Sheet：</label><select id="machvNewSheet" style="width:180px"><option>先选择文件</option></select>
+      <label>表头行：</label><input type="number" id="machvHdr" value="3" min="1" style="width:60px">
+      <button class="btn btn-sm btn-gray" id="machvRefresh" type="button">刷新列</button>
+    </div>
+    <div id="machvLoadStatus" style="font-size:12px;color:#888"></div>
+  </div>
+  <div class="section"><h3>第二步：确认比对规则</h3>
+    <div class="workflow-step-desc">系统默认按「料号」匹配同一物料。下面勾选的是需要检查变化的字段，不是匹配键候选。</div>
+    <div class="plm-info" id="machvRuleSummary">匹配规则：按「料号」匹配同一物料</div>
+    <div class="row">
+      <label style="min-width:120px">需要检查变化的字段：</label>
+      <button class="btn btn-sm btn-gray" id="machvSelectAll" type="button">全选字段</button>
+      <button class="btn btn-sm btn-gray" id="machvSelectNone" type="button">清空字段</button>
+    </div>
+    <div id="machvCompareCols" class="chk-list" style="max-height:220px"></div>
+    <details style="margin-top:10px">
+      <summary style="cursor:pointer;font-size:12px;color:#1a5ad4;font-weight:600">高级设置：修改匹配键</summary>
+      <div class="row" style="margin-top:10px">
+        <label>匹配键：</label><select id="machvKeyCol" style="width:220px"><option>先刷新列</option></select>
+        <span class="hint">匹配键用于判定两份 BOM 中哪两行是同一个物料。系统导出 HQ BOM 通常使用「料号」。</span>
+      </div>
+    </details>
+  </div>
+  <div class="section"><h3>第三步：输出差异报告</h3>
+    <div class="workflow-step-desc">报告包含新增、删除、变更和统计 Sheet。重复匹配键会在统计页列出，重复项只取第一次参与比对。</div>
+    <button class="btn btn-primary" id="machvRun" type="button">⚡ 开始比对</button>
+    <span id="machvStatus" style="font-size:13px;color:#888;margin-left:8px"></span>
+  </div>
+  <div class="result" id="machvResult"><span class="title">✅ 比对完成</span><br><span id="machvStats" style="display:inline-block;margin-top:6px"></span><br><a class="download" id="machvDl" href="#">📥 下载差异报告</a></div>
+  <div class="error" id="machvError"></div>
+</div>
+
+<div id="bomcmp-tab-cadence-hq" class="workflow-shell" style="display:none">
+  <div class="workflow-hero">
+    <h4>Cadence BOM对比HQ BOM</h4>
+    <p>上传 Cadence Archive BOM 导出表和 HQ BOM，按位号、料号、型号、数量或厂商等字段比对差异。</p>
+  </div>
+  <div class="section"><h3>第一步：上传文件</h3>
+    <div class="workflow-step-desc">Cadence 导出格式可能随项目不同，因此这里使用手动匹配键和字段映射。</div>
+    <div class="row"><label>Cadence BOM：</label><input type="file" id="cadLeftFile" accept=".xlsx,.xlsm,.xls" style="width:320px"></div>
+    <div class="row"><label>HQ BOM：</label><input type="file" id="cadRightFile" accept=".xlsx,.xlsm,.xls" style="width:320px"></div>
+    <div class="row">
+      <label>Cadence Sheet：</label><select id="cadLeftSheet" style="width:180px"><option>先选择文件</option></select>
+      <label>Cadence表头行：</label><input type="number" id="cadLeftHdr" value="1" min="1" style="width:60px">
+      <label>HQ Sheet：</label><select id="cadRightSheet" style="width:180px"><option>先选择文件</option></select>
+      <label>HQ表头行：</label><input type="number" id="cadRightHdr" value="3" min="1" style="width:60px">
+      <button class="btn btn-sm btn-gray" id="cadRefresh" type="button">加载列</button>
+    </div>
+    <div id="cadLoadStatus" style="font-size:12px;color:#888"></div>
+  </div>
+  <div class="section"><h3>第二步：匹配键和字段映射</h3>
+    <div class="workflow-step-desc">建议优先按位号或料号匹配；如果两边列名不同，请使用自定义字段映射。</div>
+    <div class="row">
+      <label>Cadence匹配键：</label><select id="cadLeftKey" style="width:220px"><option>先加载列</option></select>
+      <label>HQ匹配键：</label><select id="cadRightKey" style="width:220px"><option>先加载列</option></select>
+    </div>
+    <div class="row"><button class="btn btn-sm btn-gray" id="cadSelectAll" type="button">全选同名字段</button><button class="btn btn-sm btn-gray" id="cadSelectNone" type="button">清空同名字段</button><button class="btn btn-sm btn-gray" id="cadAddPair" type="button">添加自定义映射</button></div>
+    <div id="cadCommonPairs" class="chk-list" style="max-height:160px"></div>
+    <div id="cadManualPairs" style="display:flex;flex-direction:column;gap:6px;margin-top:10px"></div>
+  </div>
+  <div class="section"><h3>第三步：导出报告</h3>
+    <button class="btn btn-primary" id="cadRun" type="button">开始比对</button>
+    <span id="cadStatus" style="font-size:13px;color:#888;margin-left:8px"></span>
+  </div>
+  <div class="result" id="cadResult"><span class="title">比对完成</span><br><span id="cadStats" style="display:inline-block;margin-top:6px"></span><br><a class="download" id="cadDl" href="#">下载差异报告</a></div>
+  <div class="error" id="cadError"></div>
+</div>
+
+</script>

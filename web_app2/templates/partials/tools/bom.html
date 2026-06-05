@@ -1,0 +1,46 @@
+<script type="text/html" id="tpl-bom">
+<div class="workflow-shell">
+<div class="workflow-hero">
+  <h4>BOM 格式转换</h4>
+  <p>按“选文件 - 列映射 - 输出设置”的顺序处理。系统会自动识别常用列，也可以手动填写列字母覆盖识别结果。</p>
+</div>
+<div class="section"><h3>第一步：选择文件</h3>
+  <div class="workflow-step-desc">上传待转换的 BOM，并确认 Sheet 和表头行，下面会显示预览方便核对。</div>
+  <div class="row"><label>文件路径：</label><input type="file" id="bomFile" accept=".xlsx,.xlsm,.xls" style="width:320px"></div>
+  <div class="row"><label>Sheet：</label><select id="bomSheet" style="width:180px"><option>先选择文件</option></select><label>表头行：</label><input type="number" id="bomHdr" value="1" min="1" style="width:60px"><button class="btn btn-sm btn-gray" id="bomRefresh">刷新预览</button></div>
+  <div class="preview-note">仅预览前 50 行，正式处理会读取完整表格。</div>
+  <div id="bomPreview" class="table-wrap excel-preview" style="margin-top:8px"></div>
+</div>
+<div class="section"><h3>第二步：列映射（自动识别，可手动调整）</h3>
+  <div class="workflow-step-desc">选择原始 BOM 的格式，并确认物料名称、用量、品牌/厂家、型号等关键列。</div>
+  <div class="row">
+    <label>格式：</label>
+    <select id="bomFmt">
+      <option value="A">格式A — 品牌型号合并列（|| 或空格分隔，如 MURATA:GRM188||SAMSUNG:CL10）</option>
+      <option value="B">格式B — 厂家/型号分开列，分号分隔（如 YAGEO;KOA / RC0805;RK73）</option>
+      <option value="C">格式C — 制造商含编号，冒号分隔（如 1630-大毅科技[全称]:0362-RALEC[全称]）</option>
+    </select>
+  </div>
+  <div class="row">
+    <label>物料名称列：</label><input type="text" id="bomColName" style="width:80px" placeholder="如 C">
+    <label>用量列：</label><input type="text" id="bomColQty" style="width:80px" placeholder="如 D">
+    <label>品牌/厂家列：</label><input type="text" id="bomColBrand" style="width:80px" placeholder="如 E">
+    <label>型号列：</label><input type="text" id="bomColModel" style="width:80px" placeholder="如 F">
+    <span class="hint">（填写列字母，格式A无需填型号列）</span>
+  </div>
+  <div id="bomDetected" style="font-size:12px;color:#555;background:#f7f9fc;padding:8px;border-radius:6px;margin-top:4px"></div>
+</div>
+<div class="section"><h3>第三步：输出设置</h3>
+  <div class="workflow-step-desc">输出为供应商展开表，保留原列并将供应商拆分为独立行。</div>
+  <div class="row">
+    <label>输出模式：</label>
+    <select id="bomOutputMode">
+      <option value="expand">原格式展开（保留原列，供应商拆多行，新增厂商/型号/是否独供列）</option>
+    </select>
+  </div>
+  <button class="btn btn-primary" id="bomRun">⚡ 开始转换</button> <span id="bomStatus" style="font-size:13px;color:#888"></span>
+</div>
+<div class="result" id="bomResult"><span class="title">✅ 转换完成</span><br><span id="bomStats" style="display:inline-block;margin-top:6px"></span><br><a class="download" id="bomDl" href="#">📥 下载结果文件</a></div>
+<div class="error" id="bomError"></div>
+</div>
+</script>

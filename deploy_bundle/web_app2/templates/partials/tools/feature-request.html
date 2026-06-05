@@ -1,0 +1,43 @@
+<script type="text/html" id="tpl-feature-request">
+<div class="workflow-shell">
+<div class="workflow-hero">
+  <h4>需求开发工单</h4>
+  <p>提交新功能、流程优化或开发需求。记录会保存在服务端，便于后续评估和跟进。</p>
+</div>
+<div style="display:grid;grid-template-columns:minmax(380px,460px) 1fr;gap:14px;align-items:start">
+  <div class="section"><h3>提交需求</h3>
+    <div class="workflow-step-desc">请写清楚使用场景、希望怎么改、验收标准。原始 BOM、示例文件或说明文档可作为附件上传。</div>
+    <div class="row" style="display:grid;grid-template-columns:minmax(180px,220px) minmax(160px,200px);gap:12px;align-items:end">
+      <label style="display:flex;flex-direction:column;gap:6px">姓名：<input type="text" id="featureRequester" style="width:100%"></label>
+      <label style="display:flex;flex-direction:column;gap:6px">工号：<input type="text" id="featureEmployeeId" style="width:100%"></label>
+    </div>
+    <div class="row"><label>需求类型：</label><select id="featureType" style="width:120px"><option>新功能</option><option>功能优化</option><option>流程改进</option><option>自动化</option><option>其他</option></select><label>优先级：</label><select id="featurePriority" style="width:90px"><option>一般</option><option>较高</option><option>紧急</option><option>低</option></select></div>
+    <div class="row"><label>影响模块：</label><select id="featureModule" style="width:240px"><option>BOM 格式转换</option><option>飞书优选库+关系库匹配</option><option>查询BOM优选率</option><option>转换为上传PLM系统格式</option><option>BOM比对工具合集</option><option>平台通用</option><option>其他</option></select></div>
+    <div class="row"><label>需求标题：</label><input type="text" id="featureTitle" style="width:100%" placeholder="一句话概括要做什么"></div>
+    <div class="row" style="align-items:flex-start"><label>需求背景：</label><textarea id="featureBackground" style="width:100%;height:78px;padding:8px;border:1px solid #c8ccd0;border-radius:6px;font-family:inherit" placeholder="现在的痛点或使用场景"></textarea></div>
+    <div class="row" style="align-items:flex-start"><label>需求说明：</label><textarea id="featureRequirement" style="width:100%;height:112px;padding:8px;border:1px solid #c8ccd0;border-radius:6px;font-family:inherit" placeholder="希望系统怎么处理，输入和输出是什么"></textarea></div>
+    <div class="row" style="align-items:flex-start"><label>预期价值：</label><textarea id="featureValue" style="width:100%;height:64px;padding:8px;border:1px solid #c8ccd0;border-radius:6px;font-family:inherit" placeholder="能节省哪些时间或降低哪些风险"></textarea></div>
+    <div class="row" style="align-items:flex-start"><label>验收标准：</label><textarea id="featureAcceptance" style="width:100%;height:64px;padding:8px;border:1px solid #c8ccd0;border-radius:6px;font-family:inherit" placeholder="做到什么程度算完成"></textarea></div>
+    <div class="row"><label>附件：</label><input type="file" id="featureFiles" accept="image/*,.xlsx,.xlsm,.xls,.csv,.txt,.log,.zip,.rar,.7z,.doc,.docx,.ppt,.pptx,.pdf" multiple style="width:300px"><span class="hint">支持截图、Excel、CSV、Office/PDF、日志文本和压缩包</span></div>
+    <button class="btn btn-primary" id="featureSubmit" type="button">提交工单</button><span id="featureStatus" style="font-size:13px;color:#888;margin-left:8px"></span><div class="error" id="featureError"></div>
+  </div>
+  <div class="section"><h3>需求记录</h3><div class="workflow-step-desc">按提交时间倒序展示。点击需求卡片可查看详情并修改状态，附件可直接打开查看。</div><div class="row" style="flex-wrap:wrap"><label>状态：</label><select id="featureFilterStatus" style="width:120px"><option value="">全部状态</option><option>待评估</option><option>已纳入</option><option>开发中</option><option>已完成</option><option>暂缓</option><option>已关闭</option></select><label>模块：</label><select id="featureFilterModule" style="width:190px"><option value="">全部模块</option><option>BOM 格式转换</option><option>飞书优选库+关系库匹配</option><option>查询BOM优选率</option><option>转换为上传PLM系统格式</option><option>BOM比对工具合集</option><option>平台通用</option><option>其他</option></select><label>排序：</label><select id="featureSort" style="width:110px"><option value="newest">最新提交</option><option value="likes">点赞最多</option></select><input type="search" id="featureFilterQuery" placeholder="搜索标题、说明、提交人" style="width:190px"><button class="btn btn-sm btn-gray" id="featureRefresh" type="button">刷新记录</button><span id="featureListStatus" style="font-size:12px;color:#888"></span></div><div id="featureList" style="display:flex;flex-direction:column;gap:10px"></div>
+    <div id="featureDetailModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.38);z-index:50;align-items:center;justify-content:center;padding:18px">
+      <div style="width:min(760px,92vw);max-height:86vh;overflow:auto;background:#fff;border-radius:12px;box-shadow:0 16px 50px rgba(15,23,42,.22);padding:18px">
+        <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;border-bottom:1px solid #e8edf5;padding-bottom:10px">
+          <div><h3 id="featureDetailTitle" style="margin:0 0 6px"></h3><div id="featureDetailMeta" style="font-size:12px;color:#667085"></div></div>
+          <button class="btn btn-sm btn-gray" id="featureDetailClose" type="button">关闭</button>
+        </div>
+        <div style="margin-top:12px" id="featureDetailBody"></div>
+        <div class="row" style="margin-top:14px;border-top:1px solid #e8edf5;padding-top:12px">
+          <label>需求状态：</label>
+          <select id="featureDetailStatus" style="width:120px"><option>待评估</option><option>已纳入</option><option>开发中</option><option>已完成</option><option>暂缓</option><option>已关闭</option></select>
+          <button class="btn btn-primary" id="featureDetailSave" type="button">保存状态</button>
+          <span id="featureDetailMsg" style="font-size:13px;color:#888"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+</script>

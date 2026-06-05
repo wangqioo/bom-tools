@@ -1,0 +1,41 @@
+<script type="text/html" id="tpl-toolbox">
+<div class="workflow-shell">
+  <div style="display:flex;gap:8px;margin-bottom:18px;border-bottom:2px solid #e0e4ef;padding-bottom:0">
+    <button class="toolbox-tab-btn active" type="button" style="padding:6px 18px;border:none;background:none;font-size:13px;font-weight:600;color:#1a5ad4;border-bottom:2px solid #1a5ad4;margin-bottom:-2px;cursor:pointer">计算哈希值</button>
+  </div>
+  <div class="workflow-hero">
+    <h4>计算哈希值</h4>
+    <p>在浏览器本地计算文件 MD5，文件内容不会上传到服务器。</p>
+  </div>
+
+  <div class="section">
+    <h3>① 选择文件</h3>
+    <div class="workflow-step-desc">支持拖入一个或多个文件，也可以点击选择文件。大文件计算耗时取决于浏览器读取速度。</div>
+    <label class="hash-drop-zone" id="hashDropZone">
+      <input class="hash-file-input" id="hashFileInput" type="file" multiple>
+      <span class="hash-drop-content">
+        <span class="hash-icon">#</span>
+        <span class="hash-drop-title">拖入文件，或点击选择</span>
+        <span class="btn btn-primary">选择文件</span>
+      </span>
+    </label>
+    <div class="hash-status" id="hashStatus">等待选择文件</div>
+    <div class="hash-progress-panel" id="hashProgressPanel" aria-live="polite">
+      <div class="hash-progress-head">
+        <div>
+          <div class="hash-progress-stage" id="hashProgressStage">等待开始</div>
+          <div class="hash-progress-file" id="hashProgressFile"></div>
+        </div>
+        <div class="hash-progress-percent" id="hashProgressPercent">0%</div>
+      </div>
+      <div class="hash-progress-track"><div class="hash-progress-bar" id="hashProgressBar"></div></div>
+      <div class="hash-progress-note" id="hashProgressNote">文件不会上传服务器，所有计算都在本地浏览器完成。</div>
+    </div>
+  </div>
+
+  <div class="section" id="hashResultsSection" style="display:none">
+    <h3>② 计算结果</h3>
+    <div class="hash-results" id="hashResults" aria-live="polite"></div>
+  </div>
+</div>
+</script>

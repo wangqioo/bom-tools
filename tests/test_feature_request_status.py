@@ -5,6 +5,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 WEB_APP = ROOT / "web_app2"
+TESTS = ROOT / "tests"
+if str(TESTS) not in sys.path:
+    sys.path.insert(0, str(TESTS))
+from test_env import configure_test_environment  # noqa: E402
+configure_test_environment()
 if str(WEB_APP) not in sys.path:
     sys.path.insert(0, str(WEB_APP))
 

@@ -1,8 +1,9 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """飞书多表格匹配 — Blueprint"""
 
 import os, uuid, json, hashlib, time
 from flask import Blueprint
+from activity import track_tool_activity
 from shared import (
     requests as _requests,
     openpyxl, Workbook, Font, PatternFill, Alignment, Border, Side,
@@ -256,6 +257,7 @@ def _do_match_multi(local_ws, local_header_row, prepared_tables, all_fetch_cols,
 # ── 路由 ─────────────────────────────────────────────────────
 
 @feishu_bp.route('/api/feishu/load', methods=['POST'])
+@track_tool_activity('飞书Sheet缓存')
 def api_feishu_load():
     """拉取单个 Sheet 全部数据并缓存到服务端"""
     data = request.get_json(silent=True) or {}
@@ -325,6 +327,7 @@ def api_feishu_sheets():
 
 
 @feishu_bp.route('/api/feishu/match', methods=['POST'])
+@track_tool_activity('飞书优选库匹配')
 def api_feishu_match():
     """执行飞书多表格匹配（per-sheet 配置格式）"""
     local_file = request.files.get('file')
@@ -552,6 +555,7 @@ def api_feishu_local_sheets():
                     'headers': headers, 'uid': uid})
 
 @feishu_bp.route('/api/feishu/pref_rate', methods=['POST'])
+@track_tool_activity('查询BOM优选率')
 def api_pref_rate():
     """查询BOM优选率：按 HQ料号 在所有优选库缓存中查找优选等级"""
     local_file = request.files.get('file')
@@ -683,3 +687,6 @@ def api_pref_rate():
         })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
+
+
+

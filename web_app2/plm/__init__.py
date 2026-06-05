@@ -4,6 +4,7 @@
 import os, uuid, re, json
 from zipfile import ZipFile, ZIP_DEFLATED
 from flask import Blueprint
+from activity import track_tool_activity
 from shared import (
     openpyxl, Workbook, Font, PatternFill, Alignment, Border, Side,
     get_column_letter,
@@ -225,6 +226,7 @@ def api_plm_detect():
 
 
 @plm_bp.route('/api/plm/convert', methods=['POST'])
+@track_tool_activity('PLM格式转换')
 def api_plm_convert():
     file = request.files.get('file')
     if not file:
@@ -373,6 +375,7 @@ def api_plm_convert():
     })
 
 @plm_bp.route('/api/plm/spec_extract', methods=['POST'])
+@track_tool_activity('规格型号提取')
 def api_spec_extract():
     """提取单列规格型号，去除空格，输出单列 Excel"""
     import json as _json
@@ -404,7 +407,6 @@ def api_spec_extract():
         return jsonify({'success': False, 'error': str(e)})
 
     try:
-        from shared import _cell_str
         wb = _open_workbook(path, data_only=True)
         sheets = wb.sheetnames
         if not sheet_name or sheet_name not in sheets:
@@ -454,6 +456,7 @@ def api_spec_extract():
 
 
 @plm_bp.route('/api/plm/auto_spec_reverse', methods=['POST'])
+@track_tool_activity('PLM规格反查')
 def api_auto_spec_reverse():
     """Run an integrated Playwright PLM automation feature."""
     username = (request.form.get('username') or '').strip()
@@ -517,6 +520,7 @@ def api_auto_spec_reverse():
     })
 
 @plm_bp.route('/api/plm/auto_hq_attachments', methods=['POST'])
+@track_tool_activity('PLM附件下载')
 def api_auto_hq_attachments():
     """Download selected PLM attachments for one HQ material number."""
     username = (request.form.get('username') or '').strip()
@@ -570,3 +574,6 @@ def api_auto_hq_attachments():
         'source_path': output_path,
         'log': chr(10).join(logs),
     })
+
+
+

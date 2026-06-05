@@ -12,6 +12,11 @@ import openpyxl
 
 ROOT = Path(__file__).resolve().parents[1]
 WEB_APP = ROOT / "web_app2"
+TESTS = ROOT / "tests"
+if str(TESTS) not in sys.path:
+    sys.path.insert(0, str(TESTS))
+from test_env import configure_test_environment  # noqa: E402
+configure_test_environment()
 if str(WEB_APP) not in sys.path:
     sys.path.insert(0, str(WEB_APP))
 
@@ -870,6 +875,51 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(changed_sheet.max_row, 1)
         wb.close()
 
+
+    def test_generic_cadence_refdes_field_diff_reports_only_delta_refs(self):
+        part_no = "料号"
+        refdes = "位号"
+        main = "主料"
+        maker = "厂商A"
+        left_bytes = _hq_export_bytes([
+            ["1", "A", "M1", "", 3, main, "R1,R2,R3", maker],
+            ["2", "B", "M2", "", 3, main, "C1,C2,C3", maker],
+        ]).getvalue()
+        right_bytes = _hq_export_bytes([
+            ["1", "A", "M1X", "", 3, main, "R1,R3,R4", maker],
+            ["2", "B", "M2X", "", 3, main, "C1,C3,C4", maker],
+        ]).getvalue()
+        compare_resp = app.test_client().post("/api/bom_compare/generic", data={
+            "left_file": (io.BytesIO(left_bytes), "cadence.xlsx"),
+            "right_file": (io.BytesIO(right_bytes), "hq.xlsx"),
+            "config": json.dumps({
+                "compare_type": "cadence_hq",
+                "left_header_row": 3,
+                "right_header_row": 3,
+                "left_key_col": part_no,
+                "right_key_col": part_no,
+                "field_pairs": [{"left": refdes, "right": refdes}, {"left": "型号", "right": "型号"}],
+            }),
+        }, content_type="multipart/form-data")
+        payload = compare_resp.get_json()
+        self.assertTrue(payload["success"], payload.get("error"))
+        self.assertEqual(payload["changed"], 2)
+        filename = unquote(payload["download"].split("/download/", 1)[1])
+        wb = openpyxl.load_workbook(WEB_APP / "outputs" / filename)
+        rows = list(wb["字段变更"].iter_rows(min_row=2, values_only=True))
+        self.assertEqual(len(rows), 4)
+        row_a_refdes = next(row for row in rows if row[1] == "A" and row[4] == refdes)
+        self.assertEqual(row_a_refdes[5], "R2")
+        self.assertEqual(row_a_refdes[6], "R4")
+        fills_by_key = {}
+        ws = wb["字段变更"]
+        for row_idx in range(2, ws.max_row + 1):
+            key = ws.cell(row_idx, 2).value
+            fills_by_key.setdefault(key, set()).add(ws.cell(row_idx, 1).fill.fgColor.rgb)
+        self.assertEqual(len(fills_by_key), 2)
+        self.assertTrue(all(len(fills) == 1 for fills in fills_by_key.values()))
+        self.assertEqual(len({next(iter(fills)) for fills in fills_by_key.values()}), 2)
+        wb.close()
     def test_generic_cadence_ignores_empty_columns_by_default(self):
         part_no = "料号"
         model = "型号"

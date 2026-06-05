@@ -1,0 +1,71 @@
+<script type="text/html" id="tpl-bug-report">
+<div class="workflow-shell">
+<div class="workflow-hero">
+  <h4>Bug 提交栏目</h4>
+  <p>提交工具使用中遇到的问题、附件和复现信息。所有提交记录会保存在服务端，团队成员打开页面即可查看。</p>
+</div>
+<div style="display:grid;grid-template-columns:minmax(360px,430px) 1fr;gap:14px;align-items:start">
+  <div class="section"><h3>提交问题</h3>
+    <div class="workflow-step-desc">请尽量写清楚问题发生在哪个工具、怎么复现、期望结果是什么。截图、Excel、日志或压缩包可多选上传。</div>
+    <div class="row" style="display:grid;grid-template-columns:minmax(180px,220px) minmax(160px,200px);gap:12px;align-items:end">
+      <label style="display:flex;flex-direction:column;gap:6px">姓名：<input type="text" id="bugReporter" style="width:100%"></label>
+      <label style="display:flex;flex-direction:column;gap:6px">工号：<input type="text" id="bugEmployeeId" style="width:100%"></label>
+    </div>
+    <div class="row">
+      <label>影响模块：</label>
+      <select id="bugModule" style="width:220px">
+        <option>BOM 格式转换</option>
+        <option>飞书优选库+关系库匹配</option>
+        <option>查询BOM优选率</option>
+        <option>转换为上传PLM系统格式</option>
+        <option>BOM比对工具合集</option>
+        <option>其他</option>
+      </select>
+      <label>严重程度：</label>
+      <select id="bugSeverity" style="width:100px">
+        <option>一般</option>
+        <option>阻塞</option>
+        <option>严重</option>
+        <option>建议</option>
+      </select>
+    </div>
+    <div class="row"><label>问题标题：</label><input type="text" id="bugTitle" style="width:100%" placeholder="一句话描述问题"></div>
+    <div class="row" style="align-items:flex-start"><label>问题描述：</label><textarea id="bugDesc" style="width:100%;height:100px;padding:8px;border:1px solid #c8ccd0;border-radius:6px;font-family:inherit" placeholder="实际发生了什么？报错信息是什么？"></textarea></div>
+    <div class="row" style="align-items:flex-start"><label>复现步骤：</label><textarea id="bugSteps" style="width:100%;height:84px;padding:8px;border:1px solid #c8ccd0;border-radius:6px;font-family:inherit" placeholder="例如：1. 上传文件... 2. 点击... 3. 出现..."></textarea></div>
+    <div class="row" style="align-items:flex-start"><label>期望结果：</label><textarea id="bugExpected" style="width:100%;height:64px;padding:8px;border:1px solid #c8ccd0;border-radius:6px;font-family:inherit" placeholder="你期望系统怎么处理？"></textarea></div>
+    <div class="row"><label>附件：</label><input type="file" id="bugImages" accept="image/*,.xlsx,.xlsm,.xls,.csv,.txt,.log,.zip,.rar,.7z" multiple style="width:300px"><span class="hint">支持截图、Excel、CSV、日志文本和压缩包</span></div>
+    <button class="btn btn-primary" id="bugSubmit" type="button">提交问题</button>
+    <span id="bugStatus" style="font-size:13px;color:#888;margin-left:8px"></span>
+    <div class="error" id="bugError"></div>
+  </div>
+  <div class="section"><h3>问题记录</h3>
+    <div class="workflow-step-desc">按提交时间倒序展示。点击问题卡片可查看详情并修改处理状态，附件可直接打开查看。</div>
+    <div class="row" style="flex-wrap:wrap">
+      <label>状态：</label>
+      <select id="bugFilterStatus" style="width:120px"><option value="">全部状态</option><option>待处理</option><option>处理中</option><option>已修复</option><option>已关闭</option><option>暂缓</option><option>无法复现</option></select>
+      <label>模块：</label>
+      <select id="bugFilterModule" style="width:190px"><option value="">全部模块</option><option>BOM 格式转换</option><option>飞书优选库+关系库匹配</option><option>查询BOM优选率</option><option>转换为上传PLM系统格式</option><option>BOM比对工具合集</option><option>小工具合集</option><option>平台通用</option><option>其他</option></select>
+      <input type="search" id="bugFilterQuery" placeholder="搜索标题、描述、提交人" style="width:190px">
+      <button class="btn btn-sm btn-gray" id="bugRefresh" type="button">刷新记录</button>
+      <span id="bugListStatus" style="font-size:12px;color:#888"></span>
+    </div>
+    <div id="bugList" style="display:flex;flex-direction:column;gap:10px"></div>
+    <div id="bugDetailModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.38);z-index:50;align-items:center;justify-content:center;padding:18px">
+      <div style="width:min(760px,92vw);max-height:86vh;overflow:auto;background:#fff;border-radius:12px;box-shadow:0 16px 50px rgba(15,23,42,.22);padding:18px">
+        <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;border-bottom:1px solid #e8edf5;padding-bottom:10px">
+          <div><h3 id="bugDetailTitle" style="margin:0 0 6px"></h3><div id="bugDetailMeta" style="font-size:12px;color:#667085"></div></div>
+          <button class="btn btn-sm btn-gray" id="bugDetailClose" type="button">关闭</button>
+        </div>
+        <div style="margin-top:12px" id="bugDetailBody"></div>
+        <div class="row" style="margin-top:14px;border-top:1px solid #e8edf5;padding-top:12px">
+          <label>处理状态：</label>
+          <select id="bugDetailStatus" style="width:120px"><option>待处理</option><option>处理中</option><option>已修复</option><option>已关闭</option><option>暂缓</option><option>无法复现</option></select>
+          <button class="btn btn-primary" id="bugDetailSave" type="button">保存状态</button>
+          <span id="bugDetailMsg" style="font-size:13px;color:#888"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+</script>

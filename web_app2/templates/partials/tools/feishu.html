@@ -1,0 +1,71 @@
+<script type="text/html" id="tpl-feishu">
+<div class="workflow-shell">
+<div class="workflow-hero">
+  <h4>飞书优选库 + 关系库匹配</h4>
+  <p>按“配置网关 - 选择本地 BOM - 缓存/选择表格库 - 运行匹配”的顺序处理。表格库配置会保存在本地，后续可复用。</p>
+</div>
+<div class="section"><h3>网关设置</h3>
+  <div class="workflow-step-desc">设置内部接口网关、Origin 和工号，用于读取飞书表格数据。</div>
+  <div class="row">
+    <label>网关地址：</label><input type="text" id="fsBaseUrl" value="https://mcenter.huaqin.com" style="width:260px">
+    <label>Origin：</label><input type="text" id="fsOrigin" value="cli_a96ac38049f8d0e5" style="width:200px">
+    <label>工号：</label><input type="text" id="fsUserId" value="" style="width:110px" placeholder="如 100448405">
+  </div>
+  <div style="font-size:11px;color:#888" id="fsCfgStatus"></div>
+</div>
+<div class="section"><h3>本地 BOM 文件</h3>
+  <div class="workflow-step-desc">上传本地 BOM，选择 Sheet、表头行，并配置用于匹配的本地键和需要提取的字段。</div>
+  <div class="row">
+    <label>文件路径：</label><input type="file" id="fsFile" accept=".xlsx,.xlsm,.xls" style="width:300px">
+    <label>Sheet：</label><select id="fsSheet" style="width:180px"><option>先选择文件</option></select>
+    <span class="hint">（一次只能匹配一个 Sheet）</span>
+    <label>表头行：</label><input type="number" id="fsHdr" value="1" min="1" style="width:60px">
+  </div>
+  <div class="row" style="margin-top:6px;align-items:flex-start;gap:32px">
+    <div>
+      <div style="font-size:12px;font-weight:600;color:#c00000;margin-bottom:5px">本地键</div>
+      <div id="fsGLkContainer" style="display:flex;flex-direction:column;gap:4px"></div>
+    </div>
+    <div>
+      <div style="font-size:12px;font-weight:600;color:#555;margin-bottom:5px">提取列</div>
+      <div id="fsGFMSection" style="display:flex;flex-direction:column;gap:4px"></div>
+    </div>
+    <span class="hint" style="padding-top:2px">所有飞书表格共用这组配置</span>
+  </div>
+</div>
+<div class="section"><h3>表格库</h3>
+  <div class="workflow-step-desc">管理优选库和关系库配置，可缓存启用的 Sheet，也可以导出或恢复本地配置。</div>
+  <div class="row">
+    <button class="btn btn-sm btn-gray" id="fsBatchUpdate">⟳ 一键缓存所有启用 Sheet</button>
+    <span id="fsBatchHint" class="hint"></span>
+    <button class="btn btn-sm btn-gray" id="fsExportCfg" style="margin-left:8px">📋 导出当前配置</button>
+    <button class="btn btn-sm btn-gray" id="fsRestoreDefault" style="margin-left:8px;color:#1a6bbf">↩ 恢复默认配置</button>
+    <button class="btn btn-sm btn-gray" id="fsClearConfig" style="margin-left:8px;color:#c00000">🗑 清除本地配置</button>
+  </div>
+  <div style="display:flex;gap:12px">
+    <div style="width:240px;flex-shrink:0">
+      <div class="tree-list" id="fsTreeList"></div>
+    </div>
+    <div class="detail-panel" style="flex:1" id="fsDetail">
+      <span style="color:#888">← 点击左侧表格查看详情</span>
+    </div>
+  </div>
+</div>
+<div class="section"><h3>运行匹配</h3>
+  <div class="workflow-step-desc">确认上面的本地 BOM 和表格库配置后开始匹配，结果会导出为 Excel。</div>
+  <div id="fsRunStatus" style="font-size:12px;color:#888;margin-bottom:8px"></div>
+  <button class="btn btn-primary" id="fsRun">⚡ 开始匹配</button>
+  <span id="fsRunStatus2" style="font-size:13px;color:#888;margin-left:8px"></span>
+  <div class="fs-match-wait" id="fsMatchWait" aria-live="polite">
+    <span class="wait-spinner" aria-hidden="true"></span>
+    <div>
+      <div class="wait-title">正在匹配，请先不要关闭页面</div>
+      <div class="wait-text">系统正在读取本地 BOM，并逐个检查已启用的优选库和对应关系库；如果本地行数多、缓存表多，处理会需要一段时间。完成后会自动显示下载入口。</div>
+    </div>
+  </div>
+</div>
+<div class="result" id="fsResult"><span class="title">✅ 匹配完成</span><br><span id="fsStats" style="display:inline-block;margin-top:6px"></span><br><a class="download" id="fsDl" href="#">📥 下载匹配结果</a></div>
+<div class="error" id="fsError"></div>
+<div id="fsLogBox" style="display:none;margin-top:10px"><h4 style="margin:0 0 6px;font-size:13px">📋 处理日志</h4><pre id="fsLog" style="font-size:12px;background:#1a1a2e;color:#e0e0e0;padding:10px;border-radius:6px;max-height:200px;overflow:auto;white-space:pre-wrap;font-family:Consolas,'Courier New',monospace"></pre></div>
+</div>
+</script>

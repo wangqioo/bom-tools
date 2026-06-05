@@ -1,0 +1,104 @@
+<script type="text/html" id="tpl-plm">
+<!-- 子功能 Tab -->
+<div style="display:flex;gap:8px;margin-bottom:18px;border-bottom:2px solid #e0e4ef;padding-bottom:0">
+  <button class="plm-tab-btn active" data-plm-tab="bom-cfg" style="padding:6px 18px;border:none;background:none;font-size:13px;font-weight:600;color:#1a5ad4;border-bottom:2px solid #1a5ad4;margin-bottom:-2px;cursor:pointer">整机BOM配置表转换</button>
+  <button class="plm-tab-btn" data-plm-tab="spec-extract" style="padding:6px 18px;border:none;background:none;font-size:13px;font-weight:600;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer">规格型号提取</button>
+</div>
+
+<!-- 整机BOM配置表转换 -->
+<div id="plm-tab-bom-cfg" class="plm-shell">
+<div class="plm-hero">
+  <h4>整机 BOM 配置表转换</h4>
+  <p>按“选文件 - 基础映射 - 用量配置 - 输出设置”的顺序处理。每条用量配置都会单独生成一个 PLM 导入文件，多个配置自动打包为 ZIP。</p>
+</div>
+<div class="section"><h3>第一步：选择整机BOM配置表</h3>
+  <div class="workflow-step-desc">上传整机 BOM 配置表，并确认 Sheet 和表头行。默认表头行为第 4 行。</div>
+  <div class="row"><label>文件路径：</label><input type="file" id="plmFile" accept=".xlsx,.xlsm,.xls" style="width:320px"></div>
+  <div class="row"><label>Sheet：</label><select id="plmSheet" style="width:180px"><option>先选择文件</option></select><label>表头行：</label><input type="text" id="plmHdr" value="4" style="width:50px"><button class="btn btn-sm btn-gray" id="plmRefresh">加载 / 刷新</button></div>
+</div>
+<div class="section"><h3>第二步：基础列映射（自动识别，可手动填列字母覆盖）</h3>
+  <div class="workflow-step-desc">确认整张 BOM 共用的序号、HQ PN 和主二供列。筛选只看序号列；导出保留原序号，HQ PN 和主二供只用于输出。</div>
+  <div id="plmDetectLog" style="font-size:12px;color:#555;background:#f7f9fc;padding:8px;border-radius:6px;margin-bottom:8px"></div>
+  <div class="preview-note">仅预览前 50 行，正式处理会读取完整表格。</div>
+  <div id="plmColMap" class="table-wrap" style="margin-bottom:10px;max-height:200px"></div>
+  <div class="row">
+    <label>序号列：</label><input type="text" id="plmColSeq" style="width:60px" placeholder="如 A">
+    <label>HQ PN 列：</label><input type="text" id="plmColHqpn" style="width:60px" placeholder="如 E">
+    <label>主二供列：</label><input type="text" id="plmColStype" style="width:60px" placeholder="如 I">
+  </div>
+  <div class="row" style="margin-top:8px">
+    <span class="hint">这里只放整张 BOM 共用的基础列。每个输出配置的用量列和配置名在下一步单独设置。</span>
+  </div>
+</div>
+<div class="section"><h3>第三步：用量配置</h3>
+  <div class="workflow-step-desc">为每个项目配置单独设置用量列和配置名来源。用量为空不输出，用量为 0 时输出但单耗留空。</div>
+  <div style="margin-top:10px">
+    <div class="row" style="margin-bottom:6px">
+      <label style="min-width:92px">用量配置：</label>
+      <button class="btn btn-sm btn-gray" id="plmAddQtyCfg" type="button">+ 添加配置</button>
+      <button class="btn btn-sm btn-gray" id="plmUsePrevRow" type="button">从表头上一行读取配置名</button>
+      <button class="btn btn-sm btn-gray" id="plmUseHeaderRow" type="button">从表头行读取配置名</button>
+      <span class="hint">每行会生成一个 PLM 导入文件，多个文件自动打包 ZIP</span>
+    </div>
+    <div class="table-wrap" style="max-height:220px">
+      <table id="plmQtyCfgTable">
+        <thead><tr><th style="width:110px">配置名来源行</th><th>配置名</th><th style="width:90px">用量列</th><th style="width:70px">操作</th></tr></thead>
+        <tbody id="plmQtyCfgBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+<div class="section"><h3>第四步：输出设置</h3>
+  <div class="workflow-step-desc">开始转换并下载结果。多个配置会自动打包为 ZIP。</div>
+  <button class="btn btn-primary" id="plmRun">⚡ 开始转换</button> <span id="plmStatus" style="font-size:13px;color:#888"></span>
+</div>
+<div class="result" id="plmResult"><span class="title">✅ 转换完成</span><br><span id="plmStats" style="display:inline-block;margin-top:6px"></span><br><a class="download" id="plmDl" href="#">📥 下载 PLM 导入文件</a></div>
+<div class="error" id="plmError"></div>
+<div id="plmLogBox" style="display:none;margin-top:10px"><h4 style="margin:0 0 6px;font-size:13px">📋 处理日志</h4><pre id="plmLog" style="font-size:12px;background:#1a1a2e;color:#e0e0e0;padding:10px;border-radius:6px;max-height:200px;overflow:auto;white-space:pre-wrap;font-family:Consolas,'Courier New',monospace"></pre></div>
+</div>
+
+<!-- 规格型号提取 -->
+<div id="plm-tab-spec-extract" style="display:none">
+<div class="workflow-shell">
+<div class="workflow-hero">
+  <h4>规格型号提取</h4>
+  <p>按“上传文件 - 选择列 - 开始提取”的顺序处理。提取结果会自动清理空格并导出为 Excel。</p>
+</div>
+<div class="section"><h3>第一步：上传BOM文件</h3>
+  <div class="workflow-step-desc">选择需要提取规格型号的 BOM 文件，并确认 Sheet 和表头行。</div>
+  <div class="row"><label>文件路径：</label><input type="file" id="seFile" accept=".xlsx,.xlsm,.xls" style="width:320px"></div>
+  <div class="row">
+    <label>Sheet：</label><select id="seSheet" style="width:180px"><option>先选择文件</option></select>
+    <label style="margin-left:12px">表头行：</label><input type="number" id="seHdr" value="1" min="1" style="width:55px">
+    <button class="btn btn-sm btn-gray" id="seRefresh" style="margin-left:8px">刷新列表</button>
+  </div>
+</div>
+<div class="section"><h3>第二步：选择提取列和剔除列</h3>
+  <div class="workflow-step-desc">选择包含规格型号的列，并选择用于剔除的列。剔除列有内容的行不会导出。</div>
+  <div class="row">
+    <label>提取列：</label>
+    <select id="seCol" style="width:220px"><option>先刷新列表</option></select>
+  </div>
+  <div class="row">
+    <label>剔除列：</label>
+    <select id="seExcludeCol" style="width:220px"><option>先刷新列表</option></select>
+    <span style="font-size:12px;color:#888;margin-left:10px">该列有内容的行不导出，默认优先选择 HQ料号</span>
+  </div>
+  <div class="row"><span style="font-size:12px;color:#888">提取结果会去除所有空格。</span></div>
+</div>
+<div class="section">
+  <div class="workflow-step-desc">确认列选择无误后开始提取，并下载生成的规格型号列表。</div>
+  <button class="btn btn-primary" id="seRun">⚡ 开始提取</button>
+  <span id="seStatus" style="font-size:13px;margin-left:10px;color:#888"></span>
+</div>
+<div class="result" id="seResult">
+  <span class="title">✅ 提取完成</span>
+  <div id="seStats" style="margin-top:6px;font-size:13px"></div>
+  <a class="download" id="seDl" href="#">📥 下载规格型号列表</a>
+</div>
+<div class="error" id="seError"></div>
+</div>
+</div>
+
+
+</script>

@@ -10,6 +10,7 @@ from decimal import Decimal, InvalidOperation
 
 from flask import Blueprint
 
+from activity import track_tool_activity
 from shared import (
     openpyxl, Workbook, Font, PatternFill, Alignment, Border, Side,
     get_column_letter,
@@ -437,6 +438,19 @@ def _generic_field_equal(left_col, right_col, left_value, right_value):
     return _field_value_equal(left_value, right_value)
 
 
+
+def _generic_field_values_for_report(left_col, right_col, left_value, right_value):
+    if not (_is_refdes_header(left_col) or _is_refdes_header(right_col)):
+        return left_value, right_value
+    left_refs = [ref for ref in _split_refdes(left_value) if ref]
+    right_refs = [ref for ref in _split_refdes(right_value) if ref]
+    right_set = set(right_refs)
+    left_set = set(left_refs)
+    return (
+        '、'.join(ref for ref in left_refs if ref not in right_set),
+        '、'.join(ref for ref in right_refs if ref not in left_set),
+    )
+
 def _generic_diff_items(left_rows, right_rows, field_pairs, labels=None):
     labels = labels or {'left_label': '左侧', 'right_label': '右侧'}
     left_only_type = f"仅{labels['left_label']}存在"
@@ -529,6 +543,7 @@ def _write_generic_compare_report(out_path, left_rows, right_rows, field_pairs, 
             right_value = right_item['values'].get(right_col, '') if right_item else ''
             if item['type'] == '字段变更' and _generic_field_equal(left_col, right_col, left_value, right_value):
                 continue
+            left_value, right_value = _generic_field_values_for_report(left_col, right_col, left_value, right_value)
             rows.append([
                 item['type'],
                 item['key'],
@@ -543,6 +558,12 @@ def _write_generic_compare_report(out_path, left_rows, right_rows, field_pairs, 
         return rows
 
     def write_table(sheet, table_items):
+        change_group_fills = [PatternFill('solid', fgColor='FFF9C4'), PatternFill('solid', fgColor='EAF2F8')]
+        group_fill_by_key = {}
+        for item in table_items:
+            key = item.get('key')
+            if item.get('type') == '字段变更' and key not in group_fill_by_key:
+                group_fill_by_key[key] = change_group_fills[len(group_fill_by_key) % len(change_group_fills)]
         for ci, header in enumerate(detail_headers, 1):
             c = sheet.cell(row=1, column=ci, value=header)
             c.font = Font(bold=True)
@@ -551,7 +572,7 @@ def _write_generic_compare_report(out_path, left_rows, right_rows, field_pairs, 
             c.fill = header_fill
         ri = 2
         for item in table_items:
-            row_fill = fills[item['type']]
+            row_fill = group_fill_by_key.get(item.get('key'), fills[item['type']]) if item['type'] == '字段变更' else fills[item['type']]
             for row_values in item_field_rows(item):
                 for ci, value in enumerate(row_values, 1):
                     c = sheet.cell(row=ri, column=ci, value=value)
@@ -1021,7 +1042,7 @@ def _write_diff_report(out_path, old_rows, new_rows, compare_cols, stats, duplic
             source = item.get(side) or {}
             values = source.get('all_values') or {}
             row_values = [item['type'], item['key'], source.get('row', '')] + [values.get(col, '') for col in source_cols]
-            row_fill = fills[item['type']]
+            row_fill = group_fill_by_key.get(item.get('key'), fills[item['type']]) if item['type'] == '字段变更' else fills[item['type']]
             for ci, value in enumerate(row_values, 1):
                 c = sheet.cell(row=ri, column=ci, value=value)
                 c.alignment = center if ci in (1, 3) else left
@@ -1097,6 +1118,7 @@ def api_customer_hq_preview():
         return jsonify({'success': False, 'error': str(e)})
 
 @bom_compare_bp.route('/api/bom_compare/customer_hq_export', methods=['POST'])
+@track_tool_activity('客户BOM对比HQ BOM')
 def api_customer_hq_export():
     left_file = request.files.get('left_file')
     right_file = request.files.get('right_file')
@@ -1205,6 +1227,7 @@ def api_generic_sheets():
 
 
 @bom_compare_bp.route('/api/bom_compare/generic', methods=['POST'])
+@track_tool_activity('通用BOM比对')
 def api_generic_compare():
     left_file = request.files.get('left_file')
     right_file = request.files.get('right_file')
@@ -1371,6 +1394,7 @@ def api_machine_local_sheets():
 
 
 @bom_compare_bp.route('/api/bom_compare/machine_hq_version', methods=['POST'])
+@track_tool_activity('整机HQ BOM版本对比')
 def api_machine_hq_version_compare():
     old_file = request.files.get('old_file')
     new_file = request.files.get('new_file')
@@ -1430,6 +1454,7 @@ def api_machine_hq_version_compare():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 @bom_compare_bp.route('/api/bom_compare/hq_version', methods=['POST'])
+@track_tool_activity('单板HQ BOM版本对比')
 def api_hq_version_compare():
     old_file = request.files.get('old_file')
     new_file = request.files.get('new_file')
@@ -1491,3 +1516,6 @@ def api_hq_version_compare():
         return jsonify({'success': False, 'error': str(e)})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
+
+
+

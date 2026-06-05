@@ -1,0 +1,34 @@
+<script type="text/html" id="tpl-admin-users">
+<div class="workflow-shell">
+  <div class="workflow-hero">
+    <h4>用户管理</h4>
+    <p>管理员查看注册用户、启用状态、角色和最近使用情况。普通用户访问会被接口拒绝。</p>
+  </div>
+  <div class="section">
+    <h3>用户概览</h3>
+    <div class="row" style="gap:12px">
+      <span class="badge-sm badge-blue" id="adminUserTotal">总用户 0</span>
+      <span class="badge-sm badge-green" id="adminUserActive">启用 0</span>
+      <span class="badge-sm badge-gray" id="adminUserDisabled">禁用 0</span>
+      <span class="badge-sm badge-orange" id="adminUserAdmins">管理员 0</span>
+      <input type="search" id="adminUserQuery" placeholder="搜索工号、姓名、角色" style="width:220px">
+      <button class="btn btn-sm btn-gray" id="adminUserRefresh" type="button">刷新</button>
+      <span id="adminUserStatus" style="font-size:12px;color:#888"></span>
+    </div>
+    <div class="table-wrap" style="max-height:420px">
+      <table><thead><tr><th>工号</th><th>姓名</th><th>角色</th><th>状态</th><th>注册时间</th><th>最近登录</th><th>登录</th><th>提交Bug</th><th>提交需求</th><th>点赞</th><th>状态修改</th><th>操作</th></tr></thead><tbody id="adminUserRows"></tbody></table>
+    </div>
+  </div>
+  <div class="section">
+    <h3>最近活动</h3>
+    <div class="table-wrap" style="max-height:360px">
+      <table>
+        <thead>
+          <tr><th>时间</th><th>工号</th><th>姓名</th><th>动作</th><th>对象</th><th>详情</th></tr>
+        </thead>
+        <tbody id="adminActivityRows"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</script>

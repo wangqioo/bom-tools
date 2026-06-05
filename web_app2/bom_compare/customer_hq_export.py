@@ -36,6 +36,26 @@ def _norm_refdes(value):
     return ",".join(sorted(p for p in parts if p))
 
 
+def _split_refdes_delta(left, right):
+    def split(value):
+        refs = []
+        seen = set()
+        for part in _cell_str(value).replace("\uff0c", ",").replace("\u3001", ",").replace(";", ",").split(","):
+            ref = part.strip().upper()
+            if ref and ref not in seen:
+                refs.append(ref)
+                seen.add(ref)
+        return refs
+    left_refs = split(left)
+    right_refs = split(right)
+    right_set = set(right_refs)
+    left_set = set(left_refs)
+    return (
+        ",".join(ref for ref in left_refs if ref not in right_set),
+        ",".join(ref for ref in right_refs if ref not in left_set),
+    )
+
+
 def _field_equal(field_key, left, right):
     if field_key in ("quantity",):
         return _norm_number(left) == _norm_number(right)
@@ -99,6 +119,19 @@ def _style_body(ws):
         ws.column_dimensions[get_column_letter(col)].width = width
 
 
+def _quote_sheet_name(name):
+    return "'" + str(name).replace("'", "''") + "'"
+
+
+def _link_summary_row(ws, summary_row_by_name, name, target_ws):
+    row_idx = summary_row_by_name.get(name)
+    if not row_idx:
+        return
+    cell = ws.cell(row_idx, 1)
+    cell.hyperlink = f"#{_quote_sheet_name(target_ws.title)}!A1"
+    cell.style = "Hyperlink"
+
+
 def _append_dict_rows(ws, rows, headers, source):
     for row in rows:
         ws.append([
@@ -141,7 +174,11 @@ def build_report(out_path, left_path, right_path, left_sheet, right_sheet, left_
             if diffs:
                 changed.append(item)
                 for left_key, left_label, right_key, right_label, diff_label in diffs:
-                    field_diffs.append([key, diff_label, left_label, c.get(left_key, ""), right_label, h.get(right_key, ""), c.get("row", ""), h.get("row", "")])
+                    left_value = c.get(left_key, "")
+                    right_value = h.get(right_key, "")
+                    if left_key == "refdes":
+                        left_value, right_value = _split_refdes_delta(left_value, right_value)
+                    field_diffs.append([key, diff_label, left_label, left_value, right_label, right_value, c.get("row", ""), h.get("row", "")])
             else:
                 same.append(item)
         elif c:
@@ -176,7 +213,9 @@ def build_report(out_path, left_path, right_path, left_sheet, right_sheet, left_
         ("\u5ba2\u6237\u91cd\u590d\u5339\u914d\u952e", len(customer_dups)),
         ("HQ \u91cd\u590d\u5339\u914d\u952e", len(hq_dups)),
     ]
+    summary_row_by_name = {}
     for idx, (name, value) in enumerate(summary, 3):
+        summary_row_by_name[name] = idx
         ws.cell(idx, 1, name).font = Font(bold=True)
         ws.cell(idx, 2, value)
     _style_body(ws)
@@ -194,8 +233,18 @@ def build_report(out_path, left_path, right_path, left_sheet, right_sheet, left_
 
     fd = wb.create_sheet("\u5b57\u6bb5\u5dee\u5f02")
     fd.append(["\u5339\u914d\u952e", "\u5dee\u5f02\u7c7b\u578b", "\u5ba2\u6237\u5b57\u6bb5", "\u5ba2\u6237\u503c", "HQ\u5b57\u6bb5", "HQ\u503c", "\u5ba2\u6237\u884c\u53f7", "HQ\u884c\u53f7"])
+    diff_group_fills = [PatternFill("solid", fgColor="FFF9C4"), PatternFill("solid", fgColor="EAF2F8")]
+    fill_by_key = {}
+    border = Border(left=Side(style="thin"), right=Side(style="thin"), top=Side(style="thin"), bottom=Side(style="thin"))
     for row in field_diffs:
         fd.append(row)
+        key = row[0]
+        if key not in fill_by_key:
+            fill_by_key[key] = diff_group_fills[len(fill_by_key) % len(diff_group_fills)]
+        for cell in fd[fd.max_row]:
+            cell.fill = fill_by_key[key]
+            cell.border = border
+            cell.alignment = Alignment(vertical="center", wrap_text=True)
     _style_header(fd)
     _style_body(fd)
 
@@ -226,6 +275,16 @@ def build_report(out_path, left_path, right_path, left_sheet, right_sheet, left_
         dup.append(["HQ", key, ", ".join(map(str, rows))])
     _style_header(dup)
     _style_body(dup)
+
+    _link_summary_row(ws, summary_row_by_name, "\u5339\u914d\u6210\u529f", detail)
+    _link_summary_row(ws, summary_row_by_name, "\u5b8c\u5168\u4e00\u81f4", detail)
+    _link_summary_row(ws, summary_row_by_name, "\u5b57\u6bb5\u5dee\u5f02", fd)
+    _link_summary_row(ws, summary_row_by_name, "\u4ec5\u5ba2\u6237\u5b58\u5728", co)
+    _link_summary_row(ws, summary_row_by_name, "\u4ec5 HQ \u5b58\u5728", ho)
+    _link_summary_row(ws, summary_row_by_name, "\u5ba2\u6237\u5f02\u5e38\u884c", bad)
+    _link_summary_row(ws, summary_row_by_name, "HQ \u5f02\u5e38\u884c", bad)
+    _link_summary_row(ws, summary_row_by_name, "\u5ba2\u6237\u91cd\u590d\u5339\u914d\u952e", dup)
+    _link_summary_row(ws, summary_row_by_name, "HQ \u91cd\u590d\u5339\u914d\u952e", dup)
 
     wb.save(out_path)
     return {

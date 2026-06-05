@@ -1,0 +1,14 @@
+<script type="text/html" id="tpl-manufacturer-alias">
+<div class="workflow-shell">
+  <div class="workflow-hero">
+    <h4>厂商命名映射表</h4>
+    <p>维护客户厂商别名与 HQ 规范厂商名的精确对应关系，供后续 BOM、飞书和 PLM 流程复用。</p>
+  </div>
+  <div class="section"><h3>查询映射</h3>
+      <div class="workflow-step-desc">输入任意客户厂商名、英文大小写变体、中文名或音译名，查询对应的 HQ 规范厂商名。</div>
+      <div class="row"><input type="text" id="mfgSearch" style="width:320px" placeholder="输入厂商名或别名"><button class="btn btn-primary" id="mfgSearchBtn" type="button">查询</button><button class="btn btn-sm btn-gray" id="mfgRefresh" type="button">刷新</button><span id="mfgListStatus" style="font-size:12px;color:#888"></span></div>
+      <div id="mfgMatch" style="display:none;margin:10px 0;padding:10px;border:1px solid #b7eb8f;background:#f6ffed;border-radius:8px;color:#237804;font-size:13px"></div>
+      <div class="table-wrap" style="max-height:520px"><table><thead><tr><th>HQ规范名</th><th>厂商别名</th><th>归一化键</th><th>来源</th><th>备注</th><th style="width:70px">操作</th></tr></thead><tbody id="mfgRows"></tbody></table></div>
+  </div>
+</div>
+</script>

@@ -1,0 +1,68 @@
+<script type="text/html" id="tpl-manual">
+<div class="manual-shell">
+  <div class="manual-hero">
+    <h4>工具说明书</h4>
+    <p>面向日常使用的内部工具手册。每个工具都按“执行逻辑”和“使用方法”拆开说明，便于先理解系统怎么处理，再按步骤操作。</p>
+    <div class="manual-hero-meta"><span class="manual-chip">覆盖全部 Web 工具</span><span class="manual-chip">同步当前匹配规则</span><span class="manual-chip">适合新人快速上手</span></div>
+  </div>
+  <div class="manual-layout"><aside class="manual-toc"><div class="manual-toc-title">说明目录</div>
+      <a href="#manual-bom">01 BOM 格式转换</a>
+      <a href="#manual-feishu">02 飞书优选库 + 关系库匹配</a>
+      <a href="#manual-mfg">03 厂商命名映射表</a>
+      <a href="#manual-pref">04 查询 BOM 优选率</a>
+      <a href="#manual-plm">05 转换为上传 PLM 系统格式</a>
+      <a href="#manual-compare">06 BOM 比对工具合集</a>
+      <a href="#manual-feedback">07 Bug 与需求工单</a>
+    </aside><div class="manual-content"><div class="manual-note">说明书只解释当前 Web 工具的实际处理规则，不会修改数据。飞书相关工具依赖已缓存的飞书表格数据和厂商命名映射表。</div>
+      <section class="manual-tool" id="manual-bom">
+        <div class="manual-tool-head"><div><h3>BOM 格式转换</h3><div class="manual-tool-desc">把客户 BOM 清洗成后续工具更容易使用的结构化 Excel。</div></div><span class="manual-label">格式整理</span></div>
+        <div class="manual-grid">
+          <div class="manual-panel"><h4>实际执行逻辑</h4><ul><li>读取上传的 Excel，按选择的 Sheet 和表头行解析列名，并生成预览。</li><li>根据常见列名自动识别位号、规格型号、品牌/厂商、料号、数量等字段。</li><li>支持客户 BOM 中品牌、型号合并或分开的常见格式，把多供应商信息展开为独立行。</li><li>导出标准化后的 Excel，便于后续匹配、比对或上传流程继续使用。</li></ul></div>
+          <div class="manual-panel"><h4>使用方法</h4><div class="manual-steps"><div class="manual-step">上传客户 BOM，选择正确 Sheet 和表头行，确认预览列名是否对应。</div><div class="manual-step">检查系统自动识别的列映射，必要时手动指定列字母。</div><div class="manual-step">选择输出设置后运行转换，下载结果文件。</div></div></div>
+        </div>
+      </section>
+      <section class="manual-tool" id="manual-feishu">
+        <div class="manual-tool-head"><div><h3>飞书优选库 + 关系库匹配</h3><div class="manual-tool-desc">用本地 BOM 去匹配飞书缓存库，提取 HQ 料号、制造商、优选等级等字段。</div></div><span class="manual-label">核心匹配</span></div>
+        <div class="manual-grid">
+          <div class="manual-panel"><h4>实际执行逻辑</h4><ul><li>读取本地 BOM 指定 Sheet，从表头行定位本地匹配键，默认按“型号 + 厂商”参与匹配。</li><li>本地厂商键勾选“厂商映射”后，会先通过厂商命名映射表转换为 HQ 规范厂商名，再参与匹配。</li><li>飞书侧按已启用的优选库、对应关系库 Sheet 进行多键 AND 匹配，只有所有匹配键都一致才视为命中。</li><li>如果同一个本地物料同时命中对应关系库和优选库，默认只保留对应关系库结果，避免重复。</li><li>匹配时间取决于本地 BOM 行数、启用 Sheet 数量和缓存数据量。</li></ul></div>
+          <div class="manual-panel"><h4>使用方法</h4><div class="manual-steps"><div class="manual-step">确认 API 网关配置、用户 ID 和本地 BOM 文件。</div><div class="manual-step">选择本地 Sheet、表头行，检查本地键是否为规格型号和厂商；厂商列应勾选厂商映射。</div><div class="manual-step">在表格库中连接或使用缓存，勾选需要参与匹配的 Sheet，并确认飞书侧匹配键和提取列。</div><div class="manual-step">点击开始匹配，等待完成后下载 Excel 结果。</div></div></div>
+        </div>
+      </section>
+      <section class="manual-tool" id="manual-mfg">
+        <div class="manual-tool-head"><div><h3>厂商命名映射表</h3><div class="manual-tool-desc">把客户厂商名称统一到 HQ 规范厂商名，供飞书匹配等流程复用。</div></div><span class="manual-label">名称归一</span></div>
+        <div class="manual-grid">
+          <div class="manual-panel"><h4>实际执行逻辑</h4><ul><li>按上传文件、选择的 Sheet 和表头行读取数据。</li><li>根据工具配置和当前规则生成结果。</li><li>输出 Excel 或保存记录，便于后续复查。</li></ul></div>
+          <div class="manual-panel"><h4>使用方法</h4><div class="manual-steps"><div class="manual-step">先选择文件或填写必要信息。</div><div class="manual-step">核对系统识别的列名、匹配键或映射关系。</div><div class="manual-step">运行后下载结果或查看保存记录。</div></div></div>
+        </div>
+      </section>
+      <section class="manual-tool" id="manual-pref">
+        <div class="manual-tool-head"><div><h3>查询 BOM 优选率</h3><div class="manual-tool-desc">基于飞书优选库缓存，统计 BOM 中已匹配物料的优选情况。</div></div><span class="manual-label">优选统计</span></div>
+        <div class="manual-grid">
+          <div class="manual-panel"><h4>实际执行逻辑</h4><ul><li>按上传文件、选择的 Sheet 和表头行读取数据。</li><li>根据工具配置和当前规则生成结果。</li><li>输出 Excel 或保存记录，便于后续复查。</li></ul></div>
+          <div class="manual-panel"><h4>使用方法</h4><div class="manual-steps"><div class="manual-step">先选择文件或填写必要信息。</div><div class="manual-step">核对系统识别的列名、匹配键或映射关系。</div><div class="manual-step">运行后下载结果或查看保存记录。</div></div></div>
+        </div>
+      </section>
+      <section class="manual-tool" id="manual-plm">
+        <div class="manual-tool-head"><div><h3>转换为上传 PLM 系统格式</h3><div class="manual-tool-desc">把整机 BOM 配置表转换成 PLM 系统可导入的标准格式。</div></div><span class="manual-label">PLM 上传</span></div>
+        <div class="manual-grid">
+          <div class="manual-panel"><h4>实际执行逻辑</h4><ul><li>按上传文件、选择的 Sheet 和表头行读取数据。</li><li>根据工具配置和当前规则生成结果。</li><li>输出 Excel 或保存记录，便于后续复查。</li></ul></div>
+          <div class="manual-panel"><h4>使用方法</h4><div class="manual-steps"><div class="manual-step">先选择文件或填写必要信息。</div><div class="manual-step">核对系统识别的列名、匹配键或映射关系。</div><div class="manual-step">运行后下载结果或查看保存记录。</div></div></div>
+        </div>
+      </section>
+      <section class="manual-tool" id="manual-compare">
+        <div class="manual-tool-head"><div><h3>BOM 比对工具合集</h3><div class="manual-tool-desc">对客户 BOM、HQ BOM 版本、整机 BOM 或 Cadence 导出 BOM 做差异比对。</div></div><span class="manual-label">差异报告</span></div>
+        <div class="manual-grid">
+          <div class="manual-panel"><h4>实际执行逻辑</h4><ul><li>按上传文件、选择的 Sheet 和表头行读取数据。</li><li>根据工具配置和当前规则生成结果。</li><li>输出 Excel 或保存记录，便于后续复查。</li></ul></div>
+          <div class="manual-panel"><h4>使用方法</h4><div class="manual-steps"><div class="manual-step">先选择文件或填写必要信息。</div><div class="manual-step">核对系统识别的列名、匹配键或映射关系。</div><div class="manual-step">运行后下载结果或查看保存记录。</div></div></div>
+        </div>
+      </section>
+      <section class="manual-tool" id="manual-feedback">
+        <div class="manual-tool-head"><div><h3>Bug 提交栏目与需求开发工单</h3><div class="manual-tool-desc">沉淀问题、需求和附件，方便团队后续定位、评估和排期。</div></div><span class="manual-label">反馈闭环</span></div>
+        <div class="manual-grid">
+          <div class="manual-panel"><h4>实际执行逻辑</h4><ul><li>按上传文件、选择的 Sheet 和表头行读取数据。</li><li>根据工具配置和当前规则生成结果。</li><li>输出 Excel 或保存记录，便于后续复查。</li></ul></div>
+          <div class="manual-panel"><h4>使用方法</h4><div class="manual-steps"><div class="manual-step">先选择文件或填写必要信息。</div><div class="manual-step">核对系统识别的列名、匹配键或映射关系。</div><div class="manual-step">运行后下载结果或查看保存记录。</div></div></div>
+        </div>
+      </section>
+    </div></div>
+</div>
+</script>

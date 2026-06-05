@@ -1,0 +1,29 @@
+<script type="text/html" id="tpl-pref-rate">
+<div class="workflow-shell">
+<div class="workflow-hero">
+  <h4>查询 BOM 优选率</h4>
+  <p>按“上传 BOM - 选择 HQ 料号列 - 查询优选库”的顺序处理。查询依赖飞书优选库缓存，请先在飞书工具中完成缓存。</p>
+</div>
+<div class="section"><h3>第一步：上传BOM文件</h3>
+  <div class="workflow-step-desc">上传需要计算优选率的 BOM，并选择 HQ 料号所在列。</div>
+  <div class="row"><label>文件路径：</label><input type="file" id="prFile" accept=".xlsx,.xlsm,.xls" style="width:320px"></div>
+  <div class="row"><label>Sheet：</label><select id="prSheet" style="width:200px"><option>先选择文件</option></select>
+    <label style="margin-left:16px">表头行：</label><input type="number" id="prHdr" value="1" min="1" style="width:55px">
+    <button class="btn btn-sm btn-gray" id="prRefresh" style="margin-left:8px">刷新列表</button>
+  </div>
+  <div class="row"><label>HQ料号列：</label><select id="prKeyCol" style="width:200px"><option>先刷新列表</option></select></div>
+</div>
+<div class="section"><h3>第二步：查询</h3>
+  <div class="workflow-step-desc">系统会按 HQ 料号在已缓存的优选库中查询等级，并输出统计结果。</div>
+  <p style="font-size:12px;color:#666;margin:0 0 10px">将从所有已缓存的<b>优选库</b> sheet 中按 HQ料号 查找对应的优选等级。请确保已在「飞书优选库+关系库匹配」中完成缓存。</p>
+  <button class="btn btn-primary" id="prRun">⚡ 开始查询</button>
+  <span id="prStatus" style="font-size:13px;margin-left:10px"></span>
+</div>
+<div class="result" id="prResult">
+  <span class="title">✅ 查询完成</span>
+  <div id="prStats" style="margin-top:8px;font-size:14px;line-height:2"></div>
+  <a class="download" id="prDl" href="#">📥 下载查询结果</a>
+</div>
+<div class="error" id="prError"></div>
+</div>
+</script>
