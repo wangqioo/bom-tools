@@ -1114,29 +1114,42 @@ def _download_selected_attachments(page: Page, hqpn: str, output_dir: Path, log:
                     return [output_path]
                 except PlaywrightTimeoutError:
                     step("No immediate download event; waiting for PDF preview page")
-                    page.wait_for_timeout(1500)
-                    for response_index, response in enumerate(list(pdf_responses), start=1):
-                        output_path = save_pdf_response(response, f"{hqpn}_attachment_{response_index}.pdf", response_index)
-                        if output_path:
-                            step(f"Downloaded PDF response: {output_path.name}")
-                            return [output_path]
-                    dump_attachment_controls("attachment_download_timeout")
-                    for candidate in reversed([p for p in page.context.pages if p not in pages_before and not p.is_closed()]):
-                        clicked_download = click_pdf_viewer_download(candidate)
-                        if clicked_download:
-                            step(f"Downloaded PDF viewer button: {clicked_download.name}")
-                            return [clicked_download]
-                        url = candidate.url or ""
-                        if "doDirectDownload" not in url and ".pdf" not in url.lower() and "application/pdf" not in url:
-                            continue
-                        try:
-                            response = candidate.goto(url, wait_until="commit", timeout=30000)
-                            output_path = save_pdf_response(response, f"{hqpn}_attachment.pdf", 1) if response else None
+                    deadline = time.time() + 10
+                    checked_response_count = 0
+                    last_preview_urls = []
+                    while time.time() < deadline:
+                        page.wait_for_timeout(700)
+                        for response_index, response in enumerate(list(pdf_responses)[checked_response_count:], start=checked_response_count + 1):
+                            output_path = save_pdf_response(response, f"{hqpn}_attachment_{response_index}.pdf", response_index)
                             if output_path:
-                                step(f"Downloaded PDF preview response: {output_path.name}")
+                                step(f"Downloaded PDF response: {output_path.name}")
                                 return [output_path]
-                        except PlaywrightError:
-                            pass
+                        checked_response_count = len(pdf_responses)
+                        for candidate in reversed([p for p in page.context.pages if p not in pages_before and not p.is_closed()]):
+                            url = candidate.url or ""
+                            if url and url not in last_preview_urls:
+                                last_preview_urls.append(url)
+                            clicked_download = click_pdf_viewer_download(candidate)
+                            if clicked_download:
+                                step(f"Downloaded PDF viewer button: {clicked_download.name}")
+                                return [clicked_download]
+                            downloaded = download_preview_resource(candidate)
+                            if downloaded:
+                                step(f"Downloaded PDF viewer resource: {downloaded.name}")
+                                return [downloaded]
+                            if "doDirectDownload" not in url and ".pdf" not in url.lower() and "application/pdf" not in url:
+                                continue
+                            try:
+                                response = candidate.goto(url, wait_until="commit", timeout=30000)
+                                output_path = save_pdf_response(response, f"{hqpn}_attachment.pdf", 1) if response else None
+                                if output_path:
+                                    step(f"Downloaded PDF preview response: {output_path.name}")
+                                    return [output_path]
+                            except PlaywrightError:
+                                pass
+                    if last_preview_urls:
+                        step("PDF preview candidates: " + " | ".join(last_preview_urls[-3:]))
+                    dump_attachment_controls("attachment_download_timeout")
                     viewer_files = save_pdf_viewer_resource(pages_before)
                     if viewer_files:
                         return viewer_files
@@ -1195,6 +1208,40 @@ def _download_selected_attachments(page: Page, hqpn: str, output_dir: Path, log:
         pass
     raise RuntimeError("Downloadable PDF attachment links were not detected")
 
+def download_hq_attachment_from_search_page(
+    context,
+    search_page: Page,
+    *,
+    hqpn: str,
+    output_dir: Path,
+    username: str = "",
+    password: str = "",
+    log: LogFn = _noop_log,
+) -> tuple[Path, Page]:
+    hqpn = (hqpn or "").strip()
+    if not hqpn:
+        raise ValueError("HQ material number cannot be empty")
+
+    log(f"\u641c\u7d22\u6599\u53f7\uff1a{hqpn}")
+    login_if_present(search_page, username, password, timeout=500)
+    search_page = _open_plm_search_page(context, search_page, username, password, log=log)
+    _type_top_search(search_page, hqpn)
+    try:
+        search_page.locator(f"a:has-text('{hqpn}')").first.wait_for(state="visible", timeout=8000)
+    except PlaywrightError:
+        search_page.wait_for_timeout(2000)
+
+    log("\u6253\u5f00\u7b2c\u4e00\u6761\u641c\u7d22\u7ed3\u679c")
+    detail_page = _click_first_search_result(context, search_page, hqpn, output_dir=output_dir)
+
+    log("\u8fdb\u5165\u5185\u5bb9\u9875")
+    _click_detail_content(detail_page, output_dir=output_dir)
+
+    log("\u52fe\u9009\u9644\u4ef6\u5e76\u4e0b\u8f7d")
+    output_path = _download_selected_attachments(detail_page, hqpn, output_dir, log=log)
+    log(f"\u4e0b\u8f7d\u5b8c\u6210\uff1a{output_path}")
+    return output_path, search_page
+
 def run_hq_attachment_download(
     playwright: Playwright,
     *,
@@ -1230,22 +1277,15 @@ def run_hq_attachment_download(
         log("Open PLM search page")
         search_page = _open_plm_search_page(context, plm_page, username, password, log=log)
 
-        log(f"搜索料号：{hqpn}")
-        _type_top_search(search_page, hqpn)
-        try:
-            search_page.locator(f"a:has-text('{hqpn}')").first.wait_for(state="visible", timeout=8000)
-        except PlaywrightError:
-            search_page.wait_for_timeout(2000)
-
-        log("打开第一条搜索结果")
-        detail_page = _click_first_search_result(context, search_page, hqpn, output_dir=output_dir)
-
-        log("进入内容页")
-        _click_detail_content(detail_page, output_dir=output_dir)
-
-        log("勾选附件并下载")
-        output_path = _download_selected_attachments(detail_page, hqpn, output_dir, log=log)
-        log(f"下载完成：{output_path}")
+        output_path, _ = download_hq_attachment_from_search_page(
+            context,
+            search_page,
+            hqpn=hqpn,
+            output_dir=output_dir,
+            username=username,
+            password=password,
+            log=log,
+        )
         return output_path
     finally:
         context.close()

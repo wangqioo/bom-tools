@@ -1,4 +1,4 @@
-// ═══════════════════ 通用函数 ═══════════════════
+﻿// ═══════════════════ 通用函数 ═══════════════════
 async function logout(){await fetch('/api/logout',{method:'POST'}); location.href='/login';}
 function $(id){return document.getElementById(id);}
 function show(el){if(el) el.style.display='block';}
@@ -1616,6 +1616,11 @@ function initPlm(){
 function initPlmAuto(){
   $('paRun').onclick=plmAutoRun;
   $('paAttRun').onclick=plmAutoAttachmentRun;
+  if($('paAttBatchFile')) $('paAttBatchFile').onchange=()=>plmAttBatchLoad({clearSheet:true});
+  if($('paAttBatchSheet')) $('paAttBatchSheet').onchange=()=>plmAttBatchLoad({clearSheet:false});
+  if($('paAttBatchHdr')) $('paAttBatchHdr').onchange=()=>plmAttBatchLoad({clearSheet:false});
+  if($('paAttBatchLoad')) $('paAttBatchLoad').onclick=()=>plmAttBatchLoad({clearSheet:false});
+  if($('paAttBatchRun')) $('paAttBatchRun').onclick=plmAttBatchRun;
   $('paAttHqpn').addEventListener('input',()=>{
     const cleaned=($('paAttHqpn').value||'').replace(/\s+/g,'');
     if($('paAttHqpn').value!==cleaned) $('paAttHqpn').value=cleaned;
@@ -1631,6 +1636,9 @@ function initPlmAuto(){
       });
       $('paTabSpec').style.display=tab==='spec'?'flex':'none';
       $('paTabAttach').style.display=tab==='attach'?'flex':'none';
+      if(tab==='attach' && $('paAttBatchFile')?.files?.[0] && !$('paAttBatchCol')?.dataset.loaded){
+        plmAttBatchLoad({clearSheet:true});
+      }
     };
   });
 }
@@ -1687,6 +1695,177 @@ function plmAttSetProgress(stage,pct,note){
   if(noteEl) noteEl.textContent=note||'PLM \u81ea\u52a8\u5316\u6b63\u5728\u6267\u884c\uff0c\u8bf7\u52ff\u5173\u95ed\u672c\u9875\u9762';
 }
 
+
+function plmAttBatchSetStatus(text){
+  const el=$('paAttBatchStatus');
+  if(el) el.textContent=text||'';
+}
+
+function plmAttBatchSetOverall(stage,pct,download){
+  const panel=$('paAttBatchOverall');
+  const stageEl=$('paAttBatchStage');
+  const pctEl=$('paAttBatchPct');
+  const bar=$('paAttBatchBar');
+  const dlBox=$('paAttBatchDownload');
+  const dl=$('paAttBatchDl');
+  const cancelBtn=$('paAttBatchCancel');
+  const value=Math.max(0,Math.min(100,parseInt(pct)||0));
+  if(panel) show(panel);
+  if(stageEl) stageEl.textContent=stage||'处理中';
+  if(pctEl) pctEl.textContent=value+'%';
+  if(bar) bar.style.width=value+'%';
+  if(cancelBtn) cancelBtn.style.display=(value>0&&value<100&&window._paAttBatchStatusUrl)?'inline-block':'none';
+  if(download&&dl&&dlBox){
+    dl.href=download;
+    show(dlBox);
+  }else if(dlBox){
+    hide(dlBox);
+  }
+}
+
+async function plmAttBatchCancel(){
+  const batchId=window._paAttBatchId;
+  if(!batchId) return;
+  const btn=$('paAttBatchCancel');
+  if(btn) btn.disabled=true;
+  try{
+    const r=await fetch('/api/plm/auto_hq_attachments/batch/cancel/'+encodeURIComponent(batchId),{method:'POST'});
+    const s=await r.json();
+    if(!s.success) throw new Error(s.error||'取消失败');
+    window._paAttBatchJobs=s.jobs||window._paAttBatchJobs||[];
+    plmAttBatchRenderJobs(window._paAttBatchJobs);
+    plmAttBatchSetOverall('正在取消剩余任务',s.progress||0,s.download);
+    plmAttBatchSetStatus(`已请求取消：共 ${s.total||0} 个，已完成 ${s.done||0} 个，失败 ${s.failed||0} 个，已取消 ${s.cancelled||0} 个`);
+  }catch(e){
+    plmAttBatchSetStatus('取消失败：'+e.message);
+  }finally{
+    if(btn) btn.disabled=false;
+  }
+}
+
+function plmAttBatchRenderPreview(headers, rows){
+  const box=$('paAttBatchPreview');
+  if(!box) return;
+  headers=headers||[]; rows=rows||[];
+  if(!headers.length){ box.innerHTML=''; hide(box); return; }
+  const head='<tr>'+headers.map(h=>`<th>${_escH(h)}</th>`).join('')+'</tr>';
+  const body=rows.slice(0,12).map(r=>'<tr>'+headers.map((_,i)=>`<td>${_escH((r||[])[i]||'')}</td>`).join('')+'</tr>').join('');
+  box.innerHTML=`<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+  show(box);
+}
+
+async function plmAttBatchLoad(opts={}){
+  const f=$('paAttBatchFile')?.files?.[0];
+  clearInlineError('paAttError');
+  if(!f){
+    clearSelectOptions('paAttBatchSheet','先选择文件');
+    clearSelectOptions('paAttBatchCol','先加载列');
+    plmAttBatchRenderPreview([],[]);
+    plmAttBatchSetStatus('');
+    return;
+  }
+  plmAttBatchSetStatus('正在读取 Excel...');
+  const fd=new FormData();
+  fd.append('file',f);
+  fd.append('header_row',$('paAttBatchHdr')?.value||1);
+  const sheet=$('paAttBatchSheet')?.value||'';
+  if(!opts.clearSheet && sheet && sheet!=='先选择文件' && sheet!=='加载中...') fd.append('sheet_name',sheet);
+  if(opts.clearSheet) clearSelectOptions('paAttBatchSheet','加载中...');
+  clearSelectOptions('paAttBatchCol','加载中...');
+  try{
+    const r=await fetch('/api/plm/auto_hq_attachments/excel_detect',{method:'POST',body:fd});
+    const d=await r.json();
+    if(!d.success) throw new Error(d.error||'读取 Excel 失败');
+    const sheetEl=$('paAttBatchSheet');
+    if(sheetEl) sheetEl.innerHTML=(d.sheets||[]).map(s=>`<option${s===d.current_sheet?' selected':''}>${_escH(s)}</option>`).join('');
+    const colEl=$('paAttBatchCol');
+    if(colEl){
+      colEl.innerHTML=(d.headers||[]).map((h,i)=>`<option value="${plmIndexToCol(i+1)}">${plmIndexToCol(i+1)} - ${_escH(h||'(空列名)')}</option>`).join('');
+      if(d.detected&&d.detected.hqpn) colEl.value=d.detected.hqpn;
+      colEl.dataset.loaded='1';
+    }
+    plmAttBatchRenderPreview(d.headers||[], d.preview||[]);
+    plmAttBatchSetStatus(`已加载 ${(d.headers||[]).length} 列`);
+  }catch(e){
+    plmAttBatchSetStatus('');
+    showInlineError('paAttError',e.message,'paAttBatchStatus');
+    clearSelectOptions('paAttBatchCol','加载失败');
+  }
+}
+
+function plmAttBatchRenderJobs(jobs){
+  const box=$('paAttBatchJobs');
+  if(!box) return;
+  window._paAttBatchJobs=jobs||[];
+  if(!window._paAttBatchJobs.length){ box.innerHTML=''; hide(box); return; }
+  const rows=window._paAttBatchJobs.map((j,i)=>{
+    const pct=Math.max(0,Math.min(100,parseInt(j.progress)||0));
+    const state=j.status==='done'?'完成':(j.status==='error'?'失败':(j.status==='cancelled'?'已取消':(j.status==='queued'?'排队中':'执行中')));
+    const action=j.download?`<a href="${_escH(j.download)}" class="download" style="padding:4px 9px;margin:0;font-size:12px">下载</a>`:'';
+    return `<tr><td>${i+1}</td><td>${_escH(j.hqpn)}</td><td>${state}</td><td>${_escH(j.stage||'')}</td><td style="min-width:140px"><div style="height:8px;background:#dbe8ff;border-radius:999px;overflow:hidden"><div style="width:${pct}%;height:100%;background:#2d6cdf"></div></div><span style="font-size:11px;color:#667085">${pct}%</span></td><td>${action}</td></tr>`;
+  }).join('');
+  box.innerHTML=`<table><thead><tr><th>#</th><th>HQ 料号</th><th>状态</th><th>步骤</th><th>进度</th><th>文件</th></tr></thead><tbody>${rows}</tbody></table>`;
+  show(box);
+}
+
+async function plmAttBatchPoll(){
+  const statusUrl=window._paAttBatchStatusUrl;
+  if(!statusUrl) return;
+  const r=await fetch(statusUrl);
+  const s=await r.json();
+  if(!s.success) throw new Error(s.error||'读取批量任务状态失败');
+  window._paAttBatchJobs=s.jobs||[];
+  plmAttBatchRenderJobs(window._paAttBatchJobs);
+  plmAttBatchSetOverall(s.stage,s.progress,s.download);
+  plmAttBatchSetStatus(`共 ${s.total||0} 个，已完成 ${s.done||0} 个，失败 ${s.failed||0} 个，已取消 ${s.cancelled||0} 个，剩余 ${(s.total||0)-(s.finished||0)} 个`);
+  if(s.status==='done' && window._paAttBatchTimer){
+    clearInterval(window._paAttBatchTimer);
+    window._paAttBatchTimer=null;
+    $('paAttBatchRun').disabled=false;
+  }
+}
+
+async function plmAttBatchRun(){
+  const user=($('paAttUser').value||'').trim();
+  const pass=$('paAttPass').value||'';
+  const f=$('paAttBatchFile')?.files?.[0];
+  const col=$('paAttBatchCol')?.value||'';
+  if(!user){showInlineError('paAttError','请输入账号','paAttBatchStatus');return;}
+  if(!pass){showInlineError('paAttError','请输入密码','paAttBatchStatus');return;}
+  if(!f){showInlineError('paAttError','请选择 Excel 文件','paAttBatchStatus');return;}
+  if(!col||col==='先加载列'||col==='加载失败'){showInlineError('paAttError','请选择 HQ 料号列','paAttBatchStatus');return;}
+  clearInlineError('paAttError');
+  const btn=$('paAttBatchRun');
+  btn.disabled=true;
+  plmAttBatchSetStatus('正在批量创建下载任务...');
+  const fd=new FormData();
+  fd.append('username',user);
+  fd.append('password',pass);
+  fd.append('file',f);
+  fd.append('sheet_name',$('paAttBatchSheet')?.value||'');
+  fd.append('header_row',$('paAttBatchHdr')?.value||1);
+  fd.append('col_hqpn',col);
+  try{
+    const r=await fetch('/api/plm/auto_hq_attachments/batch',{method:'POST',body:fd});
+    const d=await r.json();
+    if(!d.success) throw new Error(d.error||'批量任务创建失败');
+    window._paAttBatchId=d.batch_id;
+    window._paAttBatchStatusUrl=d.status_url;
+    window._paAttBatchJobs=(d.jobs||[]).map(j=>Object.assign({status:'queued',stage:'已加入下载队列',progress:3},j));
+    plmAttBatchRenderJobs(window._paAttBatchJobs);
+    plmAttBatchSetOverall('已加入下载队列',3,'');
+    if($('paAttBatchCancel')) $('paAttBatchCancel').onclick=plmAttBatchCancel;
+    plmAttBatchSetStatus(`已加入 ${d.count||window._paAttBatchJobs.length} 个下载任务`);
+    if(window._paAttBatchTimer) clearInterval(window._paAttBatchTimer);
+    await plmAttBatchPoll();
+    window._paAttBatchTimer=setInterval(()=>{plmAttBatchPoll().catch(e=>{
+      plmAttBatchSetStatus('状态刷新失败：'+e.message);
+    });},1500);
+  }catch(e){
+    showInlineError('paAttError',e.message,'paAttBatchStatus');
+    btn.disabled=false;
+  }
+}
 async function plmAutoAttachmentRun(){
   const user=($('paAttUser').value||'').trim();
   const pass=$('paAttPass').value||'';

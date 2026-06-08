@@ -36,14 +36,23 @@
   <div class="row"><label>账号：</label><input type="text" id="paAttUser" value="100448405" autocomplete="username" style="width:220px"></div>
   <div class="row"><label>密码：</label><input type="password" id="paAttPass" autocomplete="current-password" style="width:220px"></div>
 </div>
-<div class="section"><h3>第二步：输入 HQ 料号</h3>
-  <div class="row"><label>HQ 料号：</label><input type="text" id="paAttHqpn" placeholder="如 HQ172010044T0" style="width:260px"></div>
+<div class="section"><h3>&#31532;&#20108;&#27493;&#65306;&#36755;&#20837; HQ &#26009;&#21495;</h3>
+  <div class="row"><label>HQ &#26009;&#21495;&#65306;</label><input type="text" id="paAttHqpn" placeholder="&#22914; HQ172010044T0" style="width:260px"><button class="btn btn-primary" id="paAttRun">&#24320;&#22987;&#19979;&#36733;&#38468;&#20214;</button></div>
+  <span id="paAttStatus" style="font-size:13px;color:#888"></span>
 </div>
-<div class="section"><h3>第三步：运行自动化</h3>
-  <button class="btn btn-primary" id="paAttRun">开始下载附件</button>
-  <span id="paAttStatus" style="font-size:13px;margin-left:10px;color:#888"></span>
-</div>
-<div class="result" id="paAttResult">
+<div class="section"><h3>&#25209;&#37327;&#23548;&#20837; HQ &#26009;&#21495;</h3>
+  <div class="workflow-step-desc">&#19978;&#20256; Excel&#65292;&#36873;&#25321; Sheet&#12289;&#34920;&#22836;&#34892;&#21644; HQ &#26009;&#21495;&#21015;&#65292;&#19968;&#27425;&#24615;&#21152;&#20837;&#19979;&#36733;&#38431;&#21015;&#12290;</div>
+  <div class="row"><label>Excel&#65306;</label><input type="file" id="paAttBatchFile" accept=".xlsx,.xlsm,.xls" style="width:320px"></div>
+  <div class="row"><label>Sheet&#65306;</label><select id="paAttBatchSheet" style="width:180px"><option>&#20808;&#36873;&#25321;&#25991;&#20214;</option></select><label>&#34920;&#22836;&#34892;&#65306;</label><input type="number" id="paAttBatchHdr" value="1" min="1" style="width:70px"><button class="btn btn-sm btn-gray" id="paAttBatchLoad" type="button">&#21152;&#36733; / &#21047;&#26032;</button></div>
+  <div class="row"><label>HQ &#26009;&#21495;&#21015;&#65306;</label><select id="paAttBatchCol" style="width:260px"><option>&#20808;&#21152;&#36733;&#21015;</option></select><button class="btn btn-primary" id="paAttBatchRun" type="button">&#25209;&#37327;&#21152;&#20837;&#38431;&#21015;</button><span id="paAttBatchStatus" style="font-size:13px;color:#888"></span></div>
+    <div id="paAttBatchOverall" style="display:none;margin-top:10px;border:1px solid #b7d4ff;background:#f4f8ff;border-radius:8px;padding:10px 12px">
+    <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:7px"><div><div style="font-size:11px;color:#52657d;font-weight:700;margin-bottom:2px">&#26412;&#27425;&#25209;&#37327;&#24635;&#36827;&#24230;</div><div id="paAttBatchStage" style="font-size:13px;font-weight:700;color:#163a6b">&#31561;&#24453;&#24320;&#22987;</div></div><div style="display:flex;align-items:center;gap:10px"><div id="paAttBatchDownload" style="display:none"><a class="btn btn-primary" id="paAttBatchDl" href="#" style="display:inline-flex;align-items:center;height:32px;padding:0 14px;text-decoration:none;font-size:12px">&#19979;&#36733;&#26412;&#27425;&#25209;&#37327;&#21387;&#32553;&#21253;</a></div><button class="btn btn-sm btn-gray" id="paAttBatchCancel" type="button" style="display:none">&#21462;&#28040;&#26412;&#27425;&#25209;&#37327;</button><div id="paAttBatchPct" style="font-size:18px;font-weight:800;color:#1a5ad4">0%</div></div></div>
+    <div style="height:9px;border-radius:999px;background:#dbe8ff;border:1px solid #c6d8f5;overflow:hidden"><div id="paAttBatchBar" style="width:0%;height:100%;background:linear-gradient(90deg,#2d6cdf,#2a8a2a);transition:width .2s ease"></div></div>
+    <div id="paAttBatchDownload" style="display:none;margin-top:9px"><a class="download" id="paAttBatchDl" href="#" style="padding:6px 12px;font-size:12px">&#19979;&#36733;&#26412;&#27425;&#25209;&#37327;&#24635;&#21387;&#32553;&#21253;</a></div>
+  </div>
+  <div id="paAttBatchPreview" class="table-wrap" style="display:none;max-height:180px;margin-top:8px"></div>
+  <div id="paAttBatchJobs" class="table-wrap" style="display:none;max-height:360px;margin-top:10px"></div>
+</div><div class="result" id="paAttResult">
   <span class="title">下载完成</span>
   <div id="paAttStats" style="margin-top:6px;font-size:13px"></div>
   <a class="download" id="paAttDl" href="#">下载 PLM 附件</a>
