@@ -828,6 +828,20 @@ def _download_selected_attachments(page: Page, hqpn: str, output_dir: Path, log:
                 pass
         return zip_path
 
+    def finalize_attachment_files(files: list[Path]) -> Path:
+        if len(files) == 1 and files[0].suffix.lower() == ".zip":
+            target_path = output_dir / f"{hqpn}_\u9644\u4ef6.zip"
+            source_path = files[0]
+            if source_path.resolve() != target_path.resolve():
+                if target_path.exists():
+                    try:
+                        target_path.unlink()
+                    except OSError:
+                        target_path = output_dir / f"{hqpn}_\u9644\u4ef6_{int(time.time() * 1000)}.zip"
+                source_path.replace(target_path)
+            return target_path
+        return zip_paths(files)
+
     def safe_name(name: str, index: int) -> str:
         cleaned = re.sub(r'[\\/:*?"<>|]+', '_', (name or '').strip())
         if not cleaned:
@@ -876,12 +890,34 @@ def _download_selected_attachments(page: Page, hqpn: str, output_dir: Path, log:
             body = response.body()
             if not body:
                 return None
+            stripped = body.lstrip()
+            content_type = (response.headers.get("content-type") or "").lower()
+            if not stripped.startswith(b"%PDF-") and "application/pdf" not in content_type:
+                return None
+            if stripped.startswith(b"<"):
+                return None
             raw_path = output_dir / safe_name(name, index)
             raw_path.write_bytes(body)
             return raw_path
         except Exception:
             return None
 
+    def save_pdf_response(response, name: str, index: int) -> Path | None:
+        try:
+            body = response.body()
+            if not body:
+                return None
+            stripped = body.lstrip()
+            content_type = (response.headers.get("content-type") or "").lower()
+            if not stripped.startswith(b"%PDF-") and "application/pdf" not in content_type:
+                return None
+            if stripped.startswith(b"<"):
+                return None
+            output_path = output_dir / safe_name(name, index)
+            output_path.write_bytes(body)
+            return output_path
+        except Exception:
+            return None
     def click_pdf_link(link_text: str, href: str) -> Path | None:
         context = page.context
         before = set(context.pages)
@@ -915,17 +951,60 @@ def _download_selected_attachments(page: Page, hqpn: str, output_dir: Path, log:
                 continue
         return None
 
+    def click_pdf_viewer_download(preview_page: Page) -> Path | None:
+        try:
+            with preview_page.expect_download(timeout=15000) as download_info:
+                clicked = preview_page.evaluate(
+                    """() => {
+                        const deepQuery = (root, selectors) => {
+                            const queue = [root];
+                            const seen = new Set();
+                            while (queue.length) {
+                                const current = queue.shift();
+                                if (!current || seen.has(current)) continue;
+                                seen.add(current);
+                                for (const selector of selectors) {
+                                    const found = current.querySelector && current.querySelector(selector);
+                                    if (found) return found;
+                                }
+                                const nodes = current.querySelectorAll ? Array.from(current.querySelectorAll('*')) : [];
+                                for (const node of nodes) {
+                                    if (node.shadowRoot) queue.push(node.shadowRoot);
+                                }
+                            }
+                            return null;
+                        };
+                        const button = deepQuery(document, [
+                            '#download',
+                            '#downloadButton',
+                            'cr-icon-button[title*="Download"]',
+                            'cr-icon-button[aria-label*="Download"]',
+                            'viewer-download-controls cr-icon-button'
+                        ]);
+                        if (!button) return false;
+                        button.click();
+                        return true;
+                    }"""
+                )
+                if not clicked:
+                    return None
+            download = download_info.value
+            suggested = download.suggested_filename or f"{hqpn}_attachment.pdf"
+            output_path = output_dir / safe_name(suggested, 1)
+            download.save_as(str(output_path))
+            return output_path
+        except PlaywrightError:
+            return None
     def download_preview_resource(preview_page: Page) -> Path | None:
         for _ in range(10):
             urls = [preview_page.url]
             try:
-                urls.extend(
-                    preview_page.evaluate(
-                        """() => Array.from(document.querySelectorAll('embed,iframe,object,a'))
-                            .map((el) => el.src || el.data || el.href || '')
-                            .filter(Boolean)"""
-                    )
-                )
+                resource_urls = preview_page.evaluate(
+                    """() => Array.from(document.querySelectorAll('embed,iframe,object,a'))
+                        .map((el) => el.src || el.data || el.href || '')
+                        .filter(Boolean)"""
+                ) or []
+                urls.extend(resource_urls)
             except PlaywrightError:
                 pass
             for index, url in enumerate(dict.fromkeys(urls), start=1):
@@ -937,14 +1016,18 @@ def _download_selected_attachments(page: Page, hqpn: str, output_dir: Path, log:
             preview_page.wait_for_timeout(500)
         return None
     def download_checked_pdf_rows() -> list[Path]:
-        label = "???????"
+        label = "\u4e0b\u8f7d\u9009\u5b9a\u7684\u6587\u4ef6"
 
         def save_pdf_viewer_resource(pages_before) -> list[Path]:
-            page.wait_for_timeout(2500)
+            page.wait_for_timeout(5000)
             candidates = [candidate for candidate in page.context.pages if not candidate.is_closed()]
             new_pages = [candidate for candidate in candidates if candidate not in pages_before]
-            for candidate in list(reversed(new_pages)) + list(reversed(candidates)):
+            for candidate in list(reversed(new_pages)):
                 url = candidate.url or ""
+                downloaded = download_preview_resource(candidate)
+                if downloaded:
+                    step(f"Downloaded PDF viewer resource: {downloaded.name}")
+                    return [downloaded]
                 if "application/pdf" not in url and ".pdf" not in url.lower() and "doDirectDownload" not in url:
                     continue
                 name = f"{hqpn}_attachment.pdf"
@@ -961,6 +1044,44 @@ def _download_selected_attachments(page: Page, hqpn: str, output_dir: Path, log:
                     return [output_path]
             return []
 
+        def dump_attachment_controls(label_suffix: str) -> None:
+            debug_dir = output_dir / "plm_hq_search_debug"
+            debug_dir.mkdir(parents=True, exist_ok=True)
+            stamp = time.strftime("%Y%m%d_%H%M%S")
+            payload = []
+            for frame_index, current_frame in enumerate(page.frames):
+                try:
+                    payload.append({
+                        "frame_index": frame_index,
+                        "url": current_frame.url,
+                        "controls": current_frame.evaluate(
+                            """() => Array.from(document.querySelectorAll('a,button,input,span,div,[role=button]'))
+                                .map((el, index) => {
+                                    const rect = el.getBoundingClientRect();
+                                    const style = window.getComputedStyle(el);
+                                    return {
+                                        index,
+                                        tag: el.tagName || '',
+                                        text: (el.innerText || el.textContent || el.value || '').replace(/\\s+/g, ' ').trim(),
+                                        title: el.getAttribute('title') || '',
+                                        aria: el.getAttribute('aria-label') || '',
+                                        cls: typeof el.className === 'string' ? el.className : '',
+                                        visible: rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden',
+                                        rect: { left: Math.round(rect.left), top: Math.round(rect.top), width: Math.round(rect.width), height: Math.round(rect.height) }
+                                    };
+                                })
+                                .filter((item) => item.visible && (item.text || item.title || item.aria || item.cls))"""
+                        ),
+                    })
+                except PlaywrightError as exc:
+                    payload.append({"frame_index": frame_index, "url": current_frame.url, "error": str(exc)})
+            try:
+                (debug_dir / f"{stamp}_{label_suffix}_visible_controls.json").write_text(
+                    json.dumps(payload, ensure_ascii=False, indent=2),
+                    encoding="utf-8",
+                )
+            except OSError:
+                pass
         for frame in page.frames:
             try:
                 checker = frame.locator('.x-grid3-hd-checker').first
@@ -968,10 +1089,22 @@ def _download_selected_attachments(page: Page, hqpn: str, output_dir: Path, log:
                     continue
                 checker.click(timeout=5000)
                 page.wait_for_timeout(800)
+                step("Selected all attachment rows")
 
                 pages_before = set(page.context.pages)
+                pdf_responses = []
+
+                def capture_pdf_response(response) -> None:
+                    try:
+                        content_type = (response.headers.get("content-type") or "").lower()
+                        if "doDirectDownload" in response.url or "application/pdf" in content_type:
+                            pdf_responses.append(response)
+                    except Exception:
+                        pass
+
+                page.context.on("response", capture_pdf_response)
                 try:
-                    with page.expect_download(timeout=10000) as download_info:
+                    with page.expect_download(timeout=5000) as download_info:
                         frame.get_by_text(label, exact=True).click(timeout=10000, force=True)
                     download = download_info.value
                     suggested = download.suggested_filename or f"{hqpn}_attachments.zip"
@@ -980,6 +1113,30 @@ def _download_selected_attachments(page: Page, hqpn: str, output_dir: Path, log:
                     step(f"Downloaded selected attachments: {output_path.name}")
                     return [output_path]
                 except PlaywrightTimeoutError:
+                    step("No immediate download event; waiting for PDF preview page")
+                    page.wait_for_timeout(1500)
+                    for response_index, response in enumerate(list(pdf_responses), start=1):
+                        output_path = save_pdf_response(response, f"{hqpn}_attachment_{response_index}.pdf", response_index)
+                        if output_path:
+                            step(f"Downloaded PDF response: {output_path.name}")
+                            return [output_path]
+                    dump_attachment_controls("attachment_download_timeout")
+                    for candidate in reversed([p for p in page.context.pages if p not in pages_before and not p.is_closed()]):
+                        clicked_download = click_pdf_viewer_download(candidate)
+                        if clicked_download:
+                            step(f"Downloaded PDF viewer button: {clicked_download.name}")
+                            return [clicked_download]
+                        url = candidate.url or ""
+                        if "doDirectDownload" not in url and ".pdf" not in url.lower() and "application/pdf" not in url:
+                            continue
+                        try:
+                            response = candidate.goto(url, wait_until="commit", timeout=30000)
+                            output_path = save_pdf_response(response, f"{hqpn}_attachment.pdf", 1) if response else None
+                            if output_path:
+                                step(f"Downloaded PDF preview response: {output_path.name}")
+                                return [output_path]
+                        except PlaywrightError:
+                            pass
                     viewer_files = save_pdf_viewer_resource(pages_before)
                     if viewer_files:
                         return viewer_files
@@ -1005,11 +1162,11 @@ def _download_selected_attachments(page: Page, hqpn: str, output_dir: Path, log:
             step(f"已下载 PDF：{downloaded.name}")
 
     if downloaded_files:
-        return zip_paths(downloaded_files)
+        return finalize_attachment_files(downloaded_files)
 
     checked_files = download_checked_pdf_rows()
     if checked_files:
-        return zip_paths(checked_files)
+        return finalize_attachment_files(checked_files)
 
 
     pdf_targets = _scan_click_targets(
