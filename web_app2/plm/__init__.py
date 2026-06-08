@@ -1,7 +1,7 @@
 ﻿# -*- coding: utf-8 -*-
 """PLM 上传工具 — Blueprint"""
 
-import os, uuid, re, json
+import os, uuid, re, json, threading, time
 from zipfile import ZipFile, ZIP_DEFLATED
 from flask import Blueprint
 from activity import track_tool_activity
@@ -15,6 +15,94 @@ from shared import (
 
 plm_bp = Blueprint('plm', __name__)
 
+_PLM_ATTACHMENT_JOBS = {}
+_PLM_ATTACHMENT_JOBS_LOCK = threading.Lock()
+
+
+def _new_attachment_job(hqpn):
+    job_id = uuid.uuid4().hex
+    now = time.time()
+    job = {
+        'id': job_id,
+        'status': 'queued',
+        'stage': '\u4efb\u52a1\u5df2\u521b\u5efa',
+        'progress': 3,
+        'hqpn': hqpn,
+        'logs': [],
+        'download': '',
+        'filename': '',
+        'source_path': '',
+        'error': '',
+        'created_at': now,
+        'updated_at': now,
+    }
+    with _PLM_ATTACHMENT_JOBS_LOCK:
+        _PLM_ATTACHMENT_JOBS[job_id] = job
+    return job_id
+
+
+def _attachment_progress_from_message(message, current):
+    text = str(message or '')
+    rules = [
+        ('\u542f\u52a8\u6d4f\u89c8\u5668', 8, '\u542f\u52a8\u6d4f\u89c8\u5668'),
+        ('\u6253\u5f00 EIP', 15, '\u6253\u5f00 EIP'),
+        ('\u8fdb\u5165 PLM', 25, '\u8fdb\u5165 PLM'),
+        ('Open PLM search page', 35, '\u6253\u5f00 PLM \u641c\u7d22\u9875'),
+        ('\u76f4\u63a5\u8fdb\u5165 PLM \u641c\u7d22\u9875', 35, '\u6253\u5f00 PLM \u641c\u7d22\u9875'),
+        ('\u641c\u7d22\u6599\u53f7', 45, '\u641c\u7d22 HQ \u6599\u53f7'),
+        ('\u6253\u5f00\u7b2c\u4e00\u6761\u641c\u7d22\u7ed3\u679c', 58, '\u6253\u5f00\u7269\u6599\u8be6\u60c5'),
+        ('\u8fdb\u5165\u5185\u5bb9\u9875', 68, '\u8fdb\u5165\u5185\u5bb9\u9875'),
+        ('\u52fe\u9009\u9644\u4ef6\u5e76\u4e0b\u8f7d', 76, '\u52fe\u9009\u9644\u4ef6'),
+        ('\u8bc6\u522b PDF \u9644\u4ef6', 80, '\u8bc6\u522b\u9644\u4ef6'),
+        ('Selected all attachment rows', 84, '\u52fe\u9009\u9644\u4ef6\u884c'),
+        ('No immediate download event', 88, '\u7b49\u5f85 PDF \u9884\u89c8\u9875'),
+        ('Downloaded PDF response', 94, '\u4fdd\u5b58 PDF \u9644\u4ef6'),
+        ('Downloaded PDF viewer', 94, '\u4fdd\u5b58 PDF \u9644\u4ef6'),
+        ('Downloaded selected attachments', 94, '\u4fdd\u5b58\u9644\u4ef6\u538b\u7f29\u5305'),
+        ('\u4e0b\u8f7d\u5b8c\u6210', 98, '\u6574\u7406\u4e0b\u8f7d\u6587\u4ef6'),
+    ]
+    for needle, progress, stage in rules:
+        if needle in text:
+            return max(current, progress), stage
+    return min(max(current, 5) + 1, 90), text[:80] or '\u5904\u7406\u4e2d'
+
+
+def _update_attachment_job(job_id, **updates):
+    with _PLM_ATTACHMENT_JOBS_LOCK:
+        job = _PLM_ATTACHMENT_JOBS.get(job_id)
+        if not job:
+            return
+        job.update(updates)
+        job['updated_at'] = time.time()
+
+
+def _append_attachment_log(job_id, message):
+    message = str(message)
+    with _PLM_ATTACHMENT_JOBS_LOCK:
+        job = _PLM_ATTACHMENT_JOBS.get(job_id)
+        if not job:
+            return
+        job['logs'].append(message)
+        progress, stage = _attachment_progress_from_message(message, int(job.get('progress') or 0))
+        job['progress'] = progress
+        job['stage'] = stage
+        job['updated_at'] = time.time()
+
+
+def _snapshot_attachment_job(job_id):
+    with _PLM_ATTACHMENT_JOBS_LOCK:
+        job = _PLM_ATTACHMENT_JOBS.get(job_id)
+        if not job:
+            return None
+        return dict(job, logs=list(job.get('logs') or []))
+
+
+def _cleanup_attachment_jobs():
+    cutoff = time.time() - 3600
+    with _PLM_ATTACHMENT_JOBS_LOCK:
+        for job_id, job in list(_PLM_ATTACHMENT_JOBS.items()):
+            if job.get('updated_at', 0) < cutoff:
+                _PLM_ATTACHMENT_JOBS.pop(job_id, None)
 PLM_HEADERS = [
     "序号", "料号", "型号", "物料描述", "单耗",
     "替代关系\n(A:完全替代/N:独供/X:不完全替代)",
@@ -520,60 +608,80 @@ def api_auto_spec_reverse():
     })
 
 @plm_bp.route('/api/plm/auto_hq_attachments', methods=['POST'])
-@track_tool_activity('PLM附件下载')
+@track_tool_activity('PLM\u9644\u4ef6\u4e0b\u8f7d')
 def api_auto_hq_attachments():
-    """Download selected PLM attachments for one HQ material number."""
+    """Start a background PLM attachment download job."""
     username = (request.form.get('username') or '').strip()
     password = request.form.get('password') or ''
     hqpn = (request.form.get('hqpn') or '').strip()
     if not username:
-        return jsonify({'success': False, 'error': '请输入账号'})
+        return jsonify({'success': False, 'error': '\u8bf7\u8f93\u5165\u8d26\u53f7'})
     if not password:
-        return jsonify({'success': False, 'error': '请输入密码'})
+        return jsonify({'success': False, 'error': '\u8bf7\u8f93\u5165\u5bc6\u7801'})
     if not hqpn:
-        return jsonify({'success': False, 'error': '请输入 HQ 料号'})
+        return jsonify({'success': False, 'error': '\u8bf7\u8f93\u5165 HQ \u6599\u53f7'})
 
-    logs = []
+    _cleanup_attachment_jobs()
+    job_id = _new_attachment_job(hqpn)
 
-    def add_log(message):
-        logs.append(str(message))
+    def run_job():
+        _update_attachment_job(job_id, status='running', stage='\u51c6\u5907\u542f\u52a8\u6d4f\u89c8\u5668', progress=5)
+        try:
+            from pathlib import Path as _Path
+            from playwright.sync_api import sync_playwright
+            from .automation import run_hq_attachment_download
 
-    try:
-        from pathlib import Path as _Path
-        from playwright.sync_api import sync_playwright
-        from .automation import run_hq_attachment_download
-
-        with sync_playwright() as playwright:
-            output_path = run_hq_attachment_download(
-                playwright,
-                username=username,
-                password=password,
-                hqpn=hqpn,
-                output_dir=_Path(OUTPUT_DIR),
-                headless=False,
-                log=add_log,
+            with sync_playwright() as playwright:
+                output_path = run_hq_attachment_download(
+                    playwright,
+                    username=username,
+                    password=password,
+                    hqpn=hqpn,
+                    output_dir=_Path(OUTPUT_DIR),
+                    headless=False,
+                    log=lambda message: _append_attachment_log(job_id, message),
+                )
+            output_path = str(output_path)
+            if not os.path.exists(output_path):
+                raise RuntimeError('\u81ea\u52a8\u5316\u5b8c\u6210\u4f46\u672a\u627e\u5230\u4e0b\u8f7d\u6587\u4ef6')
+            out_name = os.path.basename(output_path)
+            _update_attachment_job(
+                job_id,
+                status='done',
+                stage='\u4e0b\u8f7d\u5b8c\u6210',
+                progress=100,
+                download=f'/download/{out_name}',
+                filename=out_name,
+                source_path=output_path,
             )
-    except ImportError as e:
-        return jsonify({
-            'success': False,
-            'error': '缺少 Playwright 依赖，请安装 requirements.txt 并执行 playwright install chromium',
-            'log': chr(10).join(logs + [str(e)]),
-        })
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e), 'log': chr(10).join(logs)})
+        except ImportError as e:
+            _append_attachment_log(job_id, str(e))
+            _update_attachment_job(job_id, status='error', stage='\u7f3a\u5c11 Playwright \u4f9d\u8d56', progress=100, error='\u7f3a\u5c11 Playwright \u4f9d\u8d56\uff0c\u8bf7\u5b89\u88c5 requirements.txt \u5e76\u6267\u884c playwright install chromium')
+        except Exception as e:
+            _append_attachment_log(job_id, str(e))
+            _update_attachment_job(job_id, status='error', stage='\u6267\u884c\u5931\u8d25', progress=100, error=str(e))
 
-    output_path = str(output_path)
-    if not os.path.exists(output_path):
-        return jsonify({'success': False, 'error': '自动化完成但未找到下载文件', 'log': chr(10).join(logs)})
+    threading.Thread(target=run_job, daemon=True).start()
+    return jsonify({'success': True, 'job_id': job_id, 'status_url': f'/api/plm/auto_hq_attachments/status/{job_id}'})
 
-    out_name = os.path.basename(output_path)
+
+@plm_bp.route('/api/plm/auto_hq_attachments/status/<job_id>', methods=['GET'])
+def api_auto_hq_attachments_status(job_id):
+    job = _snapshot_attachment_job(job_id)
+    if not job:
+        return jsonify({'success': False, 'error': '\u4efb\u52a1\u4e0d\u5b58\u5728\u6216\u5df2\u8fc7\u671f'}), 404
     return jsonify({
         'success': True,
-        'download': f'/download/{out_name}',
-        'filename': out_name,
-        'source_path': output_path,
-        'log': chr(10).join(logs),
+        'job_id': job['id'],
+        'status': job.get('status'),
+        'stage': job.get('stage'),
+        'progress': job.get('progress'),
+        'hqpn': job.get('hqpn'),
+        'download': job.get('download'),
+        'filename': job.get('filename'),
+        'source_path': job.get('source_path'),
+        'error': job.get('error'),
+        'log': chr(10).join(job.get('logs') or []),
     })
-
 
 

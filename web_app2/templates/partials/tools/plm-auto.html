@@ -48,6 +48,18 @@
   <div id="paAttStats" style="margin-top:6px;font-size:13px"></div>
   <a class="download" id="paAttDl" href="#">下载 PLM 附件</a>
 </div>
+<div id="paAttProgressPanel" class="plm-auto-progress" style="display:none;margin-top:12px;border:1px solid #b7d4ff;background:#f4f8ff;border-radius:8px;padding:12px 14px">
+  <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:8px">
+    <div>
+      <div id="paAttProgressStage" style="font-size:14px;font-weight:700;color:#163a6b">&#31561;&#24453;&#24320;&#22987;</div>
+      <div id="paAttProgressNote" style="font-size:12px;color:#52657d;margin-top:3px">&#20219;&#21153;&#21551;&#21160;&#21518;&#20250;&#23454;&#26102;&#21047;&#26032;&#24403;&#21069;&#27493;&#39588;</div>
+    </div>
+    <div id="paAttProgressPct" style="font-size:22px;font-weight:800;color:#1a5ad4;min-width:58px;text-align:right">0%</div>
+  </div>
+  <div style="height:10px;border-radius:999px;background:#dbe8ff;border:1px solid #c6d8f5;overflow:hidden">
+    <div id="paAttProgressBar" style="width:0%;height:100%;background:linear-gradient(90deg,#2d6cdf,#2a8a2a);transition:width .2s ease"></div>
+  </div>
+</div>
 <div class="error" id="paAttError"></div>
 <div id="paAttLogBox" style="display:none;margin-top:10px"><h4 style="margin:0 0 6px;font-size:13px">执行日志</h4><pre id="paAttLog" style="font-size:12px;background:#1a1a2e;color:#e0e0e0;padding:10px;border-radius:6px;max-height:220px;overflow:auto;white-space:pre-wrap;font-family:Consolas,'Courier New',monospace"></pre></div>
 </div>

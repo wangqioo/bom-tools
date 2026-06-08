@@ -1673,44 +1673,83 @@ async function plmAutoRun(){
   btn.disabled=false;
 }
 
+function plmAttSetProgress(stage,pct,note){
+  const panel=$('paAttProgressPanel');
+  const bar=$('paAttProgressBar');
+  const pctEl=$('paAttProgressPct');
+  const stageEl=$('paAttProgressStage');
+  const noteEl=$('paAttProgressNote');
+  const value=Math.max(0,Math.min(100,parseInt(pct)||0));
+  if(panel) show(panel);
+  if(bar) bar.style.width=value+'%';
+  if(pctEl) pctEl.textContent=value+'%';
+  if(stageEl) stageEl.textContent=stage||'\u5904\u7406\u4e2d';
+  if(noteEl) noteEl.textContent=note||'PLM \u81ea\u52a8\u5316\u6b63\u5728\u6267\u884c\uff0c\u8bf7\u52ff\u5173\u95ed\u672c\u9875\u9762';
+}
+
 async function plmAutoAttachmentRun(){
   const user=($('paAttUser').value||'').trim();
   const pass=$('paAttPass').value||'';
   const hqpn=($('paAttHqpn').value||'').replace(/\s+/g,'');
-  if(!user){showInlineError('paAttError','请输入账号','paAttStatus');return;}
-  if(!pass){showInlineError('paAttError','请输入密码','paAttStatus');return;}
-  if(!hqpn){showInlineError('paAttError','请输入 HQ 料号','paAttStatus');return;}
+  if(!user){showInlineError('paAttError','\u8bf7\u8f93\u5165\u8d26\u53f7','paAttStatus');return;}
+  if(!pass){showInlineError('paAttError','\u8bf7\u8f93\u5165\u5bc6\u7801','paAttStatus');return;}
+  if(!hqpn){showInlineError('paAttError','\u8bf7\u8f93\u5165 HQ \u6599\u53f7','paAttStatus');return;}
   const btn=$('paAttRun');
   btn.disabled=true;
-  $('paAttStatus').textContent='正在运行，浏览器会自动打开并操作 PLM...';
+  $('paAttStatus').textContent='\u6b63\u5728\u521b\u5efa\u4e0b\u8f7d\u4efb\u52a1...';
   hide($('paAttResult'));hide($('paAttLogBox'));clearInlineError('paAttError');
+  plmAttSetProgress('\u51c6\u5907\u542f\u52a8',3,'\u6b63\u5728\u63d0\u4ea4\u4efb\u52a1');
   const fd=new FormData();
   fd.append('username',user);
   fd.append('password',pass);
   fd.append('hqpn',hqpn);
+  let pollTimer=null;
   try{
     const r=await fetch('/api/plm/auto_hq_attachments',{method:'POST',body:fd});
     const d=await r.json();
-    if(d.success){
-      $('paAttDl').href=d.download;
-      $('paAttStats').textContent=d.filename||'PLM 附件已下载';
-      $('paAttStatus').textContent='完成！';
-      show($('paAttResult'));
-      if(d.log){$('paAttLog').textContent=d.log;show($('paAttLogBox'));}
-    }else{
-      $('paAttError').textContent=d.error||'自动化执行失败';
+    if(!d.success) throw new Error(d.error||'\u81ea\u52a8\u5316\u4efb\u52a1\u521b\u5efa\u5931\u8d25');
+    const statusUrl=d.status_url||('/api/plm/auto_hq_attachments/status/'+d.job_id);
+    $('paAttStatus').textContent='\u4efb\u52a1\u5df2\u542f\u52a8\uff0c\u6b63\u5728\u6267\u884c PLM \u81ea\u52a8\u5316...';
+    const poll=async()=>{
+      const sr=await fetch(statusUrl);
+      const s=await sr.json();
+      if(!s.success) throw new Error(s.error||'\u8bfb\u53d6\u4efb\u52a1\u72b6\u6001\u5931\u8d25');
+      plmAttSetProgress(s.stage||'\u5904\u7406\u4e2d',s.progress||0,s.status==='done'?'\u5904\u7406\u5b8c\u6210':'\u6b63\u5728\u6267\u884c\uff1a'+(s.hqpn||hqpn));
+      if(s.log){$('paAttLog').textContent=s.log;show($('paAttLogBox'));}
+      if(s.status==='done'){
+        if(pollTimer) clearInterval(pollTimer);
+        $('paAttDl').href=s.download;
+        $('paAttStats').textContent=s.filename||'PLM \u9644\u4ef6\u5df2\u4e0b\u8f7d';
+        $('paAttStatus').textContent='\u5b8c\u6210\uff01';
+        plmAttSetProgress('\u4e0b\u8f7d\u5b8c\u6210',100,'\u53ef\u4ee5\u70b9\u51fb\u4e0b\u65b9\u94fe\u63a5\u4e0b\u8f7d\u9644\u4ef6');
+        show($('paAttResult'));
+        btn.disabled=false;
+      }else if(s.status==='error'){
+        if(pollTimer) clearInterval(pollTimer);
+        $('paAttError').textContent=s.error||'\u81ea\u52a8\u5316\u6267\u884c\u5931\u8d25';
+        show($('paAttError'));
+        $('paAttStatus').textContent='';
+        plmAttSetProgress('\u6267\u884c\u5931\u8d25',100,'\u8bf7\u67e5\u770b\u6267\u884c\u65e5\u5fd7');
+        btn.disabled=false;
+      }
+    };
+    await poll();
+    pollTimer=setInterval(()=>{poll().catch(e=>{
+      if(pollTimer) clearInterval(pollTimer);
+      $('paAttError').textContent=e.message;
       show($('paAttError'));
       $('paAttStatus').textContent='';
-      if(d.log){$('paAttLog').textContent=d.log;show($('paAttLogBox'));}
-    }
+      btn.disabled=false;
+    });},1000);
   }catch(e){
+    if(pollTimer) clearInterval(pollTimer);
     $('paAttError').textContent=e.message;
     show($('paAttError'));
     $('paAttStatus').textContent='';
+    plmAttSetProgress('\u6267\u884c\u5931\u8d25',100,'\u4efb\u52a1\u672a\u80fd\u542f\u52a8\u6216\u72b6\u6001\u8bfb\u53d6\u5931\u8d25');
+    btn.disabled=false;
   }
-  btn.disabled=false;
 }
-
 async function seLoadFile(){
   const f=$('seFile').files[0];
   clearInlineError('seError');hide($('seResult'));
