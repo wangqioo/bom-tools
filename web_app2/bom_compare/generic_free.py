@@ -210,104 +210,147 @@ def _write_report(out_path, left_rows, right_rows, field_pairs, stats, duplicate
     ws.title = "差异总览"
     bdr = Border(left=Side(style="thin"), right=Side(style="thin"), top=Side(style="thin"), bottom=Side(style="thin"))
     header_fill = PatternFill("solid", fgColor="D9EAF7")
+    title_fill = PatternFill("solid", fgColor="1F4E78")
+    title_font = Font(bold=True, color="FFFFFF", size=14)
     fills = {
-        "仅基准BOM存在": PatternFill("solid", fgColor="FFEBEE"),
-        "仅对比BOM存在": PatternFill("solid", fgColor="E8F5E9"),
-        "字段变更": PatternFill("solid", fgColor="FFF9C4"),
-        "一致": PatternFill("solid", fgColor="F5F5F5"),
+        "新增物料": PatternFill("solid", fgColor="E8F5E9"),
+        "删除物料": PatternFill("solid", fgColor="FFEBEE"),
+        "变更物料": PatternFill("solid", fgColor="FFF9C4"),
     }
+    change_group_fills = [PatternFill("solid", fgColor="FFF9C4"), PatternFill("solid", fgColor="EAF2F8")]
     center = Alignment(horizontal="center", vertical="center")
     left_align = Alignment(horizontal="left", vertical="center")
 
+    ws.merge_cells("A1:D1")
+    ws["A1"] = "通用 BOM 对比差异总览"
+    ws["A1"].font = title_font
+    ws["A1"].fill = title_fill
+    ws["A1"].alignment = center
+    ws.append([])
     ws.append(["指标", "数量"])
     summary = [
         ("基准BOM唯一键数量", stats["left_total"]),
         ("对比BOM唯一键数量", stats["right_total"]),
-        ("仅基准BOM存在", stats["left_only"]),
-        ("仅对比BOM存在", stats["right_only"]),
-        ("字段变更", stats["changed"]),
+        ("新增物料", stats["right_only"]),
+        ("删除物料", stats["left_only"]),
+        ("变更物料", stats["changed"]),
         ("完全一致", stats["same"]),
         ("基准BOM重复键", stats["left_duplicates"]),
         ("对比BOM重复键", stats["right_duplicates"]),
         ("基准BOM空匹配键行", stats["left_blank_keys"]),
         ("对比BOM空匹配键行", stats["right_blank_keys"]),
     ]
-    for row in summary:
-        ws.append(row)
+    summary_row_by_name = {}
+    for name, value in summary:
+        ws.append([name, value])
+        summary_row_by_name[name] = ws.max_row
 
     all_keys = sorted(set(left_rows) | set(right_rows))
-    detail = wb.create_sheet("\u5dee\u5f02\u660e\u7ec6")
-    field_detail = wb.create_sheet("\u5b57\u6bb5\u53d8\u5316\u660e\u7ec6")
-    field_detail.append([
-        "\u5339\u914d\u952e",
-        "\u53d8\u66f4\u5b57\u6bb5",
-        "\u57fa\u51c6BOM\u503c",
-        "\u5bf9\u6bd4BOM\u503c",
-        "\u57fa\u51c6BOM\u884c\u53f7",
-        "\u5bf9\u6bd4BOM\u884c\u53f7",
-    ])
-    detail_rows = []
-    max_changed_fields = 0
+    added_keys = []
+    removed_keys = []
+    changed_items = []
+    changed_labels = []
+    changed_label_set = set()
     for key in all_keys:
         left = left_rows.get(key)
         right = right_rows.get(key)
         if left and not right:
-            detail_rows.append(["\u4ec5\u57fa\u51c6BOM\u5b58\u5728", key, left["row"], "", "", []])
+            removed_keys.append(key)
             continue
         if right and not left:
-            detail_rows.append(["\u4ec5\u5bf9\u6bd4BOM\u5b58\u5728", key, "", right["row"], "", []])
+            added_keys.append(key)
             continue
-        change_cells = []
+        changes = {}
         for left_col, right_col in field_pairs:
             left_value = left["values"].get(left_col, "")
             right_value = right["values"].get(right_col, "")
             if not _values_equal(left_value, right_value):
                 label = _pair_label(left_col, right_col)
-                change_cells.append(f"{label}: {left_value} -> {right_value}")
-                field_detail.append([key, label, left_value, right_value, left["row"], right["row"]])
-        max_changed_fields = max(max_changed_fields, len(change_cells))
-        detail_rows.append([
-            "\u5b57\u6bb5\u53d8\u66f4" if change_cells else "\u4e00\u81f4",
-            key,
-            left["row"],
-            right["row"],
-            len(change_cells),
-            change_cells,
-        ])
+                changes[label] = f"{left_value} -> {right_value}"
+                if label not in changed_label_set:
+                    changed_labels.append(label)
+                    changed_label_set.add(label)
+        if changes:
+            changed_items.append([key, left["row"], right["row"], changes])
 
-    detail_headers = [
-        "\u5dee\u5f02\u7c7b\u578b",
-        "\u5339\u914d\u952e",
-        "\u57fa\u51c6BOM\u884c\u53f7",
-        "\u5bf9\u6bd4BOM\u884c\u53f7",
-        "\u53d8\u66f4\u5b57\u6bb5\u6570",
-    ]
-    detail_headers.extend([f"\u53d8\u5316{i}" for i in range(1, max_changed_fields + 1)])
-    detail.append(detail_headers)
-    for diff_type, key, left_row, right_row, changed_count, change_cells in detail_rows:
-        padding = [""] * (max_changed_fields - len(change_cells))
-        detail.append([diff_type, key, left_row, right_row, changed_count] + change_cells + padding)
+    def source_headers(keys, rows):
+        result = []
+        seen = set()
+        for key in keys:
+            row = rows.get(key) or {}
+            values = row.get("all_values") or {}
+            for header in row.get("headers") or values.keys():
+                if header in values and header not in seen:
+                    result.append(header)
+                    seen.add(header)
+        return result
+
+    def write_source_sheet(sheet, keys, rows, diff_type, side_label):
+        source_cols = source_headers(keys, rows)
+        headers = ["差异类型", "匹配键", f"{side_label}行号"] + source_cols
+        sheet.append(headers)
+        for key in keys:
+            row = rows[key]
+            values = row.get("all_values") or {}
+            sheet.append([diff_type, key, row.get("row", "")] + [values.get(col, "") for col in source_cols])
+
+    added_sheet = wb.create_sheet("新增物料")
+    write_source_sheet(added_sheet, added_keys, right_rows, "新增物料", "对比BOM")
+
+    removed_sheet = wb.create_sheet("删除物料")
+    write_source_sheet(removed_sheet, removed_keys, left_rows, "删除物料", "基准BOM")
+
+    changed_sheet = wb.create_sheet("变更物料")
+    changed_headers = ["匹配键", "基准BOM行号", "对比BOM行号", "变更字段数"] + changed_labels
+    changed_sheet.append(changed_headers)
+    for key, left_row, right_row, changes in changed_items:
+        changed_sheet.append([key, left_row, right_row, len(changes)] + [changes.get(label, "") for label in changed_labels])
 
     dup = wb.create_sheet("重复和空键")
     dup.append(["类型", "说明"])
     for note in duplicate_notes:
         dup.append(note)
 
+    for name, sheet in [
+        ("新增物料", added_sheet),
+        ("删除物料", removed_sheet),
+        ("变更物料", changed_sheet),
+        ("基准BOM重复键", dup),
+        ("对比BOM重复键", dup),
+        ("基准BOM空匹配键行", dup),
+        ("对比BOM空匹配键行", dup),
+    ]:
+        row_idx = summary_row_by_name.get(name)
+        if row_idx:
+            cell = ws.cell(row=row_idx, column=2)
+            quoted = sheet.title.replace("'", "''")
+            cell.hyperlink = f"#'{quoted}'!A1"
+            cell.style = "Hyperlink"
+
     for sheet in wb.worksheets:
+        fill_by_key = {}
         for row in sheet.iter_rows():
             row_fill = fills.get(row[0].value)
+            if sheet.title == "变更物料" and row[0].row > 1:
+                key = row[0].value
+                if key not in fill_by_key:
+                    fill_by_key[key] = change_group_fills[len(fill_by_key) % len(change_group_fills)]
+                row_fill = fill_by_key[key]
             for cell in row:
                 cell.border = bdr
-                cell.alignment = center if cell.column <= 4 else left_align
-                if cell.row == 1:
+                cell.alignment = center if cell.column <= 3 else left_align
+                is_summary_header = sheet.title == "差异总览" and cell.row == 3
+                is_table_header = sheet.title != "差异总览" and cell.row == 1
+                if is_summary_header or is_table_header:
                     cell.font = Font(bold=True)
                     cell.fill = header_fill
                 elif row_fill:
                     cell.fill = row_fill
         for ci in range(1, sheet.max_column + 1):
-            sheet.column_dimensions[get_column_letter(ci)].width = 18 if ci <= 4 else 28
-        sheet.freeze_panes = "A2"
-        sheet.auto_filter.ref = sheet.dimensions
+            sheet.column_dimensions[get_column_letter(ci)].width = 18 if ci <= 3 else 28
+        if sheet.max_row >= 1:
+            sheet.freeze_panes = "A4" if sheet.title == "差异总览" else "A2"
+            sheet.auto_filter.ref = f"A3:B{sheet.max_row}" if sheet.title == "差异总览" else sheet.dimensions
         sheet.title = _safe_title(sheet.title)
     wb.save(out_path)
 

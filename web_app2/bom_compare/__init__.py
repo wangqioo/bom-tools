@@ -196,6 +196,14 @@ def _safe_sheet_title(value):
         text = text.replace(ch, '_')
     return text[:31] or 'Sheet'
 
+def _quote_sheet_name(name):
+    return "'" + str(name).replace("'", "''") + "'"
+
+
+def _set_internal_hyperlink(cell, sheet, target='A1'):
+    cell.hyperlink = f"#{_quote_sheet_name(sheet.title)}!{target}"
+    cell.style = 'Hyperlink'
+
 def _normalize_header(value):
     return ''.join(str(value or '').lower().split()).replace('_', '').replace('-', '')
 
@@ -953,7 +961,9 @@ def _write_diff_report(out_path, old_rows, new_rows, compare_cols, stats, duplic
         ('基准版本重复键', stats['old_duplicates']),
         ('对比版本重复键', stats['new_duplicates']),
     ]
+    summary_row_by_name = {}
     for ri, (name, value) in enumerate(summary_rows, 3):
+        summary_row_by_name[name] = ri
         ws.cell(row=ri, column=1, value=name).font = Font(bold=True)
         ws.cell(row=ri, column=2, value=value)
         ws.cell(row=ri, column=1).border = bdr
@@ -1051,9 +1061,12 @@ def _write_diff_report(out_path, old_rows, new_rows, compare_cols, stats, duplic
         sheet.freeze_panes = 'A2'
         sheet.auto_filter.ref = sheet.dimensions
 
-    write_source_table(wb.create_sheet('新增物料'), [i for i in items if i['type'] == '新增'], 'new')
-    write_source_table(wb.create_sheet('删除物料'), [i for i in items if i['type'] == '删除'], 'old')
-    write_table(wb.create_sheet('变更物料'), [i for i in items if i['type'] == '变更'])
+    added_sheet = wb.create_sheet('\u65b0\u589e\u7269\u6599')
+    write_source_table(added_sheet, [i for i in items if i['type'] == '\u65b0\u589e'], 'new')
+    removed_sheet = wb.create_sheet('\u5220\u9664\u7269\u6599')
+    write_source_table(removed_sheet, [i for i in items if i['type'] == '\u5220\u9664'], 'old')
+    changed_sheet = wb.create_sheet('\u53d8\u66f4\u7269\u6599')
+    write_table(changed_sheet, [i for i in items if i['type'] == '\u53d8\u66f4'])
 
     ws_dup = wb.create_sheet('重复料号')
     ws_dup.append(['类型', '料号和行号'])
@@ -1068,6 +1081,17 @@ def _write_diff_report(out_path, old_rows, new_rows, compare_cols, stats, duplic
         for cell in row:
             cell.border = bdr
             cell.alignment = left
+
+    for summary_name, target_sheet in [
+        ('新增', added_sheet),
+        ('删除', removed_sheet),
+        ('变更', changed_sheet),
+        ('基准版本重复键', ws_dup),
+        ('对比版本重复键', ws_dup),
+    ]:
+        row_idx = summary_row_by_name.get(summary_name)
+        if row_idx:
+            _set_internal_hyperlink(ws.cell(row=row_idx, column=2), target_sheet)
 
     for sheet in wb.worksheets:
         for col in range(1, sheet.max_column + 1):

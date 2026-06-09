@@ -24,6 +24,7 @@ from app import app  # noqa: E402
 from bom_compare import _save_uploaded_hq_excel  # noqa: E402
 from feishu import _is_preferred_level, _write_cache  # noqa: E402
 from manufacturer_alias import normalize_manufacturer_name  # noqa: E402
+from shared import _save_uploaded_excel  # noqa: E402
 
 
 def _xlsx_bytes(headers, rows):
@@ -113,6 +114,37 @@ class WebAppTests(unittest.TestCase):
         self.assertIn("单板HQ BOM版本对比", html)
         self.assertIn("整机HQ BOM版本对比", html)
         self.assertIn("Cadence导出BOM对比HQ BOM", html)
+
+
+    def test_about_project_nav_is_last_and_hides_direct_contact_sentence(self):
+        resp = app.test_client().get("/")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.get_data(as_text=True)
+        nav_start = html.index("<nav>")
+        nav_end = html.index("</nav>", nav_start)
+        nav_html = html[nav_start:nav_end]
+        self.assertGreater(nav_html.index('data-tool="manual"'), nav_html.index('data-tool="admin-users"'))
+        self.assertGreater(nav_html.index('data-tool="about-project"'), nav_html.index('data-tool="manual"'))
+        self.assertNotIn("\u8054\u7cfb\u65b9\u5f0f\uff1a\u98de\u4e66\u641c\u7d22\u5de5\u53f7 100448405", html)
+        self.assertNotIn("\u98de\u4e66\u641c\u7d22\u5de5\u53f7 100448405 \u6216\u59d3\u540d", html)
+
+    def test_about_project_contains_polished_easter_egg(self):
+        resp = app.test_client().get("/")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.get_data(as_text=True)
+        self.assertIn('id="aboutEggTrigger"', html)
+        self.assertIn('id="aboutEggPanel"', html)
+        self.assertIn('class="about-egg show"', html)
+        self.assertIn('class="about-egg-trigger active"', html)
+        self.assertIn('aria-hidden="false"', html)
+        self.assertIn("BOM TOOLS / INTERNAL BUILD", html)
+        self.assertIn("Keep the BOM clean.", html)
+        css = (WEB_APP / "static" / "css" / "app.css").read_text(encoding="utf-8")
+        self.assertIn(".about-egg-trigger", css)
+        self.assertIn("@keyframes aboutPulse", css)
+        js = (WEB_APP / "static" / "js" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("function initAboutProject", js)
+        self.assertIn("tool==='about-project'", js)
 
     def test_bom_detect_returns_fifty_preview_rows(self):
         rows = [["PN-%02d" % i, "Model-%02d" % i] for i in range(1, 56)]
@@ -476,6 +508,31 @@ class WebAppTests(unittest.TestCase):
             ["bomcmp_old_converted_sameuid.xlsx", "bomcmp_new_converted_sameuid.xlsx"],
         )
 
+
+    def test_plain_excel_upload_converts_xls_instead_of_rejecting(self):
+        class DummyUpload:
+            filename = "customer.xls"
+
+            def save(self, path):
+                Path(path).write_bytes(b"xls")
+
+        converted = []
+
+        def fake_convert(src_path, uid, prefix="converted"):
+            out_path = WEB_APP / "uploads" / f"{prefix}_converted_{uid}.xlsx"
+            converted.append((Path(src_path).name, out_path.name))
+            return str(out_path)
+
+        with patch("shared._convert_xls_with_excel", side_effect=fake_convert):
+            left_path = _save_uploaded_excel(DummyUpload(), "bomcmp_customer_left", "sameuid")
+            right_path = _save_uploaded_excel(DummyUpload(), "bomcmp_free_right", "sameuid")
+
+        self.assertNotEqual(left_path, right_path)
+        self.assertEqual(
+            [name for _, name in converted],
+            ["bomcmp_customer_left_converted_sameuid.xlsx", "bomcmp_free_right_converted_sameuid.xlsx"],
+        )
+
     def test_hq_bom_version_exports_single_detail_sheet_with_full_attrs(self):
         headers = ["序号", "料号", "型号", "物料描述", "单耗", "替代关系", "位号", "生产厂家", "制程", "是否量产标识"]
 
@@ -549,6 +606,47 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(added_row["\u5236\u7a0b"], "SMT")
         self.assertEqual(added_row["\u662f\u5426\u91cf\u4ea7\u6807\u8bc6"], "\u662f")
         wb.close()
+
+
+    def test_hq_bom_version_summary_links_to_detail_sheets(self):
+        base_bom = _hq_export_bytes([
+            ["1", "A", "M1", "DESC-A", 1, "", "R1", "\u5382\u5546A"],
+            ["2", "B", "M2", "DESC-B", 2, "", "C1", "\u5382\u5546B"],
+        ])
+        compare_bom = _hq_export_bytes([
+            ["1", "A", "M1X", "DESC-A", 1, "", "R1", "\u5382\u5546A"],
+            ["3", "C", "M3", "DESC-C", 3, "", "L1", "\u5382\u5546C"],
+        ])
+        resp = app.test_client().post(
+            "/api/bom_compare/hq_version",
+            data={
+                "old_file": (base_bom, "base.xlsx"),
+                "new_file": (compare_bom, "compare.xlsx"),
+                "config": json.dumps({
+                    "key_col": "\u6599\u53f7",
+                    "compare_cols": ["\u578b\u53f7"],
+                }),
+            },
+            content_type="multipart/form-data",
+        )
+        payload = resp.get_json()
+        self.assertTrue(payload["success"], payload)
+        report_path = WEB_APP / "outputs" / payload["download"].split("/")[-1]
+        wb = openpyxl.load_workbook(report_path, data_only=False)
+        try:
+            summary = wb["\u5dee\u5f02\u603b\u89c8"]
+            link_by_name = {
+                summary.cell(row=row, column=1).value: summary.cell(row=row, column=2).hyperlink.target
+                for row in range(1, summary.max_row + 1)
+                if summary.cell(row=row, column=2).hyperlink
+            }
+            self.assertEqual(link_by_name["\u65b0\u589e"], "#'\u65b0\u589e\u7269\u6599'!A1")
+            self.assertEqual(link_by_name["\u5220\u9664"], "#'\u5220\u9664\u7269\u6599'!A1")
+            self.assertEqual(link_by_name["\u53d8\u66f4"], "#'\u53d8\u66f4\u7269\u6599'!A1")
+            self.assertEqual(link_by_name["\u57fa\u51c6\u7248\u672c\u91cd\u590d\u952e"], "#'\u91cd\u590d\u6599\u53f7'!A1")
+            self.assertEqual(link_by_name["\u5bf9\u6bd4\u7248\u672c\u91cd\u590d\u952e"], "#'\u91cd\u590d\u6599\u53f7'!A1")
+        finally:
+            wb.close()
 
     def test_hq_bom_version_compare_reports_refdes_delta_as_part_change(self):
         base_bom = _hq_export_bytes(

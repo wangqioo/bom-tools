@@ -1,13 +1,42 @@
 <script type="text/html" id="tpl-about-project">
 <div class="workflow-shell">
-  <div class="workflow-hero"><h4>关于该项目</h4><p>BOM Tools 是面向硬件设计日常流程的内部辅助平台，集中提供 BOM 整理、匹配、对比和 PLM 相关小工具。</p></div>
+  <div class="workflow-hero about-hero">
+    <div>
+      <h4>关于该项目</h4>
+      <p>BOM Tools 是面向硬件设计日常流程的内部辅助平台，集中提供 BOM 整理、匹配、对比和 PLM 相关小工具。</p>
+    </div>
+    <button class="about-egg-trigger active" id="aboutEggTrigger" type="button" aria-label="打开项目彩蛋" title="项目彩蛋"><span>BT</span></button>
+  </div>
+  <div class="about-egg show" id="aboutEggPanel" aria-hidden="false">
+    <div class="about-egg-head">
+      <div>
+        <div class="about-egg-kicker">BOM TOOLS / INTERNAL BUILD</div>
+        <h3>硬件流程控制台</h3>
+      </div>
+      <span class="about-egg-status">ONLINE</span>
+    </div>
+    <div class="about-egg-grid">
+      <div class="about-egg-orbit" aria-hidden="true">
+        <span class="about-node n1">BOM</span>
+        <span class="about-node n2">PLM</span>
+        <span class="about-node n3">MATCH</span>
+        <span class="about-node n4">DIFF</span>
+        <span class="about-core">HQ</span>
+      </div>
+      <div class="about-egg-copy">
+        <div class="about-egg-line"><span>01</span><b>整理输入</b><em>把不规则 Excel 拉回统一节奏</em></div>
+        <div class="about-egg-line"><span>02</span><b>匹配物料</b><em>让料号、型号、厂商和位号说同一种语言</em></div>
+        <div class="about-egg-line"><span>03</span><b>输出差异</b><em>把变化点沉到可追踪的报告里</em></div>
+      </div>
+    </div>
+    <div class="about-egg-foot"><span>Built for daily hardware work</span><span>Keep the BOM clean.</span></div>
+  </div>
   <div class="section"><h3>项目联系人</h3>
     <div class="workflow-step-desc">遇到使用问题、数据异常或想沟通新功能，可通过飞书联系项目维护人。</div>
     <div class="plm-info" style="line-height:1.8">
       <div><b>飞书联系人：</b>王齐</div>
       <div><b>工号：</b>100448405</div>
       <div><b>部门/岗位：</b>计算硬件二部-硬件开发工程师-王齐</div>
-      <div><b>联系方式：</b>飞书搜索工号 100448405 或姓名“王齐”</div>
     </div>
   </div>
   <div class="section"><h3>使用建议</h3>

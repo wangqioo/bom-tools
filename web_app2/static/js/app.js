@@ -104,7 +104,12 @@ function showOverview(){
   $('toolTitle').textContent = 'BOM Tools';
   $('toolBadge').textContent = '硬件设计辅助平台';
   let html = '<div class="overview-grid">';
-  for(const [key, t] of Object.entries(TOOLS)){
+  const orderedTools = Object.entries(TOOLS).sort(([a], [b])=>{
+    if(a === 'about-project') return 1;
+    if(b === 'about-project') return -1;
+    return 0;
+  });
+  for(const [key, t] of orderedTools){
     const iconEl = document.querySelector('.sidebar nav a[data-tool="'+key+'"] .icon');
     const icon = iconEl ? iconEl.textContent : '🛠';
     html += '<div class="overview-card" onclick="switchTool(\''+key+'\')">' +
@@ -154,7 +159,26 @@ function initTool(tool){
   else if(tool==='toolbox') initToolbox();
   else if(tool==='admin-users') initAdminUsers();
   else if(tool==='manufacturer-alias') initManufacturerAlias();
+  else if(tool==='about-project') initAboutProject();
   else if(window._toolInits&&window._toolInits[tool]) window._toolInits[tool]();
+}
+
+function initAboutProject(){
+  const trigger=$('aboutEggTrigger');
+  const panel=$('aboutEggPanel');
+  if(!trigger||!panel) return;
+  const syncState=()=>{
+    const open=panel.classList.contains('show');
+    trigger.classList.toggle('active',open);
+    panel.setAttribute('aria-hidden',open?'false':'true');
+  };
+  syncState();
+  trigger.onclick=function(){
+    const open=!panel.classList.contains('show');
+    panel.classList.toggle('show',open);
+    trigger.classList.toggle('active',open);
+    panel.setAttribute('aria-hidden',open?'false':'true');
+  };
 }
 
 const HASH_MD5_K = [
@@ -918,6 +942,16 @@ function cmpCollectCustomerStandardMapping(prefix){
     model: $(prefix+'StdModel')?.value||'',
   };
 }
+const BOM_DEFAULT_COMPARE_FIELDS = new Set(['型号','物料描述','单耗','替代关系','位号','生产厂家']);
+function bomNormalizeCompareFieldName(value){
+  return String(value||'').replace(/\s+/g,'').replace(/[（）]/g,ch=>ch==='（'?'(':')');
+}
+function bomShouldDefaultCompareField(col){
+  return BOM_DEFAULT_COMPARE_FIELDS.has(bomNormalizeCompareFieldName(col));
+}
+function bomCompareFieldChip(col, checked, disabled){
+  return `<label class="field-chip${disabled?' disabled':''}"><input type="checkbox" value="${_escH(col)}"${checked?' checked':''}${disabled?' disabled':''}><span>${_escH(col)}</span></label>`;
+}
 function cmpRenderPairs(prefix){
   const st=cmpState(prefix);
   const left=st.leftHeaders||[], right=st.rightHeaders||[];
@@ -932,8 +966,8 @@ function cmpRenderPairs(prefix){
   const rightKey=(keyCfg.right_key_cols||[])[0]||'';
   let html='';
   common.forEach(col=>{
-    const checked=(col===leftKey && col===rightKey)?'':' checked';
-    html+=`<label><input type="checkbox" value="${_escH(col)}"${checked}>${_escH(col)}</label>`;
+    const isKey=col===leftKey && col===rightKey;
+    html+=bomCompareFieldChip(col,!isKey&&bomShouldDefaultCompareField(col),isKey);
   });
   $(prefix+'CommonPairs').innerHTML=html || '<span style="font-size:12px;color:#888">没有同名字段，可在下方添加自定义映射。</span>';
   cmpRenderManualPairs(prefix);
@@ -1054,7 +1088,7 @@ async function cmpRefresh(prefix, compareType, apiPrefix='/api/bom_compare'){
 }
 function cmpCollectPairs(prefix){
   const pairs=[];
-  document.querySelectorAll('#'+prefix+'CommonPairs input[type="checkbox"]:checked').forEach(x=>pairs.push({left:x.value,right:x.value}));
+  document.querySelectorAll('#'+prefix+'CommonPairs input[type="checkbox"]:checked:not(:disabled)').forEach(x=>pairs.push({left:x.value,right:x.value}));
   (cmpState(prefix).manualPairs||[]).forEach(p=>{if(p.left&&p.right)pairs.push({left:p.left,right:p.right});});
   const seen=new Set();
   return pairs.filter(p=>{const k=p.left+'\u0000'+p.right;if(seen.has(k))return false;seen.add(k);return true;});
@@ -1072,8 +1106,8 @@ function initGenericBomCompare(prefix, compareType, apiPrefix='/api/bom_compare'
   $(prefix+'RightHdr').onchange=compareType==='free_bom'?()=>{cmpPreviewFreeBom(apiPrefix);cmpRefresh(prefix,compareType,apiPrefix);}:autoRefresh;
   if($(prefix+'LeftKey')) $(prefix+'LeftKey').onchange=()=>{cmpRenderKeyPairs(prefix);cmpRenderPairs(prefix);};
   if($(prefix+'RightKey')) $(prefix+'RightKey').onchange=()=>{cmpRenderKeyPairs(prefix);cmpRenderPairs(prefix);};
-  if($(prefix+'SelectAll')) $(prefix+'SelectAll').onclick=()=>document.querySelectorAll('#'+prefix+'CommonPairs input[type="checkbox"]').forEach(x=>x.checked=true);
-  if($(prefix+'SelectNone')) $(prefix+'SelectNone').onclick=()=>document.querySelectorAll('#'+prefix+'CommonPairs input[type="checkbox"]').forEach(x=>x.checked=false);
+  if($(prefix+'SelectAll')) $(prefix+'SelectAll').onclick=()=>document.querySelectorAll('#'+prefix+'CommonPairs input[type="checkbox"]:not(:disabled)').forEach(x=>x.checked=true);
+  if($(prefix+'SelectNone')) $(prefix+'SelectNone').onclick=()=>document.querySelectorAll('#'+prefix+'CommonPairs input[type="checkbox"]:not(:disabled)').forEach(x=>x.checked=false);
   if($(prefix+'AddPair')) $(prefix+'AddPair').onclick=()=>{const st=cmpState(prefix);st.manualPairs.push({left:'',right:''});cmpRenderManualPairs(prefix);};
   if($(prefix+'AddKey')) $(prefix+'AddKey').onclick=()=>{const st=cmpState(prefix);cmpEnsureKeyPairs(prefix);st.keyPairs.push({left:'',right:'',transform:''});cmpRenderKeyPairs(prefix);cmpRenderPairs(prefix);};
   $(prefix+'Run').onclick=async function(){
@@ -1198,18 +1232,23 @@ function initCustomerHqPreview(apiPrefix='/api/bom_compare'){
 }
 
 function initBomCompare(apiPrefix='/api/bom_compare'){
+  const activateBomCompareTab=(tab)=>{
+    const btn=document.querySelector('.bomcmp-tab-btn[data-bomcmp-tab="'+tab+'"]');
+    if(!btn) return;
+    document.querySelectorAll('.bomcmp-tab-btn').forEach(b=>{
+      b.classList.remove('active');
+      b.style.color='#888';
+      b.style.borderBottomColor='transparent';
+    });
+    btn.classList.add('active');
+    btn.style.color='#1a5ad4';
+    btn.style.borderBottomColor='#1a5ad4';
+    document.querySelectorAll('#bomcmp-tab-customer-hq,#bomcmp-tab-hq-version,#bomcmp-tab-machine-hq-version,#bomcmp-tab-free-bom,#bomcmp-tab-cadence-hq').forEach(el=>el.style.display='none');
+    $('bomcmp-tab-'+tab).style.display='block';
+  };
   document.querySelectorAll('.bomcmp-tab-btn').forEach(btn=>{
     btn.onclick=function(){
-      document.querySelectorAll('.bomcmp-tab-btn').forEach(b=>{
-        b.classList.remove('active');
-        b.style.color='#888';
-        b.style.borderBottomColor='transparent';
-      });
-      this.classList.add('active');
-      this.style.color='#1a5ad4';
-      this.style.borderBottomColor='#1a5ad4';
-      document.querySelectorAll('#bomcmp-tab-customer-hq,#bomcmp-tab-hq-version,#bomcmp-tab-machine-hq-version,#bomcmp-tab-free-bom,#bomcmp-tab-cadence-hq').forEach(el=>el.style.display='none');
-      $('bomcmp-tab-'+this.dataset.bomcmpTab).style.display='block';
+      activateBomCompareTab(this.dataset.bomcmpTab);
     };
   });
   initCustomerHqPreview(apiPrefix);
@@ -1226,7 +1265,7 @@ function vcState(prefix){
 }
 
 function vcGetCheckedCols(prefix){
-  return [...document.querySelectorAll('#'+prefix+'CompareCols input[type="checkbox"]:checked')].map(x=>x.value);
+  return [...document.querySelectorAll('#'+prefix+'CompareCols input[type="checkbox"]:checked:not(:disabled)')].map(x=>x.value);
 }
 
 function vcRenderCompareCols(prefix, opts={}){
@@ -1236,8 +1275,8 @@ function vcRenderCompareCols(prefix, opts={}){
   if($(prefix+'RuleSummary')) $(prefix+'RuleSummary').textContent=`匹配规则：按「${key||'料号'}」匹配同一物料`;
   let h='';
   common.forEach(col=>{
-    const checked=col===key?'':' checked';
-    h+=`<label><input type="checkbox" value="${_escH(col)}"${checked}>${_escH(col)}</label>`;
+    const isKey=col===key;
+    h+=bomCompareFieldChip(col,!isKey&&bomShouldDefaultCompareField(col),isKey);
   });
   $(prefix+'CompareCols').innerHTML=h || '<span style="font-size:12px;color:#888">请先加载两份 BOM 的列</span>';
 }
@@ -1294,8 +1333,8 @@ function initVersionCompare(prefix, opts){
   $(prefix+'NewSheet').onchange=()=>vcRefreshColumns(prefix,opts);
   $(prefix+'Refresh').onclick=()=>vcRefreshColumns(prefix,opts);
   $(prefix+'KeyCol').onchange=()=>vcRenderCompareCols(prefix,opts);
-  $(prefix+'SelectAll').onclick=()=>document.querySelectorAll('#'+prefix+'CompareCols input[type="checkbox"]').forEach(x=>x.checked=true);
-  $(prefix+'SelectNone').onclick=()=>document.querySelectorAll('#'+prefix+'CompareCols input[type="checkbox"]').forEach(x=>x.checked=false);
+  $(prefix+'SelectAll').onclick=()=>document.querySelectorAll('#'+prefix+'CompareCols input[type="checkbox"]:not(:disabled)').forEach(x=>x.checked=true);
+  $(prefix+'SelectNone').onclick=()=>document.querySelectorAll('#'+prefix+'CompareCols input[type="checkbox"]:not(:disabled)').forEach(x=>x.checked=false);
   $(prefix+'Run').onclick=async function(){
     const oldFile=$(prefix+'OldFile').files[0], newFile=$(prefix+'NewFile').files[0];
     if(!oldFile||!newFile){showInlineError(prefix+'Error',`请上传基准版本和对比版本 ${opts.label}` ,prefix+'Status');return;}

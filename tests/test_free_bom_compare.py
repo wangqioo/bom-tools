@@ -77,13 +77,13 @@ class FreeBomCompareTests(unittest.TestCase):
         self.assertEqual(payload["same"], 0)
         self.assertTrue(payload["download"].endswith(".xlsx"))
 
-    def test_free_bom_report_keeps_all_field_changes_on_one_row_per_item(self):
+    def test_free_bom_report_exports_review_friendly_sheets(self):
         client = app.test_client()
         compare_resp = client.post(
             "/api/bom_compare/free",
             data={
-                "left_file": (xlsx_bytes(["Item", "MPN", "Qty", "Remark"], [["A1", "R-10K", 2, "old"]]), "left.xlsx"),
-                "right_file": (xlsx_bytes(["Code", "Model", "Quantity", "Remark"], [["A1", "R-22K", 3, "new"]]), "right.xlsx"),
+                "left_file": (xlsx_bytes(["Item", "MPN", "Qty", "Remark"], [["A1", "R-10K", 2, "old"], ["A2", "C-1U", 1, "removed"]]), "left.xlsx"),
+                "right_file": (xlsx_bytes(["Code", "Model", "Quantity", "Remark"], [["A1", "R-22K", 3, "new"], ["A3", "L-2U2", 1, "added"]]), "right.xlsx"),
                 "config": json.dumps({
                     "left_header_row": 1,
                     "right_header_row": 1,
@@ -103,25 +103,38 @@ class FreeBomCompareTests(unittest.TestCase):
 
         report_name = payload["download"].rsplit("/", 1)[-1]
         report_path = WEB_APP / "outputs" / report_name
-        wb = load_workbook(report_path, data_only=True)
+        wb = load_workbook(report_path, data_only=False)
         try:
-            detail = wb["\u5dee\u5f02\u660e\u7ec6"]
-            rows = list(detail.iter_rows(values_only=True))
-            self.assertEqual(len(rows), 2)
-            data = rows[1]
-            self.assertEqual(data[0], "\u5b57\u6bb5\u53d8\u66f4")
-            self.assertEqual(data[1], "A1")
-            self.assertEqual(data[4], 3)
-            self.assertEqual(data[5], "MPN <-> Model: R-10K -> R-22K")
-            self.assertEqual(data[6], "Qty <-> Quantity: 2 -> 3")
-            self.assertEqual(data[7], "Remark: old -> new")
+            self.assertEqual(wb.sheetnames, ["\u5dee\u5f02\u603b\u89c8", "\u65b0\u589e\u7269\u6599", "\u5220\u9664\u7269\u6599", "\u53d8\u66f4\u7269\u6599", "\u91cd\u590d\u548c\u7a7a\u952e"])
+            self.assertNotIn("\u5dee\u5f02\u660e\u7ec6", wb.sheetnames)
+            summary = wb["\u5dee\u5f02\u603b\u89c8"]
+            summary_values = {summary.cell(row=row, column=1).value: summary.cell(row=row, column=2).value for row in range(4, summary.max_row + 1)}
+            self.assertEqual(summary_values["\u65b0\u589e\u7269\u6599"], 1)
+            self.assertEqual(summary_values["\u5220\u9664\u7269\u6599"], 1)
+            self.assertEqual(summary_values["\u53d8\u66f4\u7269\u6599"], 1)
+            self.assertEqual(summary.cell(row=6, column=2).hyperlink.target, "#'\u65b0\u589e\u7269\u6599'!A1")
+            self.assertEqual(summary.cell(row=7, column=2).hyperlink.target, "#'\u5220\u9664\u7269\u6599'!A1")
+            self.assertEqual(summary.cell(row=8, column=2).hyperlink.target, "#'\u53d8\u66f4\u7269\u6599'!A1")
 
-            field_detail = wb["\u5b57\u6bb5\u53d8\u5316\u660e\u7ec6"]
-            field_rows = list(field_detail.iter_rows(min_row=2, values_only=True))
-            self.assertEqual(len(field_rows), 3)
-            self.assertEqual(field_rows[0], ("A1", "MPN <-> Model", "R-10K", "R-22K", 2, 2))
-            self.assertEqual(field_rows[1], ("A1", "Qty <-> Quantity", "2", "3", 2, 2))
-            self.assertEqual(field_rows[2], ("A1", "Remark", "old", "new", 2, 2))
+            added = wb["\u65b0\u589e\u7269\u6599"]
+            self.assertEqual([cell.value for cell in added[1]], ["\u5dee\u5f02\u7c7b\u578b", "\u5339\u914d\u952e", "\u5bf9\u6bd4BOM\u884c\u53f7", "Code", "Model", "Quantity", "Remark"])
+            self.assertEqual([cell.value for cell in added[2]], ["\u65b0\u589e\u7269\u6599", "A3", 3, "A3", "L-2U2", "1", "added"])
+
+            removed = wb["\u5220\u9664\u7269\u6599"]
+            self.assertEqual([cell.value for cell in removed[1]], ["\u5dee\u5f02\u7c7b\u578b", "\u5339\u914d\u952e", "\u57fa\u51c6BOM\u884c\u53f7", "Item", "MPN", "Qty", "Remark"])
+            self.assertEqual([cell.value for cell in removed[2]], ["\u5220\u9664\u7269\u6599", "A2", 3, "A2", "C-1U", "1", "removed"])
+
+            changed = wb["\u53d8\u66f4\u7269\u6599"]
+            self.assertEqual([cell.value for cell in changed[1]], ["\u5339\u914d\u952e", "\u57fa\u51c6BOM\u884c\u53f7", "\u5bf9\u6bd4BOM\u884c\u53f7", "\u53d8\u66f4\u5b57\u6bb5\u6570", "MPN <-> Model", "Qty <-> Quantity", "Remark"])
+            self.assertEqual([cell.value for cell in changed[2]], [
+                "A1",
+                2,
+                2,
+                3,
+                "R-10K -> R-22K",
+                "2 -> 3",
+                "old -> new",
+            ])
         finally:
             wb.close()
 
@@ -150,6 +163,26 @@ class FreeBomCompareTests(unittest.TestCase):
         self.assertLess(html.index('id="bomcmp-tab-free-bom"'), html.index('id="bomcmp-tab-customer-hq"'))
         self.assertIn('id="freeLeftPreviewRows"', html)
         self.assertIn('id="freeRightPreviewRows"', html)
+
+    def test_bom_compare_field_selector_uses_chips_and_default_whitelist(self):
+        js = (WEB_APP / "static" / "js" / "app.js").read_text(encoding="utf-8")
+        css = (WEB_APP / "static" / "css" / "app.css").read_text(encoding="utf-8")
+        for field in [
+            "\u578b\u53f7",
+            "\u7269\u6599\u63cf\u8ff0",
+            "\u5355\u8017",
+            "\u66ff\u4ee3\u5173\u7cfb",
+            "\u4f4d\u53f7",
+            "\u751f\u4ea7\u5382\u5bb6",
+        ]:
+            self.assertIn(field, js)
+        self.assertIn("bomShouldDefaultCompareField", js)
+        self.assertIn("bomCompareFieldChip", js)
+        self.assertIn("disabled?' disabled':'", js)
+        self.assertIn(":checked:not(:disabled)", js)
+        self.assertIn(".chk-list .field-chip", css)
+        self.assertIn(".chk-list .field-chip.disabled", css)
+        self.assertIn("input:checked", css)
 
 
 if __name__ == "__main__":
