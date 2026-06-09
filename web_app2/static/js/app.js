@@ -73,10 +73,8 @@ const TOOLS = {
            desc:'提供单板HQ BOM版本对比、整机HQ BOM版本对比、Cadence导出BOM对比HQ BOM三个比对子功能。'},
   toolbox: {title:'小工具合集', badge:'工具', tpl:'tpl-toolbox',
            desc:'提供轻量级本地小工具。当前包含文件哈希值计算，可直接在浏览器内得到 MD5。'},
-  'bug-report': {title:'Bug提交栏目', badge:'反馈', tpl:'tpl-bug-report',
-             desc:'提交工具问题、附件和复现信息，所有记录保存在服务端，团队成员均可查看。'},
-  'feature-request': {title:'需求开发工单', badge:'需求', tpl:'tpl-feature-request',
-            desc:'提交新功能、流程优化和开发需求，便于后续评估、排期和跟进。'},
+  'about-project': {title:'\u5173\u4e8e\u8be5\u9879\u76ee', badge:'INFO', tpl:'tpl-about-project',
+           desc:'\u67e5\u770b\u9879\u76ee\u8bf4\u660e\u548c\u8054\u7cfb\u4eba\u4fe1\u606f\uff0c\u9047\u5230\u95ee\u9898\u6216\u9700\u8981\u534f\u52a9\u65f6\u53ef\u901a\u8fc7\u98de\u4e66\u8054\u7cfb\u3002'},
   'admin-users': {title:'用户管理', badge:'ADMIN', tpl:'tpl-admin-users',
            desc:'查看注册用户、角色权限、启用状态和最近使用情况。'},
   manual: {title:'工具说明书', badge:'说明', tpl:'tpl-manual',
@@ -154,8 +152,6 @@ function initTool(tool){
   else if(tool==='plm-auto') initPlmAuto();
   else if(tool==='bom-compare') initBomCompare();
   else if(tool==='toolbox') initToolbox();
-  else if(tool==='bug-report') initBugReport();
-  else if(tool==='feature-request') initFeatureRequest();
   else if(tool==='admin-users') initAdminUsers();
   else if(tool==='manufacturer-alias') initManufacturerAlias();
   else if(window._toolInits&&window._toolInits[tool]) window._toolInits[tool]();
@@ -960,6 +956,58 @@ function cmpRenderManualPairs(prefix){
     btn.onclick=function(){st.manualPairs.splice(parseInt(this.dataset.remove),1);cmpRenderManualPairs(prefix);};
   });
 }
+function cmpRenderPreviewTable(tbodyId, payload, headerRow, headerInputId, onPick){
+  const tbody=$(tbodyId);
+  if(!tbody) return;
+  if(!payload||!payload.rows||!payload.rows.length){
+    tbody.innerHTML='<tr><td style="color:#888">上传文件后显示前 12 行</td></tr>';
+    return;
+  }
+  const selected=parseInt(headerRow)||1;
+  tbody.innerHTML=(payload.rows||[]).map(row=>{
+    const isHeader=row.row_number===selected;
+    const cells=[`<th class="bom-preview-rownum">${row.row_number}</th>`].concat((row.values||[]).map(v=>`<td>${_escH(v)}</td>`));
+    return `<tr class="${isHeader?'bom-preview-header-row':''}" data-row="${row.row_number}" title="点击设为表头行">${cells.join('')}</tr>`;
+  }).join('');
+  tbody.querySelectorAll('tr[data-row]').forEach(tr=>{
+    tr.onclick=()=>{
+      if(headerInputId&&$(headerInputId)) $(headerInputId).value=tr.dataset.row;
+      cmpRenderPreviewTable(tbodyId,payload,tr.dataset.row,headerInputId,onPick);
+      if(onPick) onPick();
+    };
+  });
+}
+async function cmpPreviewFreeBom(apiPrefix='/api/bom_compare'){
+  const leftFile=$('freeLeftFile')&&$('freeLeftFile').files[0];
+  const rightFile=$('freeRightFile')&&$('freeRightFile').files[0];
+  if(!leftFile&&!rightFile){
+    cmpRenderPreviewTable('freeLeftPreviewRows',null,1);
+    cmpRenderPreviewTable('freeRightPreviewRows',null,1);
+    return;
+  }
+  const fd=new FormData();
+  if(leftFile) fd.append('left_file',leftFile);
+  if(rightFile) fd.append('right_file',rightFile);
+  const ls=$('freeLeftSheet').value, rs=$('freeRightSheet').value;
+  if(ls&&ls!=='先选择文件'&&ls!=='加载中...') fd.append('left_sheet',ls);
+  if(rs&&rs!=='先选择文件'&&rs!=='加载中...') fd.append('right_sheet',rs);
+  try{
+    const d=await postFormJson(apiPrefix+'/free_preview',fd);
+    if(!d.success) throw new Error(d.error||'预览失败');
+    const reloadColumns=()=>cmpRefresh('free','free_bom',apiPrefix);
+    if(d.left){
+      $('freeLeftSheet').innerHTML=(d.left.sheets||[]).map(s=>`<option${s===d.left.current_sheet?' selected':''}>${_escH(s)}</option>`).join('');
+      cmpRenderPreviewTable('freeLeftPreviewRows',d.left,$('freeLeftHdr').value,'freeLeftHdr',reloadColumns);
+    }
+    if(d.right){
+      $('freeRightSheet').innerHTML=(d.right.sheets||[]).map(s=>`<option${s===d.right.current_sheet?' selected':''}>${_escH(s)}</option>`).join('');
+      cmpRenderPreviewTable('freeRightPreviewRows',d.right,$('freeRightHdr').value,'freeRightHdr',reloadColumns);
+    }
+  }catch(e){
+    showInlineError('freeError',e.message,'freeStatus');
+  }
+}
+
 async function cmpRefresh(prefix, compareType, apiPrefix='/api/bom_compare'){
   const leftFile=$(prefix+'LeftFile').files[0], rightFile=$(prefix+'RightFile').files[0];
   const st=cmpState(prefix);
@@ -982,7 +1030,8 @@ async function cmpRefresh(prefix, compareType, apiPrefix='/api/bom_compare'){
   if(ls&&ls!=='先选择文件'&&ls!=='加载中...') fd.append('left_sheet',ls);
   if(rs&&rs!=='先选择文件'&&rs!=='加载中...') fd.append('right_sheet',rs);
   try{
-    const d=await postFormJson(apiPrefix+'/generic_sheets',fd);
+    const sheetsEndpoint=compareType==='free_bom'?'/free_sheets':'/generic_sheets';
+    const d=await postFormJson(apiPrefix+sheetsEndpoint,fd);
     if(!d.success) throw new Error(d.error||'读取列失败');
     $(prefix+'LeftSheet').innerHTML=(d.left_sheets||[]).map(s=>`<option${s===d.left_current_sheet?' selected':''}>${_escH(s)}</option>`).join('');
     $(prefix+'RightSheet').innerHTML=(d.right_sheets||[]).map(s=>`<option${s===d.right_current_sheet?' selected':''}>${_escH(s)}</option>`).join('');
@@ -996,7 +1045,7 @@ async function cmpRefresh(prefix, compareType, apiPrefix='/api/bom_compare'){
     cmpRenderKeyPairs(prefix);
     cmpRenderPairs(prefix);
     const rightFmt=st.rightFormat==='plm_full'?'PLM 全量 BOM':'标准 HQ BOM';
-    const rightSheetHint=st.rightFormat==='plm_full'?`，HQ 已识别 ${rightFmt}（${(st.rightBomSheets||[]).join('、')}）`:`，HQ 已识别 ${rightFmt}`;
+    const rightSheetHint=compareType==='free_bom'?'':(st.rightFormat==='plm_full'?`，HQ 已识别 ${rightFmt}（${(st.rightBomSheets||[]).join('、')}）`:`，HQ 已识别 ${rightFmt}`);
     setPlainStatus(prefix+'LoadStatus',`已加载：左侧 ${st.leftHeaders.length} 列，右侧 ${st.rightHeaders.length} 列${rightSheetHint}`);
   }catch(e){
     if($(prefix+'CommonPairs')) $(prefix+'CommonPairs').innerHTML='<span style="font-size:12px;color:#888">列读取失败</span>';
@@ -1013,12 +1062,14 @@ function cmpCollectPairs(prefix){
 function initGenericBomCompare(prefix, compareType, apiPrefix='/api/bom_compare'){
   cmpState(prefix);
   $(prefix+'Refresh').onclick=()=>cmpRefresh(prefix,compareType,apiPrefix);
-  $(prefix+'LeftFile').onchange=()=>cmpRefresh(prefix,compareType,apiPrefix);
-  $(prefix+'RightFile').onchange=()=>cmpRefresh(prefix,compareType,apiPrefix);
-  $(prefix+'LeftSheet').onchange=()=>cmpRefresh(prefix,compareType,apiPrefix);
-  $(prefix+'RightSheet').onchange=()=>cmpRefresh(prefix,compareType,apiPrefix);
-  $(prefix+'LeftHdr').onchange=()=>cmpRefresh(prefix,compareType,apiPrefix);
-  $(prefix+'RightHdr').onchange=()=>cmpRefresh(prefix,compareType,apiPrefix);
+  const autoRefresh=()=>cmpRefresh(prefix,compareType,apiPrefix);
+  const previewThenRefresh=()=>{cmpPreviewFreeBom(apiPrefix);cmpRefresh(prefix,compareType,apiPrefix);};
+  $(prefix+'LeftFile').onchange=compareType==='free_bom'?previewThenRefresh:autoRefresh;
+  $(prefix+'RightFile').onchange=compareType==='free_bom'?previewThenRefresh:autoRefresh;
+  $(prefix+'LeftSheet').onchange=compareType==='free_bom'?previewThenRefresh:autoRefresh;
+  $(prefix+'RightSheet').onchange=compareType==='free_bom'?previewThenRefresh:autoRefresh;
+  $(prefix+'LeftHdr').onchange=compareType==='free_bom'?()=>{cmpPreviewFreeBom(apiPrefix);cmpRefresh(prefix,compareType,apiPrefix);}:autoRefresh;
+  $(prefix+'RightHdr').onchange=compareType==='free_bom'?()=>{cmpPreviewFreeBom(apiPrefix);cmpRefresh(prefix,compareType,apiPrefix);}:autoRefresh;
   if($(prefix+'LeftKey')) $(prefix+'LeftKey').onchange=()=>{cmpRenderKeyPairs(prefix);cmpRenderPairs(prefix);};
   if($(prefix+'RightKey')) $(prefix+'RightKey').onchange=()=>{cmpRenderKeyPairs(prefix);cmpRenderPairs(prefix);};
   if($(prefix+'SelectAll')) $(prefix+'SelectAll').onclick=()=>document.querySelectorAll('#'+prefix+'CommonPairs input[type="checkbox"]').forEach(x=>x.checked=true);
@@ -1040,10 +1091,11 @@ function initGenericBomCompare(prefix, compareType, apiPrefix='/api/bom_compare'
       field_pairs:fieldPairs};
     const fd=new FormData();fd.append('left_file',leftFile);fd.append('right_file',rightFile);fd.append('config',JSON.stringify(cfg));
     try{
-      const d=await postFormJson(apiPrefix+'/generic',fd);
+      const compareEndpoint=compareType==='free_bom'?'/free':'/generic';
+      const d=await postFormJson(apiPrefix+compareEndpoint,fd);
       if(!d.success) throw new Error(d.error||'比对失败');
-      const leftName='Cadence BOM';
-      const rightName='HQ BOM';
+      const leftName=compareType==='free_bom'?'基准 BOM':'Cadence BOM';
+      const rightName=compareType==='free_bom'?'对比 BOM':'HQ BOM';
       const expandHint=d.expanded_refdes?'<br>已按位号展开逐点比对':'';
       const diffText=false
         ? `制造商差异 <b style="color:#c07000">${d.manufacturer_diff||0}</b> | 型号差异 <b style="color:#c00000">${d.model_diff||0}</b> | 二供差异 <b style="color:#c07000">${d.second_source_diff||0}</b>`
@@ -1156,13 +1208,14 @@ function initBomCompare(apiPrefix='/api/bom_compare'){
       this.classList.add('active');
       this.style.color='#1a5ad4';
       this.style.borderBottomColor='#1a5ad4';
-      document.querySelectorAll('#bomcmp-tab-customer-hq,#bomcmp-tab-hq-version,#bomcmp-tab-machine-hq-version,#bomcmp-tab-cadence-hq').forEach(el=>el.style.display='none');
+      document.querySelectorAll('#bomcmp-tab-customer-hq,#bomcmp-tab-hq-version,#bomcmp-tab-machine-hq-version,#bomcmp-tab-free-bom,#bomcmp-tab-cadence-hq').forEach(el=>el.style.display='none');
       $('bomcmp-tab-'+this.dataset.bomcmpTab).style.display='block';
     };
   });
   initCustomerHqPreview(apiPrefix);
   initVersionCompare('hqv',{sheetsApi:apiPrefix+'/local_sheets',compareApi:apiPrefix+'/hq_version',label:'HQ BOM'});
   initVersionCompare('machv',{sheetsApi:apiPrefix+'/machine_local_sheets',compareApi:apiPrefix+'/machine_hq_version',label:'整机 HQ BOM'});
+  initGenericBomCompare('free','free_bom',apiPrefix);
   initGenericBomCompare('cad','cadence_hq',apiPrefix);
 }
 
@@ -1718,6 +1771,7 @@ function plmAttBatchSetOverall(stage,pct,download){
   if(download&&dl&&dlBox){
     dl.href=download;
     show(dlBox);
+    dlBox.style.display='flex';
   }else if(dlBox){
     hide(dlBox);
   }
@@ -1902,6 +1956,7 @@ async function plmAutoAttachmentRun(){
         $('paAttStatus').textContent='\u5b8c\u6210\uff01';
         plmAttSetProgress('\u4e0b\u8f7d\u5b8c\u6210',100,'\u53ef\u4ee5\u70b9\u51fb\u4e0b\u65b9\u94fe\u63a5\u4e0b\u8f7d\u9644\u4ef6');
         show($('paAttResult'));
+        $('paAttResult').style.display='flex';
         btn.disabled=false;
       }else if(s.status==='error'){
         if(pollTimer) clearInterval(pollTimer);

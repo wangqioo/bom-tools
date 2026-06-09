@@ -110,7 +110,6 @@ class WebAppTests(unittest.TestCase):
         self.assertIn("BOM比对工具合集", html)
         self.assertIn("\u5c0f\u5de5\u5177\u5408\u96c6", html)
         self.assertIn("\u8ba1\u7b97\u54c8\u5e0c\u503c", html)
-        self.assertIn("Bug提交栏目", html)
         self.assertIn("单板HQ BOM版本对比", html)
         self.assertIn("整机HQ BOM版本对比", html)
         self.assertIn("Cadence导出BOM对比HQ BOM", html)

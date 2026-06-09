@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """PLM 上传工具 — Blueprint"""
 
 import os, uuid, re, json, threading, time, queue
@@ -210,15 +210,39 @@ def _attachment_worker_loop():
                 _update_attachment_job(job_id, status='running', stage='\u590d\u7528\u5df2\u767b\u5f55 PLM \u4f1a\u8bdd', progress=30)
                 _append_attachment_log(job_id, '\u590d\u7528\u5df2\u767b\u5f55 PLM \u4f1a\u8bdd')
 
-            output_path, search_page = download_hq_attachment_from_search_page(
-                context,
-                search_page,
-                hqpn=hqpn,
-                output_dir=_Path(OUTPUT_DIR),
-                username=username,
-                password=password,
-                log=lambda message: _append_attachment_log(job_id, message),
-            )
+            last_error = None
+            output_path = None
+            for attempt in range(2):
+                try:
+                    if attempt:
+                        _update_attachment_job(job_id, status='running', stage='重试当前 HQ 料号', progress=35)
+                        _append_attachment_log(job_id, f'首次下载失败，复用当前 PLM 会话重试：{last_error}')
+                        search_page = _open_plm_search_page(
+                            context,
+                            search_page,
+                            username,
+                            password,
+                            log=lambda message: _append_attachment_log(job_id, message),
+                        )
+                    output_path, search_page = download_hq_attachment_from_search_page(
+                        context,
+                        search_page,
+                        hqpn=hqpn,
+                        output_dir=_Path(OUTPUT_DIR),
+                        username=username,
+                        password=password,
+                        log=lambda message: _append_attachment_log(job_id, message),
+                    )
+                    break
+                except Exception as exc:
+                    last_error = exc
+                    if attempt:
+                        raise
+                    try:
+                        if context is None or search_page is None or search_page.is_closed():
+                            raise
+                    except Exception:
+                        raise
             output_path = str(output_path)
             if not os.path.exists(output_path):
                 raise RuntimeError('\u81ea\u52a8\u5316\u5b8c\u6210\u4f46\u672a\u627e\u5230\u4e0b\u8f7d\u6587\u4ef6')

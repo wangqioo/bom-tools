@@ -1,0 +1,439 @@
+# -*- coding: utf-8 -*-
+"""Format-free BOM comparison endpoints."""
+
+import json
+import os
+import re
+import uuid
+from decimal import Decimal, InvalidOperation
+
+from flask import Blueprint
+
+from shared import (
+    OUTPUT_DIR,
+    _cell_str,
+    _open_workbook,
+    _save_uploaded_excel,
+    _to_int,
+    get_column_letter,
+    request,
+    jsonify,
+    Workbook,
+    Font,
+    PatternFill,
+    Alignment,
+    Border,
+    Side,
+)
+
+free_bom_compare_bp = Blueprint("free_bom_compare", __name__)
+
+_NUMERIC_RE = re.compile(r"^[+-]?(?:0|[1-9]\d*)(?:\.\d+)?$|^[+-]?0?\.\d+$")
+
+
+def _headers(ws, header_row):
+    result = []
+    seen = {}
+    for ci in range(1, ws.max_column + 1):
+        value = _cell_str(ws.cell(row=header_row, column=ci).value)
+        if not value:
+            value = f"未命名列{get_column_letter(ci)}"
+        if value in seen:
+            seen[value] += 1
+            value = f"{value}_{seen[value]}"
+        else:
+            seen[value] = 1
+        result.append(value)
+    return result
+
+
+def _pick_sheet(wb, sheet_name):
+    return sheet_name if sheet_name in wb.sheetnames else wb.sheetnames[0]
+
+
+def _read_headers(path, sheet_name, header_row):
+    wb = _open_workbook(path, data_only=True)
+    try:
+        sheet_name = _pick_sheet(wb, sheet_name)
+        headers = _headers(wb[sheet_name], header_row)
+        return wb.sheetnames, sheet_name, headers
+    finally:
+        wb.close()
+
+
+def _preview_rows(path, sheet_name, max_rows=12, max_cols=20):
+    wb = _open_workbook(path, data_only=True)
+    try:
+        sheet_name = _pick_sheet(wb, sheet_name)
+        ws = wb[sheet_name]
+        rows = []
+        row_limit = min(ws.max_row, max_rows)
+        col_limit = min(ws.max_column, max_cols)
+        for ri in range(1, row_limit + 1):
+            rows.append({
+                "row_number": ri,
+                "values": [_cell_str(ws.cell(row=ri, column=ci).value) for ci in range(1, col_limit + 1)],
+            })
+        return {
+            "sheets": wb.sheetnames,
+            "current_sheet": sheet_name,
+            "rows": rows,
+            "max_row": ws.max_row,
+            "max_column": ws.max_column,
+            "shown_columns": col_limit,
+        }
+    finally:
+        wb.close()
+
+
+def _normalize_header(value):
+    return "".join(str(value or "").lower().split()).replace("_", "").replace("-", "")
+
+
+def _detect_key(headers):
+    normalized = {_normalize_header(h): h for h in headers if h}
+    candidates = (
+        "料号", "hq料号", "物料编码", "物料编号", "partnumber", "partno", "pn",
+        "客户料号", "编码", "型号", "规格型号", "refdes", "reference", "位号",
+    )
+    for candidate in candidates:
+        if candidate in normalized:
+            return normalized[candidate]
+    for header in headers:
+        norm = _normalize_header(header)
+        if any(token in norm for token in ("料号", "编码", "part", "pn", "型号", "位号", "refdes")):
+            return header
+    return headers[0] if headers else ""
+
+
+def _detect_common_key(left_headers, right_headers):
+    left_norm = {_normalize_header(h): h for h in left_headers if h}
+    right_norm = {_normalize_header(h): h for h in right_headers if h}
+    pairs = (
+        ("料号", "料号"), ("物料编码", "物料编码"), ("partnumber", "partnumber"),
+        ("pn", "pn"), ("型号", "型号"), ("规格型号", "规格型号"),
+        ("位号", "位号"), ("refdes", "refdes"),
+    )
+    for left_key, right_key in pairs:
+        left = left_norm.get(_normalize_header(left_key))
+        right = right_norm.get(_normalize_header(right_key))
+        if left and right:
+            return left, right
+    common = [h for h in left_headers if h and h in right_headers]
+    if common:
+        key = _detect_key(common)
+        return key, key
+    return _detect_key(left_headers), _detect_key(right_headers)
+
+
+def _numeric(value):
+    text = _cell_str(value)
+    if not text or not _NUMERIC_RE.match(text):
+        return None
+    try:
+        return Decimal(text)
+    except (InvalidOperation, ValueError):
+        return None
+
+
+def _values_equal(left, right):
+    left_num = _numeric(left)
+    right_num = _numeric(right)
+    if left_num is not None and right_num is not None:
+        return left_num == right_num
+    return _cell_str(left) == _cell_str(right)
+
+
+def _load_rows(path, sheet_name, header_row, key_col, compare_cols):
+    wb = _open_workbook(path, data_only=True)
+    try:
+        sheet_name = _pick_sheet(wb, sheet_name)
+        ws = wb[sheet_name]
+        headers = _headers(ws, header_row)
+        if key_col not in headers:
+            raise ValueError(f'匹配键列 "{key_col}" 不存在')
+        key_idx = headers.index(key_col) + 1
+        compare_indices = [(col, headers.index(col) + 1) for col in compare_cols if col in headers]
+        rows = {}
+        duplicates = {}
+        blank_keys = 0
+        for ri in range(header_row + 1, ws.max_row + 1):
+            raw = [_cell_str(ws.cell(row=ri, column=ci).value) for ci in range(1, ws.max_column + 1)]
+            if not any(raw):
+                continue
+            key = _cell_str(ws.cell(row=ri, column=key_idx).value)
+            if not key:
+                blank_keys += 1
+                continue
+            values = {col: _cell_str(ws.cell(row=ri, column=idx).value) for col, idx in compare_indices}
+            all_values = {header: raw[i] if i < len(raw) else "" for i, header in enumerate(headers)}
+            if key in rows:
+                duplicates.setdefault(key, [rows[key]["row"]]).append(ri)
+                continue
+            rows[key] = {"row": ri, "values": values, "all_values": all_values, "headers": headers}
+        return rows, duplicates, blank_keys
+    finally:
+        wb.close()
+
+
+def _field_pairs(config_pairs, left_headers, right_headers):
+    pairs = []
+    seen = set()
+    for pair in config_pairs or []:
+        left = str((pair or {}).get("left") or "").strip()
+        right = str((pair or {}).get("right") or "").strip()
+        if not left or not right or left not in left_headers or right not in right_headers:
+            continue
+        key = (left, right)
+        if key not in seen:
+            pairs.append(key)
+            seen.add(key)
+    if pairs:
+        return pairs
+    return [(h, h) for h in left_headers if h and h in right_headers]
+
+
+def _safe_title(value):
+    text = str(value or "Sheet")[:31]
+    for ch in r"\/*?:[]":
+        text = text.replace(ch, "_")
+    return text or "Sheet"
+
+
+def _pair_label(left_col, right_col):
+    return left_col if left_col == right_col else f"{left_col} <-> {right_col}"
+
+
+def _write_report(out_path, left_rows, right_rows, field_pairs, stats, duplicate_notes):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "差异总览"
+    bdr = Border(left=Side(style="thin"), right=Side(style="thin"), top=Side(style="thin"), bottom=Side(style="thin"))
+    header_fill = PatternFill("solid", fgColor="D9EAF7")
+    fills = {
+        "仅基准BOM存在": PatternFill("solid", fgColor="FFEBEE"),
+        "仅对比BOM存在": PatternFill("solid", fgColor="E8F5E9"),
+        "字段变更": PatternFill("solid", fgColor="FFF9C4"),
+        "一致": PatternFill("solid", fgColor="F5F5F5"),
+    }
+    center = Alignment(horizontal="center", vertical="center")
+    left_align = Alignment(horizontal="left", vertical="center")
+
+    ws.append(["指标", "数量"])
+    summary = [
+        ("基准BOM唯一键数量", stats["left_total"]),
+        ("对比BOM唯一键数量", stats["right_total"]),
+        ("仅基准BOM存在", stats["left_only"]),
+        ("仅对比BOM存在", stats["right_only"]),
+        ("字段变更", stats["changed"]),
+        ("完全一致", stats["same"]),
+        ("基准BOM重复键", stats["left_duplicates"]),
+        ("对比BOM重复键", stats["right_duplicates"]),
+        ("基准BOM空匹配键行", stats["left_blank_keys"]),
+        ("对比BOM空匹配键行", stats["right_blank_keys"]),
+    ]
+    for row in summary:
+        ws.append(row)
+
+    all_keys = sorted(set(left_rows) | set(right_rows))
+    detail = wb.create_sheet("\u5dee\u5f02\u660e\u7ec6")
+    field_detail = wb.create_sheet("\u5b57\u6bb5\u53d8\u5316\u660e\u7ec6")
+    field_detail.append([
+        "\u5339\u914d\u952e",
+        "\u53d8\u66f4\u5b57\u6bb5",
+        "\u57fa\u51c6BOM\u503c",
+        "\u5bf9\u6bd4BOM\u503c",
+        "\u57fa\u51c6BOM\u884c\u53f7",
+        "\u5bf9\u6bd4BOM\u884c\u53f7",
+    ])
+    detail_rows = []
+    max_changed_fields = 0
+    for key in all_keys:
+        left = left_rows.get(key)
+        right = right_rows.get(key)
+        if left and not right:
+            detail_rows.append(["\u4ec5\u57fa\u51c6BOM\u5b58\u5728", key, left["row"], "", "", []])
+            continue
+        if right and not left:
+            detail_rows.append(["\u4ec5\u5bf9\u6bd4BOM\u5b58\u5728", key, "", right["row"], "", []])
+            continue
+        change_cells = []
+        for left_col, right_col in field_pairs:
+            left_value = left["values"].get(left_col, "")
+            right_value = right["values"].get(right_col, "")
+            if not _values_equal(left_value, right_value):
+                label = _pair_label(left_col, right_col)
+                change_cells.append(f"{label}: {left_value} -> {right_value}")
+                field_detail.append([key, label, left_value, right_value, left["row"], right["row"]])
+        max_changed_fields = max(max_changed_fields, len(change_cells))
+        detail_rows.append([
+            "\u5b57\u6bb5\u53d8\u66f4" if change_cells else "\u4e00\u81f4",
+            key,
+            left["row"],
+            right["row"],
+            len(change_cells),
+            change_cells,
+        ])
+
+    detail_headers = [
+        "\u5dee\u5f02\u7c7b\u578b",
+        "\u5339\u914d\u952e",
+        "\u57fa\u51c6BOM\u884c\u53f7",
+        "\u5bf9\u6bd4BOM\u884c\u53f7",
+        "\u53d8\u66f4\u5b57\u6bb5\u6570",
+    ]
+    detail_headers.extend([f"\u53d8\u5316{i}" for i in range(1, max_changed_fields + 1)])
+    detail.append(detail_headers)
+    for diff_type, key, left_row, right_row, changed_count, change_cells in detail_rows:
+        padding = [""] * (max_changed_fields - len(change_cells))
+        detail.append([diff_type, key, left_row, right_row, changed_count] + change_cells + padding)
+
+    dup = wb.create_sheet("重复和空键")
+    dup.append(["类型", "说明"])
+    for note in duplicate_notes:
+        dup.append(note)
+
+    for sheet in wb.worksheets:
+        for row in sheet.iter_rows():
+            row_fill = fills.get(row[0].value)
+            for cell in row:
+                cell.border = bdr
+                cell.alignment = center if cell.column <= 4 else left_align
+                if cell.row == 1:
+                    cell.font = Font(bold=True)
+                    cell.fill = header_fill
+                elif row_fill:
+                    cell.fill = row_fill
+        for ci in range(1, sheet.max_column + 1):
+            sheet.column_dimensions[get_column_letter(ci)].width = 18 if ci <= 4 else 28
+        sheet.freeze_panes = "A2"
+        sheet.auto_filter.ref = sheet.dimensions
+        sheet.title = _safe_title(sheet.title)
+    wb.save(out_path)
+
+
+@free_bom_compare_bp.route("/api/bom_compare/free_preview", methods=["POST"])
+def free_preview():
+    uid = str(uuid.uuid4())[:8]
+    result = {"success": True}
+    try:
+        left_file = request.files.get("left_file")
+        right_file = request.files.get("right_file")
+        if left_file:
+            left_path = _save_uploaded_excel(left_file, "bomcmp_free_preview_left", uid)
+            result["left"] = _preview_rows(left_path, request.form.get("left_sheet", ""))
+        if right_file:
+            right_path = _save_uploaded_excel(right_file, "bomcmp_free_preview_right", uid)
+            result["right"] = _preview_rows(right_path, request.form.get("right_sheet", ""))
+        if not left_file and not right_file:
+            return jsonify({"success": False, "error": "\u8bf7\u5148\u4e0a\u4f20 BOM \u6587\u4ef6"})
+        return jsonify(result)
+    except ValueError as exc:
+        return jsonify({"success": False, "error": str(exc)})
+    except Exception as exc:
+        return jsonify({"success": False, "error": str(exc)})
+
+
+@free_bom_compare_bp.route("/api/bom_compare/free_sheets", methods=["POST"])
+def free_sheets():
+    left_file = request.files.get("left_file")
+    right_file = request.files.get("right_file")
+    if not left_file or not right_file:
+        return jsonify({"success": False, "error": "请上传两份 BOM 文件"})
+    left_header_row = _to_int(request.form.get("left_header_row", 1), 1)
+    right_header_row = _to_int(request.form.get("right_header_row", 1), 1)
+    if left_header_row is None or right_header_row is None:
+        return jsonify({"success": False, "error": "表头行必须是大于等于 1 的数字"})
+    uid = str(uuid.uuid4())[:8]
+    try:
+        left_path = _save_uploaded_excel(left_file, "bomcmp_free_left", uid)
+        right_path = _save_uploaded_excel(right_file, "bomcmp_free_right", uid)
+        left_sheets, left_sheet, left_headers = _read_headers(left_path, request.form.get("left_sheet", ""), left_header_row)
+        right_sheets, right_sheet, right_headers = _read_headers(right_path, request.form.get("right_sheet", ""), right_header_row)
+        left_key, right_key = _detect_common_key(left_headers, right_headers)
+        return jsonify({
+            "success": True,
+            "left_sheets": left_sheets,
+            "left_current_sheet": left_sheet,
+            "left_headers": left_headers,
+            "left_header_row": left_header_row,
+            "right_sheets": right_sheets,
+            "right_current_sheet": right_sheet,
+            "right_headers": right_headers,
+            "right_header_row": right_header_row,
+            "detected_left_key": left_key,
+            "detected_right_key": right_key,
+            "left_format": "generic",
+            "right_format": "generic",
+        })
+    except ValueError as exc:
+        return jsonify({"success": False, "error": str(exc)})
+    except Exception as exc:
+        return jsonify({"success": False, "error": str(exc)})
+
+
+@free_bom_compare_bp.route("/api/bom_compare/free", methods=["POST"])
+def free_compare():
+    left_file = request.files.get("left_file")
+    right_file = request.files.get("right_file")
+    if not left_file or not right_file:
+        return jsonify({"success": False, "error": "请上传两份 BOM 文件"})
+    try:
+        config = json.loads(request.form.get("config", "{}"))
+    except Exception:
+        return jsonify({"success": False, "error": "config 参数格式错误"})
+
+    left_header_row = _to_int(config.get("left_header_row", 1), 1)
+    right_header_row = _to_int(config.get("right_header_row", 1), 1)
+    left_key_col = str(config.get("left_key_col") or "").strip()
+    right_key_col = str(config.get("right_key_col") or "").strip()
+    if left_header_row is None or right_header_row is None:
+        return jsonify({"success": False, "error": "表头行必须是大于等于 1 的数字"})
+    if not left_key_col or not right_key_col:
+        return jsonify({"success": False, "error": "请先选择两份 BOM 的匹配键"})
+
+    uid = str(uuid.uuid4())[:8]
+    try:
+        left_path = _save_uploaded_excel(left_file, "bomcmp_free_left", uid)
+        right_path = _save_uploaded_excel(right_file, "bomcmp_free_right", uid)
+        _, _, left_headers = _read_headers(left_path, config.get("left_sheet", ""), left_header_row)
+        _, _, right_headers = _read_headers(right_path, config.get("right_sheet", ""), right_header_row)
+        field_pairs = _field_pairs(config.get("field_pairs", []), left_headers, right_headers)
+        field_pairs = [(l, r) for l, r in field_pairs if (l, r) != (left_key_col, right_key_col)]
+        if not field_pairs:
+            return jsonify({"success": False, "error": "请至少选择一组需要比对的字段"})
+        left_compare_cols = [l for l, _ in field_pairs]
+        right_compare_cols = [r for _, r in field_pairs]
+        left_rows, left_dups, left_blank = _load_rows(left_path, config.get("left_sheet", ""), left_header_row, left_key_col, left_compare_cols)
+        right_rows, right_dups, right_blank = _load_rows(right_path, config.get("right_sheet", ""), right_header_row, right_key_col, right_compare_cols)
+        common = sorted(set(left_rows) & set(right_rows))
+        changed = [
+            key for key in common
+            if any(not _values_equal(left_rows[key]["values"].get(l, ""), right_rows[key]["values"].get(r, "")) for l, r in field_pairs)
+        ]
+        stats = {
+            "left_total": len(left_rows),
+            "right_total": len(right_rows),
+            "left_only": len(set(left_rows) - set(right_rows)),
+            "right_only": len(set(right_rows) - set(left_rows)),
+            "changed": len(changed),
+            "same": len(common) - len(changed),
+            "left_duplicates": len(left_dups),
+            "right_duplicates": len(right_dups),
+            "left_blank_keys": left_blank,
+            "right_blank_keys": right_blank,
+        }
+        duplicate_notes = (
+            [["基准BOM", f"重复键 {key}: 行 {', '.join(map(str, rows))}"] for key, rows in left_dups.items()] +
+            [["对比BOM", f"重复键 {key}: 行 {', '.join(map(str, rows))}"] for key, rows in right_dups.items()] +
+            ([["基准BOM", f"空匹配键行数：{left_blank}"]] if left_blank else []) +
+            ([["对比BOM", f"空匹配键行数：{right_blank}"]] if right_blank else [])
+        )
+        out_name = f"Generic_BOM_Compare_{uid}.xlsx"
+        out_path = os.path.join(OUTPUT_DIR, out_name)
+        _write_report(out_path, left_rows, right_rows, field_pairs, stats, duplicate_notes)
+        return jsonify({"success": True, "download": f"/download/{out_name}", **stats})
+    except ValueError as exc:
+        return jsonify({"success": False, "error": str(exc)})
+    except Exception as exc:
+        return jsonify({"success": False, "error": str(exc)})

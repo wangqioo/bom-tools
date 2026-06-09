@@ -268,6 +268,110 @@ class PlmAttachmentJobTests(unittest.TestCase):
             for job_id in job_ids:
                 _PLM_ATTACHMENT_JOBS.pop(job_id, None)
 
+    def test_plm_attachment_job_retries_once_with_existing_session(self):
+        from plm import _PLM_ATTACHMENT_JOBS
+
+        init_calls = []
+        run_calls = []
+
+        class FakePage:
+            def goto(self, *args, **kwargs):
+                return None
+
+            def locator(self, *args, **kwargs):
+                return self
+
+            def filter(self, *args, **kwargs):
+                return self
+
+            def is_closed(self):
+                return False
+
+        class FakeContext:
+            def new_page(self):
+                return FakePage()
+
+            def close(self):
+                pass
+
+        class FakeBrowser:
+            def new_context(self, accept_downloads=True):
+                return FakeContext()
+
+            def close(self):
+                pass
+
+        class FakeChromium:
+            def launch(self, headless=False):
+                return FakeBrowser()
+
+        class FakePlaywright:
+            chromium = FakeChromium()
+
+        class FakePlaywrightContext:
+            def __enter__(self):
+                return FakePlaywright()
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+        def fake_wait_for_eip_ready(page, username, password):
+            init_calls.append(("eip", username))
+
+        def fake_click_opening_page(page, locator, timeout=30000):
+            return FakePage()
+
+        def fake_open_search(context, page, username, password, log=None):
+            init_calls.append(("search", username))
+            if log:
+                log("Open PLM search page")
+            return FakePage()
+
+        def fake_download(context, search_page, *, hqpn, output_dir, username="", password="", log=None):
+            run_calls.append(hqpn)
+            if len(run_calls) == 1:
+                raise RuntimeError("search page not ready")
+            out_path = Path(output_dir) / f"{hqpn}_retry_attachment.zip"
+            out_path.write_bytes(b"PK\x05\x06" + b"\x00" * 18)
+            if log:
+                log("Downloaded selected attachments: document_contents.zip")
+            return out_path, search_page
+
+        def wait_done(client, job_id):
+            for _ in range(40):
+                status = client.get(f"/api/plm/auto_hq_attachments/status/{job_id}").get_json()
+                if status.get("status") == "done":
+                    return status
+                if status.get("status") == "error":
+                    self.fail(status.get("error"))
+                time.sleep(0.05)
+            self.fail("job did not finish")
+
+        with app.test_client() as client:
+            client.post("/api/login", json={"employee_id": "ADMIN"})
+            with patch("playwright.sync_api.sync_playwright", return_value=FakePlaywrightContext()), patch(
+                "plm.automation.wait_for_eip_ready", fake_wait_for_eip_ready
+            ), patch("plm.automation.click_opening_page", fake_click_opening_page), patch(
+                "plm.automation.login_if_present", lambda *args, **kwargs: False
+            ), patch("plm.automation._wait_for_plm_home", lambda context, page, username, password: page), patch(
+                "plm.automation._open_plm_search_page", fake_open_search
+            ), patch("plm.automation.download_hq_attachment_from_search_page", fake_download):
+                resp = client.post(
+                    "/api/plm/auto_hq_attachments",
+                    data={"username": "100448406", "password": "pw", "hqpn": "HQRETRY"},
+                )
+                payload = resp.get_json()
+                self.assertTrue(payload["success"], payload)
+                status = wait_done(client, payload["job_id"])
+
+                self.assertEqual(status["download"], "/download/HQRETRY_retry_attachment.zip")
+                self.assertEqual(run_calls, ["HQRETRY", "HQRETRY"])
+                self.assertEqual(init_calls.count(("eip", "100448406")), 1)
+                self.assertGreaterEqual(init_calls.count(("search", "100448406")), 2)
+                self.assertIn("首次下载失败", status["log"])
+
+            _PLM_ATTACHMENT_JOBS.pop(payload["job_id"], None)
+
     def test_plm_attachment_job_reports_progress_and_download(self):
         from plm import _PLM_ATTACHMENT_JOBS
 
