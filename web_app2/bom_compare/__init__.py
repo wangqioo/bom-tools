@@ -245,6 +245,31 @@ def _read_generic_headers(path, sheet_name, header_row):
     return sheet_name, headers
 
 
+def _preview_rows(path, sheet_name, max_rows=12, max_cols=20):
+    wb = _open_workbook(path, data_only=True)
+    try:
+        sheet_name = _pick_sheet(wb, sheet_name)
+        ws = wb[sheet_name]
+        rows = []
+        row_limit = min(ws.max_row, max_rows)
+        col_limit = min(ws.max_column, max_cols)
+        for ri in range(1, row_limit + 1):
+            rows.append({
+                'row_number': ri,
+                'values': [_cell_str(ws.cell(row=ri, column=ci).value) for ci in range(1, col_limit + 1)],
+            })
+        return {
+            'sheets': wb.sheetnames,
+            'current_sheet': sheet_name,
+            'rows': rows,
+            'max_row': ws.max_row,
+            'max_column': ws.max_column,
+            'shown_columns': col_limit,
+        }
+    finally:
+        wb.close()
+
+
 def _row_is_import_warning(ws, row_idx):
     return _cell_str(ws.cell(row=row_idx, column=1).value).startswith('正式导入前删除')
 
@@ -618,8 +643,7 @@ def _write_generic_compare_report(out_path, left_rows, right_rows, field_pairs, 
         if not ri or not sheet:
             return
         cell = ws.cell(row=ri, column=2)
-        cell.hyperlink = f"'{sheet.title}'!A1"
-        cell.style = 'Hyperlink'
+        _set_internal_hyperlink(cell, sheet)
 
     diff_items = [i for i in items if i['type'] != '\u4e00\u81f4']
     detail_sheet = None
@@ -653,8 +677,7 @@ def _write_generic_compare_report(out_path, left_rows, right_rows, field_pairs, 
     link_summary_row(f"{labels['right_label']} \u91cd\u590d\u952e", ws_dup)
     if detail_sheet:
         ws['D2'] = '\u67e5\u770b\u5dee\u5f02\u660e\u7ec6'
-        ws['D2'].hyperlink = f"'{detail_sheet.title}'!A1"
-        ws['D2'].style = 'Hyperlink'
+        _set_internal_hyperlink(ws['D2'], detail_sheet)
 
     for sheet in wb.worksheets:
         for col in range(1, sheet.max_column + 1):
@@ -1182,6 +1205,11 @@ def api_customer_hq_export():
             meta={
                 'left_filename': left_file.filename or '',
                 'right_filename': right_file.filename or '',
+                'left_sheet': config.get('left_sheet', ''),
+                'right_sheet': config.get('right_sheet', ''),
+                'left_header_row': left_header_row,
+                'mapping': mapping,
+                'match_mode': match_mode,
             },
         )
         return jsonify({'success': True, 'download': f'/download/{out_name}', **stats})
@@ -1189,6 +1217,31 @@ def api_customer_hq_export():
         return jsonify({'success': False, 'error': str(e)})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
+
+@bom_compare_bp.route('/api/bom_compare/generic_preview', methods=['POST'])
+def api_generic_preview():
+    uid = str(uuid.uuid4())[:8]
+    result = {'success': True}
+    compare_type = str(request.form.get('compare_type') or 'cadence_hq')
+    save_left_excel = _save_uploaded_hq_excel if compare_type == 'cadence_hq' else _save_uploaded_excel
+    save_right_excel = _save_uploaded_hq_excel if compare_type == 'cadence_hq' else _save_uploaded_excel
+    try:
+        left_file = request.files.get('left_file')
+        right_file = request.files.get('right_file')
+        if left_file:
+            left_path = save_left_excel(left_file, 'bomcmp_generic_preview_left', uid)
+            result['left'] = _preview_rows(left_path, request.form.get('left_sheet', '') or request.form.get('sheet_name', ''))
+        if right_file:
+            right_path = save_right_excel(right_file, 'bomcmp_generic_preview_right', uid)
+            result['right'] = _preview_rows(right_path, request.form.get('right_sheet', ''))
+        if not left_file and not right_file:
+            return jsonify({'success': False, 'error': '请上传 BOM 文件'})
+        return jsonify(result)
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
 @bom_compare_bp.route('/api/bom_compare/generic_sheets', methods=['POST'])
 def api_generic_sheets():
     left_file = request.files.get('left_file') or request.files.get('file')

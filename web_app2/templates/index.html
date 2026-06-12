@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BOM Tools · Web 版 v2</title>
-<link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}?v=admin-activity-table-20260605">
+<title>BOM Tools · Web 版 v{{ platform_version }}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}?v={{ platform_version }}">
 </head>
 <body>
 
 <!-- ===== 左侧导航 ===== -->
 <aside class="sidebar">
-  <div class="logo" onclick="showOverview()">🛠 BOM Tools<span class="sub">硬件设计辅助平台 v2</span></div>
+  <div class="logo" onclick="showOverview()">🛠 BOM Tools<span class="sub">硬件设计辅助平台 v{{ platform_version }}</span></div>
   <nav>
     <a href="#" data-tool="bom"><span class="icon">📋</span>BOM 格式转换</a>
     <a href="#" data-tool="feishu"><span class="icon">🔍</span>飞书优选库+关系库匹配</a>
@@ -19,6 +19,7 @@
     <a href="#" data-tool="plm"><span class="icon">📤</span>转换为上传PLM系统格式</a>
     <a href="#" data-tool="plm-auto"><span class="icon">&#127760;</span>PLM网页自动化</a>
     <a href="#" data-tool="bom-compare"><span class="icon">🧾</span>BOM比对工具合集</a>
+    <a href="#" data-tool="bom-checklist"><span class="icon">&#9745;</span>BOM Checklist</a>
     <a href="#" data-tool="toolbox"><span class="icon">🧰</span>小工具合集</a>
     <a href="#" data-tool="admin-users"><span class="icon">👤</span>用户管理</a>
     <a href="#" data-tool="manual"><span class="icon">📖</span>工具说明书</a>
@@ -30,7 +31,7 @@
 <div class="main">
   <div class="toolbar">
     <h2 id="toolTitle">BOM Tools</h2>
-    <span class="badge" id="toolBadge">硬件设计辅助平台</span>
+    <span class="badge" id="toolBadge">硬件设计辅助平台 v{{ platform_version }}</span>
     <span class="spacer"></span>
     <span class="user-chip"><b>{{ current_user.display_name if current_user else '' }}</b><span>{{ current_user.role if current_user else '' }}</span><button type="button" onclick="logout()">退出</button></span>
   </div>
@@ -52,6 +53,7 @@
 {% include 'partials/tools/about-project.html' %}
 {% include 'partials/tools/admin-users.html' %}
 {% include 'partials/tools/bom-compare.html' %}
+{% include 'partials/tools/bom-checklist.html' %}
 {% include 'partials/tools/manufacturer-alias.html' %}
 {% include 'partials/tools/pref-rate.html' %}
 {% include 'partials/tools/feishu.html' %}
@@ -60,10 +62,12 @@
 <script>
 window.BOM_TOOLS_BOOTSTRAP = {
   presetTables: {{ preset_tables | tojson }},
-  defaultConfig: {{ default_config | tojson }}
+  defaultConfig: {{ default_config | tojson }},
+  version: {{ platform_version | tojson }},
+  toolVersions: {{ tool_versions | tojson }}
 };
 </script>
-<script src="{{ url_for('static', filename='js/app.js') }}?v=admin-activity-table-20260605"></script>
+<script src="{{ url_for('static', filename='js/app.js') }}?v={{ platform_version }}"></script>
 </body>
 </html>
 

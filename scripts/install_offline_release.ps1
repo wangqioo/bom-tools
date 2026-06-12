@@ -125,7 +125,8 @@ if ($UsersDbPath) {
 
 $finalDb = Join-Path $InstallDir "web_app2\auth_data\users.sqlite3"
 if (-not (Test-Path $finalDb -PathType Leaf)) {
-  throw "users.sqlite3 is missing after install: $finalDb"
+  New-Item -ItemType Directory -Force -Path (Split-Path $finalDb -Parent) | Out-Null
+  Write-Host "users.sqlite3 not found; it will be created on first application startup."
 }
 
 Remove-Item -Recurse -Force $extractDir

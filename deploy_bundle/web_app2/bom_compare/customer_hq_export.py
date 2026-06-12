@@ -3,7 +3,7 @@
 
 from datetime import datetime
 
-from shared import Workbook, Font, PatternFill, Alignment, Border, Side, get_column_letter, _cell_str
+from shared import Workbook, Font, PatternFill, Alignment, Border, Side, get_column_letter, _cell_str, PLATFORM_VERSION, TOOL_VERSIONS
 from .customer_hq import normalize_customer, normalize_hq
 
 
@@ -104,6 +104,38 @@ def _style_header(ws, row=1):
         cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
 
+def _excel_text_width(value):
+    text = _cell_str(value)
+    if not text:
+        return 0
+    width = 0
+    for ch in text:
+        width += 2 if ord(ch) > 127 else 1
+    return width
+
+
+def _auto_fit_sheet(ws, min_width=10, max_width=60, base_row_height=18, max_row_height=96):
+    for col in range(1, ws.max_column + 1):
+        max_len = 0
+        for row in range(1, ws.max_row + 1):
+            max_len = max(max_len, _excel_text_width(ws.cell(row=row, column=col).value))
+        width = min(max(max_len + 2, min_width), max_width)
+        ws.column_dimensions[get_column_letter(col)].width = width
+
+    for row in range(1, ws.max_row + 1):
+        visual_lines = 1
+        for col in range(1, ws.max_column + 1):
+            cell = ws.cell(row=row, column=col)
+            text = _cell_str(cell.value)
+            if not text:
+                continue
+            col_width = ws.column_dimensions[get_column_letter(col)].width or min_width
+            wrapped = max(1, int((_excel_text_width(text) + col_width - 1) // col_width))
+            explicit = text.count("\n") + 1
+            visual_lines = max(visual_lines, wrapped, explicit)
+        ws.row_dimensions[row].height = min(max(base_row_height, visual_lines * base_row_height), max_row_height)
+
+
 def _style_body(ws):
     border = Border(left=Side(style="thin"), right=Side(style="thin"), top=Side(style="thin"), bottom=Side(style="thin"))
     for row in ws.iter_rows():
@@ -112,12 +144,7 @@ def _style_body(ws):
             cell.alignment = Alignment(vertical="center", wrap_text=True)
     ws.freeze_panes = "A2"
     ws.auto_filter.ref = ws.dimensions
-    for col in range(1, ws.max_column + 1):
-        width = 16
-        if col in (2, 6, 7, 8, 9, 10, 11, 12):
-            width = 28
-        ws.column_dimensions[get_column_letter(col)].width = width
-
+    _auto_fit_sheet(ws)
 
 def _quote_sheet_name(name):
     return "'" + str(name).replace("'", "''") + "'"
@@ -191,16 +218,37 @@ def build_report(out_path, left_path, right_path, left_sheet, right_sheet, left_
     ws.title = "\u5dee\u5f02\u603b\u89c8"
     title_fill = PatternFill("solid", fgColor="1F4E78")
     ws.merge_cells("A1:D1")
-    ws["A1"] = "\u5ba2\u6237 BOM \u5bf9\u6bd4 HQ BOM \u5dee\u5f02\u603b\u89c8"
+    ws["A1"] = "BOM Tools \u5bfc\u51fa\u62a5\u544a"
     ws["A1"].font = Font(bold=True, color="FFFFFF", size=14)
     ws["A1"].fill = title_fill
     ws["A1"].alignment = Alignment(horizontal="center")
     meta = meta or {}
+    match_label = "\u6309\u4f4d\u53f7\u5339\u914d" if match_mode == "refdes" else "\u6309\u578b\u53f7+\u5236\u9020\u5546\u5339\u914d"
+    mapping = mapping or {}
+    mapping_text = "\uff1b".join(
+        f"{label}: {mapping.get(key, '') or '\u672a\u6620\u5c04'}"
+        for key, label in [
+            ("model", "\u89c4\u683c\u578b\u53f7"),
+            ("manufacturer", "\u5236\u9020\u5546"),
+            ("refdes", "\u4f4d\u53f7"),
+            ("quantity", "\u6570\u91cf/\u7528\u91cf"),
+            ("customer_part", "\u5ba2\u6237\u6599\u53f7"),
+        ]
+    )
     summary = [
+        ("\u62a5\u544a\u540d\u79f0", "\u5ba2\u6237 BOM \u5bf9\u6bd4 HQ BOM \u5dee\u5f02\u603b\u89c8"),
+        ("\u5bfc\u51fa\u6765\u6e90", f"BOM Tools \u5e73\u53f0 v{PLATFORM_VERSION}"),
+        ("\u5e73\u53f0\u7248\u672c", f"v{PLATFORM_VERSION}"),
+        ("\u5de5\u5177\u540d\u79f0", "\u5ba2\u6237 BOM \u5bf9\u6bd4 HQ BOM"),
+        ("\u5de5\u5177\u7248\u672c", f"v{TOOL_VERSIONS['customer-hq-compare']}"),
+        ("\u5bfc\u51fa\u65f6\u95f4", datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
         ("\u5ba2\u6237 BOM \u6587\u4ef6", meta.get("left_filename", "")),
         ("HQ BOM \u6587\u4ef6", meta.get("right_filename", "")),
-        ("\u5339\u914d\u6a21\u5f0f", "\u6309\u4f4d\u53f7\u5339\u914d" if match_mode == "refdes" else "\u6309\u578b\u53f7+\u5236\u9020\u5546\u5339\u914d"),
-        ("\u5bfc\u51fa\u65f6\u95f4", datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+        ("\u5ba2\u6237 Sheet / \u8868\u5934\u884c", f"{meta.get('left_sheet') or '\u81ea\u52a8\u9009\u62e9'} / {left_header_row}"),
+        ("HQ Sheet", meta.get("right_sheet") or "\u81ea\u52a8\u8bc6\u522b"),
+        ("\u5339\u914d\u6a21\u5f0f", match_label),
+        ("\u5b57\u6bb5\u6620\u5c04", mapping_text),
+        ("\u62a5\u544a\u8bf4\u660e", "\u672c\u62a5\u544a\u7531 BOM Tools \u81ea\u52a8\u751f\u6210\uff0c\u7ed3\u679c\u4f9d\u8d56\u4e0a\u4f20\u6587\u4ef6\u5185\u5bb9\u3001\u5b57\u6bb5\u6620\u5c04\u548c\u5339\u914d\u6a21\u5f0f\u3002"),
         ("\u5ba2\u6237 BOM \u6709\u6548\u884c", len(customer_by_key)),
         ("HQ BOM \u6709\u6548\u884c", len(hq_by_key)),
         ("\u5339\u914d\u6210\u529f", len(matched)),

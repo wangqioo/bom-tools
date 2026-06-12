@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """BOM Tools Web v2 — 公共模块"""
 
-import os, sys, time, re
+import os, sys, time, re, subprocess
 from zipfile import BadZipFile
 
 _parent = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -19,8 +19,27 @@ from flask import request, jsonify, send_file
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads")
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "outputs")
 CACHE_DIR  = os.path.join(os.path.dirname(__file__), "cache")
+PLATFORM_VERSION = "2.1.0"
+TOOL_VERSIONS = {
+    "bom": "5.10.0",
+    "bom-checklist": "0.1.4",
+    "feishu": "3.0.0",
+    "manufacturer-alias": "1.0.0",
+    "pref-rate": "1.0.0",
+    "plm": "1.6.0",
+    "plm-auto": "1.0.0",
+    "bom-compare": "0.3.0",
+    "free-bom-compare": "1.1.2",
+    "customer-hq-compare": "1.1.0",
+    "hq-version-compare": "1.0.0",
+    "machine-hq-version-compare": "1.0.0",
+    "cadence-hq-compare": "1.0.0",
+    "toolbox": "1.0.0",
+    "manual": "1.0.0",
+}
 
 BAD_EXCEL_ERROR = "\u65e0\u6cd5\u8bfb\u53d6\u6587\u4ef6\uff0c\u53ef\u80fd\u539f\u56e0\uff1a\u2460 \u6587\u4ef6\u662f .xls \u65e7\u683c\u5f0f\uff08\u8bf7\u53e6\u5b58\u4e3a .xlsx\uff09\uff1b\u2461 \u516c\u53f8\u52a0\u89e3\u5bc6\u8f6f\u4ef6\u672a\u542f\u52a8\u5bfc\u81f4\u6587\u4ef6\u88ab\u52a0\u5bc6\uff0c\u8bf7\u68c0\u67e5\u540e\u91cd\u8bd5"
+XLS_CONVERT_ERROR = "\u65e0\u6cd5\u76f4\u63a5\u8bfb\u53d6\u8be5 .xls \u6587\u4ef6\u3002\u8bf7\u786e\u8ba4\u670d\u52a1\u5668\u4e3a Windows \u4e14\u5df2\u5b89\u88c5\u53ef\u89e3\u5bc6\u6b64\u6587\u4ef6\u7684 Excel\uff0c\u6216\u5148\u5728 Excel \u4e2d\u53e6\u5b58\u4e3a .xlsx \u540e\u518d\u4e0a\u4f20\u3002"
 
 FEISHU_BASE_URLS = {
     "huaqin": "https://mcenter.huaqin.com",
@@ -94,13 +113,44 @@ def _request_int(name, default=1, min_value=1):
     return _to_int(request.form.get(name, default), default, min_value)
 
 
+def _ps_single_quote(value):
+    return "'" + str(value).replace("'", "''") + "'"
+
+
+def _convert_xls_with_excel(src_path, uid, prefix="converted"):
+    if os.name != "nt":
+        raise ValueError(XLS_CONVERT_ERROR)
+    out_path = os.path.join(UPLOAD_DIR, f"{prefix}_converted_{uid}.xlsx")
+    script = (
+        "$ErrorActionPreference='Stop';"
+        f"$src={_ps_single_quote(src_path)};"
+        f"$dst={_ps_single_quote(out_path)};"
+        "$excel=New-Object -ComObject Excel.Application;"
+        "$excel.Visible=$false;$excel.DisplayAlerts=$false;"
+        "try{$wb=$excel.Workbooks.Open($src);$wb.SaveAs($dst,51);$wb.Close($false)}"
+        "finally{$excel.Quit();[System.Runtime.InteropServices.Marshal]::ReleaseComObject($excel)|Out-Null}"
+    )
+    try:
+        subprocess.run(
+            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script],
+            check=True, capture_output=True, text=True, timeout=90,
+        )
+    except Exception as exc:
+        raise ValueError(XLS_CONVERT_ERROR) from exc
+    if not os.path.exists(out_path):
+        raise ValueError(XLS_CONVERT_ERROR)
+    return out_path
+
+
 def _save_uploaded_excel(file, prefix, uid):
     if not file:
         raise ValueError("\u8bf7\u4e0a\u4f20\u6587\u4ef6")
     filename = file.filename or ""
     lower = filename.lower()
     if lower.endswith(".xls") and not lower.endswith(".xlsx"):
-        raise ValueError("\u4e0d\u652f\u6301 .xls \u683c\u5f0f\uff0c\u8bf7\u5728 Excel \u4e2d\u53e6\u5b58\u4e3a .xlsx \u540e\u91cd\u8bd5")
+        raw_path = os.path.join(UPLOAD_DIR, f"{prefix}_{uid}.xls")
+        file.save(raw_path)
+        return _convert_xls_with_excel(raw_path, uid, prefix)
     path = os.path.join(UPLOAD_DIR, f"{prefix}_{uid}.xlsx")
     file.save(path)
     return path

@@ -225,6 +225,9 @@ tr:hover td { background:#f7f9fc; }
 .manual-step:before { content:counter(manual-step); width:22px; height:22px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; background:#163a6b; color:#fff; font-size:12px; font-weight:700; }
 @media (max-width:900px){ .manual-layout { grid-template-columns:1fr; } .manual-toc { position:static; } .manual-grid { grid-template-columns:1fr; } }
 
+.bom-rule-panel{border-top:1px solid #e3e8f2;padding-top:12px;margin-top:12px}
+.bom-rule-panel h4{margin:0 0 4px;font-size:13px;color:#163a6b}
+.bom-rule-panel p{margin:0 0 10px;font-size:12px;color:#5f6f86;line-height:1.5}
 .bom-preview-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:12px}
 .bom-preview-title{font-size:12px;font-weight:600;color:#1a3a5c;margin:0 0 6px}
 .bom-preview-table{max-height:260px;border:1px solid #e0e4ef;background:#fff}

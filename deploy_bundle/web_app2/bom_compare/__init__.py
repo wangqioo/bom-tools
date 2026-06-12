@@ -196,6 +196,14 @@ def _safe_sheet_title(value):
         text = text.replace(ch, '_')
     return text[:31] or 'Sheet'
 
+def _quote_sheet_name(name):
+    return "'" + str(name).replace("'", "''") + "'"
+
+
+def _set_internal_hyperlink(cell, sheet, target='A1'):
+    cell.hyperlink = f"#{_quote_sheet_name(sheet.title)}!{target}"
+    cell.style = 'Hyperlink'
+
 def _normalize_header(value):
     return ''.join(str(value or '').lower().split()).replace('_', '').replace('-', '')
 
@@ -235,6 +243,31 @@ def _read_generic_headers(path, sheet_name, header_row):
     headers = _headers(ws, header_row)
     wb.close()
     return sheet_name, headers
+
+
+def _preview_rows(path, sheet_name, max_rows=12, max_cols=20):
+    wb = _open_workbook(path, data_only=True)
+    try:
+        sheet_name = _pick_sheet(wb, sheet_name)
+        ws = wb[sheet_name]
+        rows = []
+        row_limit = min(ws.max_row, max_rows)
+        col_limit = min(ws.max_column, max_cols)
+        for ri in range(1, row_limit + 1):
+            rows.append({
+                'row_number': ri,
+                'values': [_cell_str(ws.cell(row=ri, column=ci).value) for ci in range(1, col_limit + 1)],
+            })
+        return {
+            'sheets': wb.sheetnames,
+            'current_sheet': sheet_name,
+            'rows': rows,
+            'max_row': ws.max_row,
+            'max_column': ws.max_column,
+            'shown_columns': col_limit,
+        }
+    finally:
+        wb.close()
 
 
 def _row_is_import_warning(ws, row_idx):
@@ -610,8 +643,7 @@ def _write_generic_compare_report(out_path, left_rows, right_rows, field_pairs, 
         if not ri or not sheet:
             return
         cell = ws.cell(row=ri, column=2)
-        cell.hyperlink = f"'{sheet.title}'!A1"
-        cell.style = 'Hyperlink'
+        _set_internal_hyperlink(cell, sheet)
 
     diff_items = [i for i in items if i['type'] != '\u4e00\u81f4']
     detail_sheet = None
@@ -645,8 +677,7 @@ def _write_generic_compare_report(out_path, left_rows, right_rows, field_pairs, 
     link_summary_row(f"{labels['right_label']} \u91cd\u590d\u952e", ws_dup)
     if detail_sheet:
         ws['D2'] = '\u67e5\u770b\u5dee\u5f02\u660e\u7ec6'
-        ws['D2'].hyperlink = f"'{detail_sheet.title}'!A1"
-        ws['D2'].style = 'Hyperlink'
+        _set_internal_hyperlink(ws['D2'], detail_sheet)
 
     for sheet in wb.worksheets:
         for col in range(1, sheet.max_column + 1):
@@ -953,7 +984,9 @@ def _write_diff_report(out_path, old_rows, new_rows, compare_cols, stats, duplic
         ('基准版本重复键', stats['old_duplicates']),
         ('对比版本重复键', stats['new_duplicates']),
     ]
+    summary_row_by_name = {}
     for ri, (name, value) in enumerate(summary_rows, 3):
+        summary_row_by_name[name] = ri
         ws.cell(row=ri, column=1, value=name).font = Font(bold=True)
         ws.cell(row=ri, column=2, value=value)
         ws.cell(row=ri, column=1).border = bdr
@@ -1051,9 +1084,12 @@ def _write_diff_report(out_path, old_rows, new_rows, compare_cols, stats, duplic
         sheet.freeze_panes = 'A2'
         sheet.auto_filter.ref = sheet.dimensions
 
-    write_source_table(wb.create_sheet('新增物料'), [i for i in items if i['type'] == '新增'], 'new')
-    write_source_table(wb.create_sheet('删除物料'), [i for i in items if i['type'] == '删除'], 'old')
-    write_table(wb.create_sheet('变更物料'), [i for i in items if i['type'] == '变更'])
+    added_sheet = wb.create_sheet('\u65b0\u589e\u7269\u6599')
+    write_source_table(added_sheet, [i for i in items if i['type'] == '\u65b0\u589e'], 'new')
+    removed_sheet = wb.create_sheet('\u5220\u9664\u7269\u6599')
+    write_source_table(removed_sheet, [i for i in items if i['type'] == '\u5220\u9664'], 'old')
+    changed_sheet = wb.create_sheet('\u53d8\u66f4\u7269\u6599')
+    write_table(changed_sheet, [i for i in items if i['type'] == '\u53d8\u66f4'])
 
     ws_dup = wb.create_sheet('重复料号')
     ws_dup.append(['类型', '料号和行号'])
@@ -1068,6 +1104,17 @@ def _write_diff_report(out_path, old_rows, new_rows, compare_cols, stats, duplic
         for cell in row:
             cell.border = bdr
             cell.alignment = left
+
+    for summary_name, target_sheet in [
+        ('新增', added_sheet),
+        ('删除', removed_sheet),
+        ('变更', changed_sheet),
+        ('基准版本重复键', ws_dup),
+        ('对比版本重复键', ws_dup),
+    ]:
+        row_idx = summary_row_by_name.get(summary_name)
+        if row_idx:
+            _set_internal_hyperlink(ws.cell(row=row_idx, column=2), target_sheet)
 
     for sheet in wb.worksheets:
         for col in range(1, sheet.max_column + 1):
@@ -1158,6 +1205,11 @@ def api_customer_hq_export():
             meta={
                 'left_filename': left_file.filename or '',
                 'right_filename': right_file.filename or '',
+                'left_sheet': config.get('left_sheet', ''),
+                'right_sheet': config.get('right_sheet', ''),
+                'left_header_row': left_header_row,
+                'mapping': mapping,
+                'match_mode': match_mode,
             },
         )
         return jsonify({'success': True, 'download': f'/download/{out_name}', **stats})
@@ -1165,6 +1217,31 @@ def api_customer_hq_export():
         return jsonify({'success': False, 'error': str(e)})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
+
+@bom_compare_bp.route('/api/bom_compare/generic_preview', methods=['POST'])
+def api_generic_preview():
+    uid = str(uuid.uuid4())[:8]
+    result = {'success': True}
+    compare_type = str(request.form.get('compare_type') or 'cadence_hq')
+    save_left_excel = _save_uploaded_hq_excel if compare_type == 'cadence_hq' else _save_uploaded_excel
+    save_right_excel = _save_uploaded_hq_excel if compare_type == 'cadence_hq' else _save_uploaded_excel
+    try:
+        left_file = request.files.get('left_file')
+        right_file = request.files.get('right_file')
+        if left_file:
+            left_path = save_left_excel(left_file, 'bomcmp_generic_preview_left', uid)
+            result['left'] = _preview_rows(left_path, request.form.get('left_sheet', '') or request.form.get('sheet_name', ''))
+        if right_file:
+            right_path = save_right_excel(right_file, 'bomcmp_generic_preview_right', uid)
+            result['right'] = _preview_rows(right_path, request.form.get('right_sheet', ''))
+        if not left_file and not right_file:
+            return jsonify({'success': False, 'error': '请上传 BOM 文件'})
+        return jsonify(result)
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
 @bom_compare_bp.route('/api/bom_compare/generic_sheets', methods=['POST'])
 def api_generic_sheets():
     left_file = request.files.get('left_file') or request.files.get('file')

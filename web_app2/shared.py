@@ -19,6 +19,24 @@ from flask import request, jsonify, send_file
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads")
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "outputs")
 CACHE_DIR  = os.path.join(os.path.dirname(__file__), "cache")
+PLATFORM_VERSION = "2.2.0"
+TOOL_VERSIONS = {
+    "bom": "5.10.0",
+    "bom-checklist": "0.1.4",
+    "feishu": "3.0.0",
+    "manufacturer-alias": "1.0.0",
+    "pref-rate": "1.0.0",
+    "plm": "1.6.0",
+    "plm-auto": "1.0.0",
+    "bom-compare": "0.3.0",
+    "free-bom-compare": "1.1.2",
+    "customer-hq-compare": "1.1.0",
+    "hq-version-compare": "1.0.0",
+    "machine-hq-version-compare": "1.0.0",
+    "cadence-hq-compare": "1.0.0",
+    "toolbox": "1.0.0",
+    "manual": "1.0.0",
+}
 
 BAD_EXCEL_ERROR = "\u65e0\u6cd5\u8bfb\u53d6\u6587\u4ef6\uff0c\u53ef\u80fd\u539f\u56e0\uff1a\u2460 \u6587\u4ef6\u662f .xls \u65e7\u683c\u5f0f\uff08\u8bf7\u53e6\u5b58\u4e3a .xlsx\uff09\uff1b\u2461 \u516c\u53f8\u52a0\u89e3\u5bc6\u8f6f\u4ef6\u672a\u542f\u52a8\u5bfc\u81f4\u6587\u4ef6\u88ab\u52a0\u5bc6\uff0c\u8bf7\u68c0\u67e5\u540e\u91cd\u8bd5"
 XLS_CONVERT_ERROR = "\u65e0\u6cd5\u76f4\u63a5\u8bfb\u53d6\u8be5 .xls \u6587\u4ef6\u3002\u8bf7\u786e\u8ba4\u670d\u52a1\u5668\u4e3a Windows \u4e14\u5df2\u5b89\u88c5\u53ef\u89e3\u5bc6\u6b64\u6587\u4ef6\u7684 Excel\uff0c\u6216\u5148\u5728 Excel \u4e2d\u53e6\u5b58\u4e3a .xlsx \u540e\u518d\u4e0a\u4f20\u3002"

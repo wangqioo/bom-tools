@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """Feature request work order blueprint."""
 
 import json
@@ -11,12 +11,13 @@ from flask import Blueprint, abort, send_file
 from werkzeug.utils import safe_join, secure_filename
 
 from shared import jsonify, request
+from auth import record_activity, require_admin_json
 
 
 feature_request_bp = Blueprint('feature_request', __name__)
 
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
-REQ_DIR = os.path.join(BASE_DIR, 'feature_requests')
+REQ_DIR = os.environ.get('BOM_TOOLS_FEATURE_REQUEST_DIR') or os.path.join(BASE_DIR, 'feature_requests')
 ATTACH_DIR = os.path.join(REQ_DIR, 'attachments')
 DB_PATH = os.path.join(REQ_DIR, 'requests.sqlite3')
 ALLOWED_ATTACHMENT_EXTS = {
@@ -42,38 +43,7 @@ SEED_REQUESTS = [
         'acceptance': '\u5dee\u5f02\u62a5\u544a\u5305\u542b\u603b\u89c8 sheet\uff0c\u5e76\u80fd\u8df3\u8f6c\u5230\u660e\u7ec6 sheet\u3002',
         'likes': 6,
     },
-    {
-        'id': 'seed-feishu-cache-refresh',
-        'requester': '\u7cfb\u7edf\u793a\u4f8b',
-        'employee_id': 'SYSTEM',
-        'module': '\u98de\u4e66\u4f18\u9009\u5e93+\u5173\u7cfb\u5e93\u5339\u914d',
-        'priority': '\u4e00\u822c',
-        'request_type': '\u81ea\u52a8\u5316',
-        'status': '\u5f85\u8bc4\u4f30',
-        'title': '\u652f\u6301\u5b9a\u65f6\u5237\u65b0\u98de\u4e66\u8868\u683c\u7f13\u5b58',
-        'background': '\u76ee\u524d\u9700\u8981\u624b\u52a8\u5237\u65b0\u7f13\u5b58\uff0c\u5bb9\u6613\u4f7f\u7528\u5230\u65e7\u6570\u636e\u3002',
-        'requirement': '\u53ef\u914d\u7f6e\u6bcf\u5929\u56fa\u5b9a\u65f6\u95f4\u81ea\u52a8\u5237\u65b0\u5df2\u542f\u7528\u7684\u98de\u4e66 sheet \u7f13\u5b58\u3002',
-        'value': '\u964d\u4f4e\u5339\u914d\u7ed3\u679c\u8fc7\u671f\u98ce\u9669\uff0c\u51cf\u5c11\u91cd\u590d\u64cd\u4f5c\u3002',
-        'acceptance': '\u9875\u9762\u663e\u793a\u6700\u540e\u81ea\u52a8\u5237\u65b0\u65f6\u95f4\uff0c\u5237\u65b0\u5931\u8d25\u6709\u9519\u8bef\u63d0\u793a\u3002',
-        'likes': 4,
-    },
-    {
-        'id': 'seed-plm-template-check',
-        'requester': '\u7cfb\u7edf\u793a\u4f8b',
-        'employee_id': 'SYSTEM',
-        'module': '\u8f6c\u6362\u4e3a\u4e0a\u4f20PLM\u7cfb\u7edf\u683c\u5f0f',
-        'priority': '\u4e00\u822c',
-        'request_type': '\u6d41\u7a0b\u6539\u8fdb',
-        'status': '\u5f85\u8bc4\u4f30',
-        'title': 'PLM\u5bfc\u5165\u524d\u589e\u52a0\u5fc5\u586b\u9879\u6821\u9a8c',
-        'background': '\u90e8\u5206\u5bfc\u51fa\u6587\u4ef6\u4e0a\u4f20 PLM \u540e\u624d\u53d1\u73b0\u5b57\u6bb5\u7f3a\u5931\u3002',
-        'requirement': '\u8f6c\u6362\u5b8c\u6210\u524d\u68c0\u67e5\u7269\u6599\u53f7\u3001\u5355\u8017\u3001\u4e3b\u8f85 BOM \u6807\u8bb0\u7b49\u5173\u952e\u5b57\u6bb5\u662f\u5426\u4e3a\u7a7a\u3002',
-        'value': '\u63d0\u524d\u66b4\u9732\u6570\u636e\u95ee\u9898\uff0c\u51cf\u5c11 PLM \u5bfc\u5165\u8fd4\u5de5\u3002',
-        'acceptance': '\u5b58\u5728\u5fc5\u586b\u7f3a\u5931\u65f6\u8f93\u51fa\u660e\u7ec6\u65e5\u5fd7\uff0c\u660e\u786e\u884c\u53f7\u548c\u5b57\u6bb5\u540d\u3002',
-        'likes': 2,
-    },
 ]
-
 
 def _ensure_dirs():
     os.makedirs(ATTACH_DIR, exist_ok=True)
@@ -125,6 +95,10 @@ def _ensure_schema(conn):
 
 
 def _seed_requests(conn):
+    keep_ids = {item['id'] for item in SEED_REQUESTS}
+    placeholders = ','.join('?' for _ in keep_ids)
+    if keep_ids:
+        conn.execute("DELETE FROM feature_requests WHERE id LIKE 'seed-%' AND id NOT IN (" + placeholders + ")", tuple(keep_ids))
     base_time = time.time() - 86400 * len(SEED_REQUESTS)
     for idx, item in enumerate(SEED_REQUESTS):
         conn.execute('''
@@ -336,6 +310,9 @@ def api_like_feature_request(request_id):
 
 @feature_request_bp.route('/api/feature_requests/<request_id>/status', methods=['POST'])
 def api_update_feature_request_status(request_id):
+    denied = require_admin_json()
+    if denied:
+        return denied
     data = request.get_json(silent=True) or {}
     status = str(data.get('status', '') or '').strip()
     if status not in ALLOWED_STATUSES:
@@ -352,3 +329,8 @@ def feature_attachment(filename):
     if not path or not os.path.exists(path):
         abort(404)
     return send_file(path)
+
+
+
+
+

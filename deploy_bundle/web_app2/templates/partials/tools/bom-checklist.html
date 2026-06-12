@@ -1,0 +1,77 @@
+<script type="text/html" id="tpl-bom-checklist">
+<div class="workflow-shell">
+  <div class="workflow-hero">
+    <h4>BOM Checklist <span class="tool-version" data-tool-version="bom-checklist">v{{ tool_versions['bom-checklist'] }}</span></h4>
+    <p>上传 BOM 后按内置检查标准自动扫描。每一个已上线的检查项都会在本页列出检查目的、判定逻辑和处理建议。</p>
+  </div>
+
+  <div class="section">
+    <h3>当前检查项说明</h3>
+    <div class="workflow-step-desc">以下规则会在点击“开始检查”后执行；结果中的行号对应 Excel 原始行号，最多展示前 50 条命中行。</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>检查项</th><th>判定逻辑</th><th>异常处理建议</th></tr></thead>
+        <tbody>
+          <tr data-check-id="required_headers"><td>关键表头检查</td><td>识别料号、型号、用量/数量/单耗等基础列，支持常见中英文别名。</td><td>补齐缺失列，或把客户表头调整为系统可识别的名称。</td></tr>
+          <tr data-check-id="pcba_standard_headers"><td>PCBA BOM 标准表头</td><td>校验序号、料号、上阶BOM名称、BOM层级、型号、物料描述、单耗、替代关系、位号、生产厂家、是否环保、湿敏属性。</td><td>按 PLM/PCBA 标准模板补齐缺少的关键列。</td></tr>
+          <tr data-check-id="duplicate_headers"><td>重复表头名</td><td>检查表头行中是否存在重复列名，避免后续按列名取值时覆盖。</td><td>删除或重命名重复表头，保证每个业务字段只有一列。</td></tr>
+          <tr data-check-id="blank_rows"><td>数据区空行</td><td>从表头下一行开始扫描空白行，空白行会中断人工阅读和部分导入流程。</td><td>删除 BOM 数据区中间的空白行，只保留连续数据。</td></tr>
+          <tr data-check-id="pcba_depop_removed"><td>DEPOP 物料移除检查</td><td>扫描整行文本是否包含 DEPOP 关键词。</td><td>确认传 BOM 前是否已删除 DEPOP 物料；如确需保留，应先在评审中说明原因。</td></tr>
+          <tr data-check-id="pcba_pcb_location"><td>PCB 料号和位号</td><td>检查是否存在位号为 PCB 的记录，作为 PCB 主料已加入 BOM 的基本信号。</td><td>补入 PCB 料号，并将 PCB 主料行位号填写为 PCB。</td></tr>
+          <tr data-check-id="pcba_qty_by_substitute_type"><td>主料/替代料单耗</td><td>主料必须填写非零单耗；替代料单耗应为空，避免导入后替代关系数量异常。</td><td>补齐主料单耗，清空替代料单耗。</td></tr>
+          <tr data-check-id="pcba_parent_bom_reference"><td>BOM 层级父项引用</td><td>多层级子项的上阶 BOM 名称必须能在本 BOM 料号或一级父项中找到。</td><td>修正上阶 BOM 名称，或补齐缺失的父项料号记录。</td></tr>
+          <tr data-check-id="pcba_hqv_structure"><td>HQV 层级结构</td><td>HQV 行必须有子阶；主料 HQV 单耗为 1 且位号非空；替代料 HQV 单耗为空。</td><td>补齐 HQV 子阶结构，按主料/替代料规则修正单耗和位号。</td></tr>
+          <tr data-check-id="pcba_hqv_naming_refdes"><td>HQV 命名/位号</td><td>根据型号/物料描述识别 DIMM、CPU Socket、Power、Assy、DIP、Press Fit 等 HQV 类型，并校验主料位号。</td><td>按 HQV 类型填写标准位号；无法识别类型时检查型号和物料描述命名。</td></tr>
+          <tr data-check-id="pcba_bmc_bios_auth_labels"><td>BMC/BIOS/MAC/SN 标签检查</td><td>结合规范性 PCBA BOM 结构检查标签是否在组装虚拟阶：BMC/AST 线索触发 BMC 授权标签，MAC/网卡芯片触发 MAC 标签，PCBA 默认检查 SN 标签，并保留 BIOS AMI 标签 HQ60410125009 检查。</td><td>缺失时补入对应标签；标签不在组装虚拟阶时修正上阶 BOM/层级；BMC/BIOS 标签需与项目软件确认跟随主芯片还是 FLASH。</td></tr>
+          <tr data-check-id="pcba_flash_socket_smt_conflict"><td>Flash Socket/贴片 Flash 互斥</td><td>BOM 中 Flash Socket 和贴片/焊接 Flash 不能同时出现；去掉 Socket 量产时，Flash 应从组装虚拟阶调整到 SMT 阶。</td><td>若使用 Socket，请人工核对 Flash 与 Socket 对应位置关系、原理图 Flash/Socket symbol、Layout colay 和 Flash 禁用万能 symbol；若量产去 Socket，请保留 SMT Flash 并删除 Socket。</td></tr>
+          <tr data-check-id="pcba_debug_keyword"><td>Debug only 物料提示</td><td>扫描整行文本是否包含 DEBUG 关键词。</td><td>MP 阶段确认 debug only 物料是否应移除；若保留，应在评审中说明用途。</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="section">
+    <h3>第一步：上传 BOM</h3>
+    <div class="workflow-step-desc">支持 .xlsx、.xlsm、.xls。先读取 Sheet、表头和前 20 行预览，再执行 Checklist。</div>
+    <div class="row">
+      <label>BOM 文件：</label>
+      <input type="file" id="bomChecklistFile" accept=".xlsx,.xlsm,.xls" style="width:340px">
+      <label>Sheet：</label>
+      <select id="bomChecklistSheet" style="width:180px"><option>先选择文件</option></select>
+      <label>表头行：</label>
+      <input type="number" id="bomChecklistHeaderRow" value="1" min="1" style="width:70px">
+      <button class="btn btn-sm btn-gray" id="bomChecklistPreviewBtn" type="button">读取预览</button>
+    </div>
+    <div id="bomChecklistStatus" style="font-size:12px;color:#667085"></div>
+    <div class="error" id="bomChecklistError"></div>
+  </div>
+
+  <div class="section" id="bomChecklistPreviewPanel" style="display:none">
+    <h3>预览</h3>
+    <div class="preview-note" id="bomChecklistPreviewNote"></div>
+    <div class="table-wrap excel-preview">
+      <table>
+        <thead><tr id="bomChecklistPreviewHead"></tr></thead>
+        <tbody id="bomChecklistPreviewBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="section">
+    <h3>第二步：执行检查</h3>
+    <button class="btn btn-primary" id="bomChecklistRunBtn" type="button">开始检查</button>
+    <span id="bomChecklistRunStatus" style="font-size:13px;color:#888;margin-left:8px"></span>
+  </div>
+
+  <div class="section" id="bomChecklistResultPanel" style="display:none">
+    <h3>检查结果</h3>
+    <div class="bom-checklist-summary" id="bomChecklistSummary"></div>
+    <div class="table-wrap" style="max-height:360px">
+      <table>
+        <thead><tr><th>状态</th><th>检查项</th><th>说明</th><th>数量</th><th>涉及行号</th></tr></thead>
+        <tbody id="bomChecklistResults"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</script>

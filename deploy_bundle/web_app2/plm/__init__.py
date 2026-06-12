@@ -1,19 +1,448 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """PLM 上传工具 — Blueprint"""
 
-import os, uuid, re, json
+import os, uuid, re, json, threading, time, queue
 from zipfile import ZipFile, ZIP_DEFLATED
 from flask import Blueprint
+from activity import track_tool_activity
 from shared import (
     openpyxl, Workbook, Font, PatternFill, Alignment, Border, Side,
     get_column_letter,
     request, jsonify,
     UPLOAD_DIR, OUTPUT_DIR, _col_int,
-    _open_workbook, _request_int, _save_uploaded_excel,
+    _cell_str, _open_workbook, _request_int, _save_uploaded_excel,
 )
 
 plm_bp = Blueprint('plm', __name__)
 
+_PLM_ATTACHMENT_JOBS = {}
+_PLM_ATTACHMENT_JOBS_LOCK = threading.Lock()
+_PLM_ATTACHMENT_QUEUE = queue.Queue()
+_PLM_ATTACHMENT_WORKER_STARTED = False
+_PLM_ATTACHMENT_WORKER_LOCK = threading.Lock()
+_PLM_ATTACHMENT_BATCHES = {}
+_PLM_ATTACHMENT_BATCHES_LOCK = threading.Lock()
+
+
+def _new_attachment_job(hqpn):
+    job_id = uuid.uuid4().hex
+    now = time.time()
+    job = {
+        'id': job_id,
+        'status': 'queued',
+        'stage': '\u4efb\u52a1\u5df2\u521b\u5efa',
+        'progress': 3,
+        'hqpn': hqpn,
+        'logs': [],
+        'download': '',
+        'filename': '',
+        'source_path': '',
+        'error': '',
+        'batch_id': '',
+        'created_at': now,
+        'updated_at': now,
+    }
+    with _PLM_ATTACHMENT_JOBS_LOCK:
+        _PLM_ATTACHMENT_JOBS[job_id] = job
+    return job_id
+
+
+def _attachment_progress_from_message(message, current):
+    text = str(message or '')
+    rules = [
+        ('\u542f\u52a8\u6d4f\u89c8\u5668', 8, '\u542f\u52a8\u6d4f\u89c8\u5668'),
+        ('\u6253\u5f00 EIP', 15, '\u6253\u5f00 EIP'),
+        ('\u8fdb\u5165 PLM', 25, '\u8fdb\u5165 PLM'),
+        ('Open PLM search page', 35, '\u6253\u5f00 PLM \u641c\u7d22\u9875'),
+        ('\u590d\u7528\u5df2\u767b\u5f55 PLM \u4f1a\u8bdd', 30, '\u590d\u7528\u5df2\u767b\u5f55 PLM \u4f1a\u8bdd'),
+        ('\u76f4\u63a5\u8fdb\u5165 PLM \u641c\u7d22\u9875', 35, '\u6253\u5f00 PLM \u641c\u7d22\u9875'),
+        ('\u641c\u7d22\u6599\u53f7', 45, '\u641c\u7d22 HQ \u6599\u53f7'),
+        ('\u6253\u5f00\u7b2c\u4e00\u6761\u641c\u7d22\u7ed3\u679c', 58, '\u6253\u5f00\u7269\u6599\u8be6\u60c5'),
+        ('\u8fdb\u5165\u5185\u5bb9\u9875', 68, '\u8fdb\u5165\u5185\u5bb9\u9875'),
+        ('\u52fe\u9009\u9644\u4ef6\u5e76\u4e0b\u8f7d', 76, '\u52fe\u9009\u9644\u4ef6'),
+        ('\u8bc6\u522b PDF \u9644\u4ef6', 80, '\u8bc6\u522b\u9644\u4ef6'),
+        ('Selected all attachment rows', 84, '\u52fe\u9009\u9644\u4ef6\u884c'),
+        ('No immediate download event', 88, '\u7b49\u5f85 PDF \u9884\u89c8\u9875'),
+        ('Downloaded PDF response', 94, '\u4fdd\u5b58 PDF \u9644\u4ef6'),
+        ('Downloaded PDF viewer', 94, '\u4fdd\u5b58 PDF \u9644\u4ef6'),
+        ('Downloaded selected attachments', 94, '\u4fdd\u5b58\u9644\u4ef6\u538b\u7f29\u5305'),
+        ('\u4e0b\u8f7d\u5b8c\u6210', 98, '\u6574\u7406\u4e0b\u8f7d\u6587\u4ef6'),
+    ]
+    for needle, progress, stage in rules:
+        if needle in text:
+            return max(current, progress), stage
+    return min(max(current, 5) + 1, 90), text[:80] or '\u5904\u7406\u4e2d'
+
+
+def _update_attachment_job(job_id, **updates):
+    with _PLM_ATTACHMENT_JOBS_LOCK:
+        job = _PLM_ATTACHMENT_JOBS.get(job_id)
+        if not job:
+            return
+        job.update(updates)
+        job['updated_at'] = time.time()
+
+
+def _append_attachment_log(job_id, message):
+    message = str(message)
+    with _PLM_ATTACHMENT_JOBS_LOCK:
+        job = _PLM_ATTACHMENT_JOBS.get(job_id)
+        if not job:
+            return
+        job['logs'].append(message)
+        progress, stage = _attachment_progress_from_message(message, int(job.get('progress') or 0))
+        job['progress'] = progress
+        job['stage'] = stage
+        job['updated_at'] = time.time()
+
+
+def _snapshot_attachment_job(job_id):
+    with _PLM_ATTACHMENT_JOBS_LOCK:
+        job = _PLM_ATTACHMENT_JOBS.get(job_id)
+        if not job:
+            return None
+        return dict(job, logs=list(job.get('logs') or []))
+
+
+def _ensure_attachment_worker():
+    global _PLM_ATTACHMENT_WORKER_STARTED
+    with _PLM_ATTACHMENT_WORKER_LOCK:
+        if _PLM_ATTACHMENT_WORKER_STARTED:
+            return
+        threading.Thread(target=_attachment_worker_loop, daemon=True).start()
+        _PLM_ATTACHMENT_WORKER_STARTED = True
+
+
+def _enqueue_attachment_job(job_id, username, password, hqpn, batch_id=''):
+    _PLM_ATTACHMENT_QUEUE.put({
+        'job_id': job_id,
+        'username': username,
+        'password': password,
+        'hqpn': hqpn,
+        'batch_id': batch_id,
+    })
+    _ensure_attachment_worker()
+
+
+def _attachment_worker_loop():
+    playwright_ctx = None
+    playwright = None
+    browser = None
+    context = None
+    search_page = None
+    session_user = ''
+    session_password = ''
+    while True:
+        task = _PLM_ATTACHMENT_QUEUE.get()
+        job_id = task['job_id']
+        username = task['username']
+        password = task['password']
+        hqpn = task['hqpn']
+        batch_id = task.get('batch_id') or ''
+        if batch_id and _batch_cancelled(batch_id):
+            _update_attachment_job(job_id, status='cancelled', stage='\\u5df2\\u53d6\\u6d88', progress=100, error='\\u7528\\u6237\\u53d6\\u6d88')
+            _PLM_ATTACHMENT_QUEUE.task_done()
+            continue
+        try:
+            from pathlib import Path as _Path
+            from playwright.sync_api import sync_playwright
+            from .automation import (
+                START_URL,
+                click_opening_page,
+                download_hq_attachment_from_search_page,
+                login_if_present,
+                wait_for_eip_ready,
+                _open_plm_search_page,
+                _wait_for_plm_home,
+            )
+
+            if playwright is None:
+                playwright_ctx = sync_playwright()
+                playwright = playwright_ctx.__enter__()
+
+            needs_new_session = (
+                browser is None or context is None or search_page is None or
+                session_user != username or session_password != password
+            )
+            if not needs_new_session:
+                try:
+                    needs_new_session = bool(search_page.is_closed())
+                except Exception:
+                    needs_new_session = True
+
+            if needs_new_session:
+                for resource in (context, browser):
+                    try:
+                        if resource:
+                            resource.close()
+                    except Exception:
+                        pass
+                _update_attachment_job(job_id, status='running', stage='\u51c6\u5907\u542f\u52a8\u6d4f\u89c8\u5668', progress=5)
+                _append_attachment_log(job_id, '\u542f\u52a8\u6d4f\u89c8\u5668')
+                browser = playwright.chromium.launch(headless=False)
+                context = browser.new_context(accept_downloads=True)
+                page = context.new_page()
+
+                _append_attachment_log(job_id, '\u6253\u5f00 EIP')
+                page.goto(START_URL, wait_until='domcontentloaded', timeout=60000)
+                wait_for_eip_ready(page, username, password)
+
+                _append_attachment_log(job_id, '\u8fdb\u5165 PLM')
+                plm_page = click_opening_page(
+                    page,
+                    page.locator('a').filter(has_text=re.compile(r'^PLM$')),
+                    timeout=30000,
+                )
+                login_if_present(plm_page, username, password, timeout=500)
+                plm_page = _wait_for_plm_home(context, plm_page, username, password)
+
+                _append_attachment_log(job_id, 'Open PLM search page')
+                search_page = _open_plm_search_page(
+                    context,
+                    plm_page,
+                    username,
+                    password,
+                    log=lambda message: _append_attachment_log(job_id, message),
+                )
+                session_user = username
+                session_password = password
+            else:
+                _update_attachment_job(job_id, status='running', stage='\u590d\u7528\u5df2\u767b\u5f55 PLM \u4f1a\u8bdd', progress=30)
+                _append_attachment_log(job_id, '\u590d\u7528\u5df2\u767b\u5f55 PLM \u4f1a\u8bdd')
+
+            last_error = None
+            output_path = None
+            for attempt in range(2):
+                try:
+                    if attempt:
+                        _update_attachment_job(job_id, status='running', stage='重试当前 HQ 料号', progress=35)
+                        _append_attachment_log(job_id, f'首次下载失败，复用当前 PLM 会话重试：{last_error}')
+                        search_page = _open_plm_search_page(
+                            context,
+                            search_page,
+                            username,
+                            password,
+                            log=lambda message: _append_attachment_log(job_id, message),
+                        )
+                    output_path, search_page = download_hq_attachment_from_search_page(
+                        context,
+                        search_page,
+                        hqpn=hqpn,
+                        output_dir=_Path(OUTPUT_DIR),
+                        username=username,
+                        password=password,
+                        log=lambda message: _append_attachment_log(job_id, message),
+                    )
+                    break
+                except Exception as exc:
+                    last_error = exc
+                    if attempt:
+                        raise
+                    try:
+                        if context is None or search_page is None or search_page.is_closed():
+                            raise
+                    except Exception:
+                        raise
+            output_path = str(output_path)
+            if not os.path.exists(output_path):
+                raise RuntimeError('\u81ea\u52a8\u5316\u5b8c\u6210\u4f46\u672a\u627e\u5230\u4e0b\u8f7d\u6587\u4ef6')
+            out_name = os.path.basename(output_path)
+            _update_attachment_job(
+                job_id,
+                status='done',
+                stage='\u4e0b\u8f7d\u5b8c\u6210',
+                progress=100,
+                download=f'/download/{out_name}',
+                filename=out_name,
+                source_path=output_path,
+            )
+        except Exception as e:
+            _append_attachment_log(job_id, str(e))
+            _update_attachment_job(job_id, status='error', stage='\u6267\u884c\u5931\u8d25', progress=100, error=str(e))
+            try:
+                if context:
+                    context.close()
+            except Exception:
+                pass
+            try:
+                if browser:
+                    browser.close()
+            except Exception:
+                pass
+            browser = None
+            context = None
+            search_page = None
+            session_user = ''
+            session_password = ''
+        finally:
+            try:
+                if _batch_jobs_finished(batch_id):
+                    _build_attachment_batch_status(batch_id)
+                    try:
+                        if context:
+                            context.close()
+                    except Exception:
+                        pass
+                    try:
+                        if browser:
+                            browser.close()
+                    except Exception:
+                        pass
+                    browser = None
+                    context = None
+                    search_page = None
+                    session_user = ''
+                    session_password = ''
+            finally:
+                _PLM_ATTACHMENT_QUEUE.task_done()
+
+
+
+def _safe_zip_member_name(filename, used_names):
+    base = os.path.basename(str(filename or '')).strip() or 'attachment.zip'
+    stem, ext = os.path.splitext(base)
+    if not ext:
+        ext = '.zip'
+    candidate = base
+    n = 2
+    while candidate in used_names:
+        candidate = f"{stem}_{n}{ext}"
+        n += 1
+    used_names.add(candidate)
+    return candidate
+
+
+def _snapshot_attachment_batch(batch_id):
+    with _PLM_ATTACHMENT_BATCHES_LOCK:
+        batch = _PLM_ATTACHMENT_BATCHES.get(batch_id)
+        if not batch:
+            return None
+        return dict(batch, job_ids=list(batch.get('job_ids') or []))
+
+
+def _cleanup_attachment_batches():
+    cutoff = time.time() - 3600
+    with _PLM_ATTACHMENT_BATCHES_LOCK:
+        for batch_id, batch in list(_PLM_ATTACHMENT_BATCHES.items()):
+            if batch.get('updated_at', 0) < cutoff:
+                _PLM_ATTACHMENT_BATCHES.pop(batch_id, None)
+
+
+def _build_attachment_batch_status(batch_id):
+    batch = _snapshot_attachment_batch(batch_id)
+    if not batch:
+        return None
+    jobs = []
+    for job_id in batch.get('job_ids') or []:
+        job = _snapshot_attachment_job(job_id)
+        if job:
+            jobs.append(job)
+    total = len(jobs)
+    done = sum(1 for job in jobs if job.get('status') == 'done')
+    failed = sum(1 for job in jobs if job.get('status') == 'error')
+    cancelled = sum(1 for job in jobs if job.get('status') == 'cancelled')
+    finished = done + failed + cancelled
+    if total:
+        progress = int(sum(int(job.get('progress') or 0) for job in jobs) / total)
+    else:
+        progress = 0
+    if total and finished == total:
+        progress = 100
+        if not batch.get('download') and done:
+            uid = batch_id[:8]
+            zip_name = f"HQ\u9644\u4ef6\u6279\u91cf_{uid}.zip"
+            zip_path = os.path.join(OUTPUT_DIR, zip_name)
+            used_names = set()
+            with ZipFile(zip_path, 'w', ZIP_DEFLATED) as zf:
+                for job in jobs:
+                    source_path = job.get('source_path') or ''
+                    if job.get('status') == 'done' and source_path and os.path.exists(source_path):
+                        member_name = _safe_zip_member_name(job.get('filename') or os.path.basename(source_path), used_names)
+                        zf.write(source_path, arcname=member_name)
+            with _PLM_ATTACHMENT_BATCHES_LOCK:
+                current = _PLM_ATTACHMENT_BATCHES.get(batch_id)
+                if current is not None:
+                    current.update({
+                        'download': f'/download/{zip_name}',
+                        'filename': zip_name,
+                        'source_path': zip_path,
+                        'updated_at': time.time(),
+                    })
+                    batch = dict(current, job_ids=list(current.get('job_ids') or []))
+        stage = '\u6279\u91cf\u4e0b\u8f7d\u5b8c\u6210'
+    elif total and any(job.get('status') == 'running' for job in jobs):
+        current_job = next((job for job in jobs if job.get('status') == 'running'), None)
+        stage = f"\u6b63\u5728\u4e0b\u8f7d\uff1a{current_job.get('hqpn')}" if current_job else '\u6b63\u5728\u4e0b\u8f7d'
+    else:
+        stage = '\u6392\u961f\u7b49\u5f85'
+    return {
+        'id': batch_id,
+        'status': 'done' if total and finished == total else 'running',
+        'stage': stage,
+        'progress': progress,
+        'total': total,
+        'done': done,
+        'failed': failed,
+        'cancelled': cancelled,
+        'finished': finished,
+        'download': batch.get('download', ''),
+        'filename': batch.get('filename', ''),
+        'jobs': [{
+            'job_id': job.get('id'),
+            'hqpn': job.get('hqpn'),
+            'status': job.get('status'),
+            'stage': job.get('stage'),
+            'progress': job.get('progress'),
+            'download': job.get('download'),
+            'filename': job.get('filename'),
+            'error': job.get('error'),
+        } for job in jobs],
+    }
+
+
+
+
+def _batch_cancelled(batch_id):
+    if not batch_id:
+        return False
+    with _PLM_ATTACHMENT_BATCHES_LOCK:
+        batch = _PLM_ATTACHMENT_BATCHES.get(batch_id)
+        return bool(batch and batch.get('cancelled'))
+
+
+def _cancel_attachment_batch(batch_id):
+    with _PLM_ATTACHMENT_BATCHES_LOCK:
+        batch = _PLM_ATTACHMENT_BATCHES.get(batch_id)
+        if not batch:
+            return None
+        batch['cancelled'] = True
+        batch['updated_at'] = time.time()
+        job_ids = list(batch.get('job_ids') or [])
+    for job_id in job_ids:
+        job = _snapshot_attachment_job(job_id)
+        if job and job.get('status') == 'queued':
+            _update_attachment_job(job_id, status='cancelled', stage='\u5df2\u53d6\u6d88', progress=100, error='\u7528\u6237\u53d6\u6d88')
+    return _build_attachment_batch_status(batch_id)
+def _batch_jobs_finished(batch_id):
+    if not batch_id:
+        return False
+    batch = _snapshot_attachment_batch(batch_id)
+    if not batch:
+        return False
+    job_ids = batch.get('job_ids') or []
+    if not job_ids:
+        return False
+    for job_id in job_ids:
+        job = _snapshot_attachment_job(job_id)
+        if not job or job.get('status') not in ('done', 'error', 'cancelled'):
+            return False
+    return True
+def _cleanup_attachment_jobs():
+    cutoff = time.time() - 3600
+    with _PLM_ATTACHMENT_JOBS_LOCK:
+        for job_id, job in list(_PLM_ATTACHMENT_JOBS.items()):
+            if job.get('updated_at', 0) < cutoff:
+                _PLM_ATTACHMENT_JOBS.pop(job_id, None)
 PLM_HEADERS = [
     "序号", "料号", "型号", "物料描述", "单耗",
     "替代关系\n(A:完全替代/N:独供/X:不完全替代)",
@@ -225,6 +654,7 @@ def api_plm_detect():
 
 
 @plm_bp.route('/api/plm/convert', methods=['POST'])
+@track_tool_activity('PLM格式转换')
 def api_plm_convert():
     file = request.files.get('file')
     if not file:
@@ -373,6 +803,7 @@ def api_plm_convert():
     })
 
 @plm_bp.route('/api/plm/spec_extract', methods=['POST'])
+@track_tool_activity('规格型号提取')
 def api_spec_extract():
     """提取单列规格型号，去除空格，输出单列 Excel"""
     import json as _json
@@ -404,7 +835,6 @@ def api_spec_extract():
         return jsonify({'success': False, 'error': str(e)})
 
     try:
-        from shared import _cell_str
         wb = _open_workbook(path, data_only=True)
         sheets = wb.sheetnames
         if not sheet_name or sheet_name not in sheets:
@@ -454,6 +884,7 @@ def api_spec_extract():
 
 
 @plm_bp.route('/api/plm/auto_spec_reverse', methods=['POST'])
+@track_tool_activity('PLM规格反查')
 def api_auto_spec_reverse():
     """Run an integrated Playwright PLM automation feature."""
     username = (request.form.get('username') or '').strip()
@@ -516,57 +947,212 @@ def api_auto_spec_reverse():
         'log': chr(10).join(logs),
     })
 
+
+
+def _normalize_hq_attachment_value(value):
+    text = _cell_str(value).replace('\u3000', ' ')
+    if not text:
+        return []
+    parts = re.split(r'[\s,\uFF0C;\uFF1B/]+', text)
+    result = []
+    for part in parts:
+        hqpn = re.sub(r'\s+', '', str(part or '')).strip().upper()
+        if hqpn and re.match(r'^HQ[A-Z0-9_-]{4,}$', hqpn):
+            result.append(hqpn)
+    return result
+
+
+def _detect_hq_attachment_column(headers):
+    for idx, header in enumerate(headers, 1):
+        text = str(header or '').replace(' ', '').upper()
+        if 'HQ' in text and ('\u6599\u53f7' in text or 'PN' in text or 'P/N' in text):
+            return get_column_letter(idx)
+    for idx, header in enumerate(headers, 1):
+        text = str(header or '').replace(' ', '').upper()
+        if '\u6599\u53f7' in text or text in ('PN', 'P/N'):
+            return get_column_letter(idx)
+    return ''
+
+
+def _read_hq_attachment_excel(file, prefix, uid, header_row, sheet_name=''):
+    in_path = _save_uploaded_excel(file, prefix, uid)
+    wb = _open_workbook(in_path, data_only=True)
+    sheets = wb.sheetnames
+    if not sheet_name or sheet_name not in sheets:
+        sheet_name = sheets[0] if sheets else ''
+    ws = wb[sheet_name]
+    headers = [_cell_str(ws.cell(row=header_row, column=ci).value) for ci in range(1, ws.max_column + 1)]
+    return wb, ws, sheets, sheet_name, headers
+
+
+@plm_bp.route('/api/plm/auto_hq_attachments/excel_detect', methods=['POST'])
+def api_auto_hq_attachments_excel_detect():
+    f = request.files.get('file')
+    if not f:
+        return jsonify({'success': False, 'error': '\u8bf7\u9009\u62e9 Excel \u6587\u4ef6'})
+    header_row = _request_int('header_row', 1)
+    if header_row is None:
+        return jsonify({'success': False, 'error': '\u8868\u5934\u884c\u5fc5\u987b\u662f\u5927\u4e8e\u7b49\u4e8e 1 \u7684\u6570\u5b57'})
+    uid = str(uuid.uuid4())[:8]
+    try:
+        wb, ws, sheets, sheet_name, headers = _read_hq_attachment_excel(
+            f, 'plm_att_detect', uid, header_row, request.form.get('sheet_name', '')
+        )
+        preview = []
+        for ri in range(header_row + 1, min(header_row + 21, ws.max_row + 1)):
+            row = [_cell_str(ws.cell(row=ri, column=ci).value) for ci in range(1, ws.max_column + 1)]
+            if any(row):
+                preview.append(row)
+        detected_col = _detect_hq_attachment_column(headers)
+        wb.close()
+        return jsonify({
+            'success': True,
+            'sheets': sheets,
+            'current_sheet': sheet_name,
+            'headers': headers,
+            'detected': {'hqpn': detected_col} if detected_col else {},
+            'preview': preview,
+        })
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@plm_bp.route('/api/plm/auto_hq_attachments/batch', methods=['POST'])
+@track_tool_activity('PLM\u9644\u4ef6\u6279\u91cf\u4e0b\u8f7d')
+def api_auto_hq_attachments_batch():
+    username = (request.form.get('username') or '').strip()
+    password = request.form.get('password') or ''
+    f = request.files.get('file')
+    header_row = _request_int('header_row', 1)
+    col_hqpn = _col_int(request.form.get('col_hqpn', ''))
+    if not username:
+        return jsonify({'success': False, 'error': '\u8bf7\u8f93\u5165\u8d26\u53f7'})
+    if not password:
+        return jsonify({'success': False, 'error': '\u8bf7\u8f93\u5165\u5bc6\u7801'})
+    if not f:
+        return jsonify({'success': False, 'error': '\u8bf7\u9009\u62e9 Excel \u6587\u4ef6'})
+    if header_row is None:
+        return jsonify({'success': False, 'error': '\u8868\u5934\u884c\u5fc5\u987b\u662f\u5927\u4e8e\u7b49\u4e8e 1 \u7684\u6570\u5b57'})
+    if not col_hqpn:
+        return jsonify({'success': False, 'error': '\u8bf7\u9009\u62e9 HQ \u6599\u53f7\u5217'})
+
+    uid = str(uuid.uuid4())[:8]
+    try:
+        wb, ws, sheets, sheet_name, headers = _read_hq_attachment_excel(
+            f, 'plm_att_batch', uid, header_row, request.form.get('sheet_name', '')
+        )
+        seen = set()
+        hqpns = []
+        for ri in range(header_row + 1, ws.max_row + 1):
+            for hqpn in _normalize_hq_attachment_value(ws.cell(row=ri, column=col_hqpn).value):
+                if hqpn not in seen:
+                    seen.add(hqpn)
+                    hqpns.append(hqpn)
+        wb.close()
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+    if not hqpns:
+        return jsonify({'success': False, 'error': '\u9009\u5b9a\u5217\u6ca1\u6709\u8bc6\u522b\u5230 HQ \u6599\u53f7'})
+    if len(hqpns) > 500:
+        return jsonify({'success': False, 'error': '\u4e00\u6b21\u6700\u591a\u652f\u6301 500 \u4e2a HQ \u6599\u53f7'})
+
+    _cleanup_attachment_jobs()
+    _cleanup_attachment_batches()
+    batch_id = uuid.uuid4().hex
+    jobs = []
+    job_ids = []
+    for hqpn in hqpns:
+        job_id = _new_attachment_job(hqpn)
+        job_ids.append(job_id)
+        _update_attachment_job(job_id, status='queued', stage='\u5df2\u52a0\u5165\u4e0b\u8f7d\u961f\u5217', progress=3)
+        _enqueue_attachment_job(job_id, username, password, hqpn, batch_id=batch_id)
+        jobs.append({
+            'hqpn': hqpn,
+            'job_id': job_id,
+            'status_url': f'/api/plm/auto_hq_attachments/status/{job_id}',
+        })
+    now = time.time()
+    with _PLM_ATTACHMENT_BATCHES_LOCK:
+        _PLM_ATTACHMENT_BATCHES[batch_id] = {
+            'id': batch_id,
+            'job_ids': job_ids,
+            'download': '',
+            'filename': '',
+            'source_path': '',
+            'created_at': now,
+            'updated_at': now,
+        }
+    return jsonify({
+        'success': True,
+        'count': len(jobs),
+        'batch_id': batch_id,
+        'status_url': f'/api/plm/auto_hq_attachments/batch/status/{batch_id}',
+        'jobs': jobs,
+    })
+
+
+@plm_bp.route('/api/plm/auto_hq_attachments/batch/status/<batch_id>', methods=['GET'])
+def api_auto_hq_attachments_batch_status(batch_id):
+    status = _build_attachment_batch_status(batch_id)
+    if not status:
+        return jsonify({'success': False, 'error': '\u6279\u91cf\u4efb\u52a1\u4e0d\u5b58\u5728\u6216\u5df2\u8fc7\u671f'}), 404
+    status['success'] = True
+    return jsonify(status)
+
+
+
+@plm_bp.route('/api/plm/auto_hq_attachments/batch/cancel/<batch_id>', methods=['POST'])
+def api_auto_hq_attachments_batch_cancel(batch_id):
+    status = _cancel_attachment_batch(batch_id)
+    if not status:
+        return jsonify({'success': False, 'error': '\u6279\u91cf\u4efb\u52a1\u4e0d\u5b58\u5728\u6216\u5df2\u8fc7\u671f'}), 404
+    status['success'] = True
+    return jsonify(status)
+
 @plm_bp.route('/api/plm/auto_hq_attachments', methods=['POST'])
+@track_tool_activity('PLM\u9644\u4ef6\u4e0b\u8f7d')
 def api_auto_hq_attachments():
-    """Download selected PLM attachments for one HQ material number."""
+    """Start a background PLM attachment download job."""
     username = (request.form.get('username') or '').strip()
     password = request.form.get('password') or ''
     hqpn = (request.form.get('hqpn') or '').strip()
     if not username:
-        return jsonify({'success': False, 'error': '请输入账号'})
+        return jsonify({'success': False, 'error': '\u8bf7\u8f93\u5165\u8d26\u53f7'})
     if not password:
-        return jsonify({'success': False, 'error': '请输入密码'})
+        return jsonify({'success': False, 'error': '\u8bf7\u8f93\u5165\u5bc6\u7801'})
     if not hqpn:
-        return jsonify({'success': False, 'error': '请输入 HQ 料号'})
+        return jsonify({'success': False, 'error': '\u8bf7\u8f93\u5165 HQ \u6599\u53f7'})
 
-    logs = []
+    _cleanup_attachment_jobs()
+    job_id = _new_attachment_job(hqpn)
 
-    def add_log(message):
-        logs.append(str(message))
+    _update_attachment_job(job_id, status='queued', stage='\u5df2\u52a0\u5165\u4e0b\u8f7d\u961f\u5217', progress=3)
+    _enqueue_attachment_job(job_id, username, password, hqpn)
+    return jsonify({'success': True, 'job_id': job_id, 'status_url': f'/api/plm/auto_hq_attachments/status/{job_id}'})
 
-    try:
-        from pathlib import Path as _Path
-        from playwright.sync_api import sync_playwright
-        from .automation import run_hq_attachment_download
 
-        with sync_playwright() as playwright:
-            output_path = run_hq_attachment_download(
-                playwright,
-                username=username,
-                password=password,
-                hqpn=hqpn,
-                output_dir=_Path(OUTPUT_DIR),
-                headless=False,
-                log=add_log,
-            )
-    except ImportError as e:
-        return jsonify({
-            'success': False,
-            'error': '缺少 Playwright 依赖，请安装 requirements.txt 并执行 playwright install chromium',
-            'log': chr(10).join(logs + [str(e)]),
-        })
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e), 'log': chr(10).join(logs)})
-
-    output_path = str(output_path)
-    if not os.path.exists(output_path):
-        return jsonify({'success': False, 'error': '自动化完成但未找到下载文件', 'log': chr(10).join(logs)})
-
-    out_name = os.path.basename(output_path)
+@plm_bp.route('/api/plm/auto_hq_attachments/status/<job_id>', methods=['GET'])
+def api_auto_hq_attachments_status(job_id):
+    job = _snapshot_attachment_job(job_id)
+    if not job:
+        return jsonify({'success': False, 'error': '\u4efb\u52a1\u4e0d\u5b58\u5728\u6216\u5df2\u8fc7\u671f'}), 404
     return jsonify({
         'success': True,
-        'download': f'/download/{out_name}',
-        'filename': out_name,
-        'source_path': output_path,
-        'log': chr(10).join(logs),
+        'job_id': job['id'],
+        'status': job.get('status'),
+        'stage': job.get('stage'),
+        'progress': job.get('progress'),
+        'hqpn': job.get('hqpn'),
+        'download': job.get('download'),
+        'filename': job.get('filename'),
+        'source_path': job.get('source_path'),
+        'error': job.get('error'),
+        'log': chr(10).join(job.get('logs') or []),
     })
+
+

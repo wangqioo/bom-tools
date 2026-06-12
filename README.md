@@ -1,137 +1,156 @@
 # BOM Tools
 
-企业内部硬件设计辅助工具集，提供 Web 统一界面，支持多人在线使用。
+BOM Tools 是面向硬件研发、BOM 审核、物料选型和 PLM 上传流程的内部辅助平台。项目以 Flask Web 应用为主入口，整合 Excel 处理、飞书表格匹配、BOM 对比、PLM 格式转换、缺陷反馈和需求收集等工具。
 
----
+## 功能概览
+
+- BOM 格式转换：识别客户 BOM 的品牌、型号、制造商等字段，并展开为标准多行格式。
+- 飞书优选库匹配：按本地 BOM 字段和飞书表格字段做多键 AND 匹配，支持缓存在线表格数据。
+- BOM 优选率查询：基于已缓存的优选库统计 HQ 料号优选率并导出标色 Excel。
+- PLM 上传格式转换：把整机 BOM 配置表转换为 PLM 导入格式。
+- PLM 网页自动化：基于 Playwright 辅助查询、上传和导出 PLM 数据。
+- BOM 对比工具集：支持通用 BOM、客户 BOM 与 HQ BOM、HQ BOM 版本、整机 HQ BOM 版本、Cadence BOM 与 HQ BOM 对比。
+- 厂商命名映射：维护客户厂商别名到 HQ 标准厂商名的映射。
+- Bug 与需求工单：在 Web 页面提交问题、附件、需求和状态流转信息。
+- 小工具合集：当前包含本地文件 MD5 计算。
+
+更细的业务规则见 [功能说明.md](功能说明.md) 和 [doc/](doc/)。
 
 ## 快速启动
 
-### 有网环境
+### 开发环境
 
-```bash
-cd web_app2
-pip install -r requirements.txt
-python app.py        # 访问 http://localhost:5000
+```powershell
+cd C:\Users\100448405\bom-tools
+python -m venv venv
+.\venv\Scripts\activate
+python -m pip install -r web_app2\requirements.txt
+python web_app2\app.py
 ```
 
-### 无网 / Windows 离线部署
+访问：
 
-将 `deploy_bundle/` 文件夹整体复制到目标机器，双击运行：
-
-```
-deploy_bundle/install_and_run.bat
+```text
+http://localhost:5000
 ```
 
-脚本将自动创建虚拟环境、离线安装依赖并启动服务器。
+默认启用登录。测试环境会自动关闭登录校验；本地临时调试也可以设置：
 
-> **前置要求：** Python 3.10+（从 [python.org](https://www.python.org/downloads/) 安装，勾选 "Add Python to PATH"）
+```powershell
+$env:BOM_TOOLS_AUTH_REQUIRED = "0"
+python web_app2\app.py
+```
 
----
+### 一键部署和启动
 
-## 工具功能
+在项目根目录运行：
 
-### 1. BOM 格式转换
+```cmd
+deploy_one_click.bat
+```
 
-将客户提供的多种格式 BOM 展开为标准多行格式，支持：
+该脚本会创建虚拟环境、安装依赖，并优先使用 `deploy_bundle/wheels/` 中的离线 wheel 包。若发现 `bom-tools_offline_*.zip`，会询问是否先部署再启动。
 
-- **格式 A** — 品牌型号合并在一列（`||` 或空格分隔）
-- **格式 B** — 品牌列与型号列分开，分号分隔多供应商
-- **格式 C** — 制造商含内部编号，冒号分隔
+## 测试与检查
 
-输出模式：原格式展开 / 转为整机 BOM 配置表。
+当前测试使用标准库 `unittest`，不强依赖 pytest：
 
----
+```powershell
+python -m unittest discover -s tests
+```
 
-### 2. 飞书优选库 + 关系库匹配
+发布或交付前建议跑完整预检：
 
-连接飞书内部 API 网关，从在线库中批量查找物料信息。
+```powershell
+python scripts\preflight_check.py
+```
 
-**核心特性：**
-- 预置 15 个库（14 优选库 + 1 对应关系库），分组显示
-- 本地键与飞书键多对多 AND 匹配（可动态增删键数量）
-- 提取列映射：标准输出列名（HQ料号 / HQ规格型号 / HQ制造商 / 优选等级 / HQ描述）与各 sheet 实际列名一一对应
-- 服务端数据缓存，支持一键批量缓存所有启用 sheet
-- 配置导出 / 恢复默认，所有设置自动持久化
+预检会依次执行：
 
-**匹配逻辑：**
-- 本地键为空的行自动跳过，不参与匹配，原行保留
-- 未匹配行原样保留，已匹配行附加提取列数据
+- UTF-8 源文件检查
+- `web_app2` Python 编译检查
+- 平台/工具版本号变更检查
+- 全量 `unittest`
 
----
+如需单独检查版本号：
 
-### 3. 查询 BOM 优选率
+```powershell
+python scripts\check_version_bumps.py --root .
+```
 
-上传含 HQ料号 的 BOM，在所有已缓存优选库中查询优选等级。
+版本号定义在 [web_app2/shared.py](web_app2/shared.py)：
 
-**优选判定：**
+- `PLATFORM_VERSION`：Web 平台壳版本。
+- `TOOL_VERSIONS`：各功能工具版本。
 
-| 优选等级值 | 是否优选 |
-|---|---|
-| 文字含「优选」 | ✅ |
-| 数字 7 / 8 / 9 | ✅ |
-| 数字 1–6 或其他 | ❌ |
+当修改平台入口、前端壳或具体工具代码时，应同步提升对应版本号，避免用户浏览器缓存导致页面和后端能力不一致。
 
-**优选率公式：优选料数 ÷ 已匹配料数**（未匹配行不参与计算）
+## 离线发布包
 
-输出 Excel 色彩标注：绿色 = 优选 / 黄色 = 匹配到但非优选 / 灰色 = 未匹配。
+生成离线发布包：
 
----
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\export_offline_release.ps1
+```
 
-### 4. 转换为上传 PLM 系统格式
+安装离线发布包：
 
-包含两个子功能：
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\install_offline_release.ps1 -PackagePath .\deploy_bundle\bom-tools_offline_YYYYMMDD_HHMMSS.zip -InstallDir C:\path\to\bom-tools
+```
 
-#### 4a. 整机 BOM 配置表转换
+发布脚本会排除运行时数据，并在安装时备份、恢复这些目录：
 
-将整机 BOM 配置表转换为 PLM 系统标准导入格式（25 列）：序号、料号、单耗、替代关系、主辅 BOM 标记等。
-
-#### 4b. 规格型号提取
-
-上传 BOM → 选择任意一列 → 提取全部值（自动去除空格）→ 输出单列 Excel（列名「规格型号」）。
-
----
+- `web_app2/auth_data`
+- `web_app2/cache`
+- `web_app2/uploads`
+- `web_app2/outputs`
+- `web_app2/logs`
+- `web_app2/bug_reports`
+- `web_app2/feature_requests`
+- `web_app2/manufacturer_aliases`
 
 ## 目录结构
 
-```
+```text
 bom-tools/
-├── web_app2/               主 Web 应用（Flask）
-│   ├── app.py              入口
-│   ├── shared.py           公共工具
-│   ├── bom/                BOM 格式转换 Blueprint
-│   ├── feishu/             飞书匹配 + 优选率 Blueprint
-│   ├── plm/                PLM 转换 Blueprint
-│   ├── templates/
-│   │   └── index.html      单页前端（所有 JS 内联）
-│   └── default_config.json 飞书库默认配置（含完整 sheet 映射）
-├── deploy_bundle/          Windows 离线部署包
-│   ├── install_and_run.bat 一键安装 + 启动
-│   ├── requirements.txt    依赖声明
-│   ├── wheels/             离线 .whl 文件（Python 3.10–3.14）
-│   └── web_app2/           同上，随包自带
-├── scripts/                CLI 脚本（单机运行，独立使用）
-│   ├── bom_gui.py
-│   ├── feishu_multi_matcher.py
-│   ├── plm_upload.py
-│   ├── pstx_analyzer.py
-│   └── csa_checker.py
-└── CHANGELOG.md
+  web_app2/                     Flask Web 应用
+    app.py                      Web 入口与蓝图注册
+    shared.py                   公共工具、路径、版本号
+    auth.py                     登录、用户和权限
+    bom/                        BOM 格式转换
+    feishu/                     飞书匹配与优选率
+    plm/                        PLM 转换与自动化
+    bom_compare/                BOM 对比工具集
+    manufacturer_alias/         厂商别名映射
+    bug_report/                 Bug 工单
+    feature_request/            需求工单
+    templates/                  页面模板
+    static/                     前端 CSS/JS
+  scripts/                      开发、检查、发布和独立工具脚本
+  tests/                        unittest 测试
+  doc/                          业务规则说明
+  deploy_bundle/                离线部署资源和 wheel 包
+  manufacturer_mapping_extracts/ 厂商映射历史资料
 ```
 
----
+## 依赖说明
 
-## 依赖
+核心依赖：
 
-```
-Flask >= 3.0
-openpyxl >= 3.1
-requests >= 2.28
-```
+- Python 3.10+
+- Flask
+- openpyxl
+- requests
+- waitress
+- Playwright
 
----
+PLM 自动化依赖 Chromium 运行时。离线环境应随包提供 `ms-playwright/`，或设置 `PLAYWRIGHT_BROWSERS_PATH` 指向已有浏览器目录。
 
-## 配置持久化
+## 运维注意事项
 
-Web 版所有飞书相关配置（Token、匹配键、提取列映射、缓存记录）均保存在**浏览器 localStorage** 中，刷新页面或重启服务器不会丢失。
-
-服务器内置默认配置（`default_config.json`），新用户首次打开后可点击「↩ 恢复默认配置」一键加载。
+- Web 上传和导出文件会写入 `web_app2/uploads`、`web_app2/outputs`，后台清理任务会定期删除旧文件。
+- 飞书缓存写入 `web_app2/cache`，由用户手动刷新，不随普通文件清理删除。
+- 登录用户数据保存在 `web_app2/auth_data`。
+- 工单和厂商映射数据保存在对应运行时目录，发布包默认不覆盖。
+- `deploy_bundle/` 内可能包含一份部署用代码副本，日常开发优先修改根目录 `web_app2/`，再通过发布脚本生成部署包。

@@ -83,6 +83,22 @@ class CustomerHqExportReportTests(unittest.TestCase):
         filename = unquote(payload["download"].split("/download/", 1)[1])
         wb = openpyxl.load_workbook(WEB_APP / "outputs" / filename, data_only=True)
         ws = wb["\u5dee\u5f02\u603b\u89c8"]
+        summary_values = {
+            ws.cell(row, 1).value: ws.cell(row, 2).value
+            for row in range(1, ws.max_row + 1)
+        }
+        self.assertEqual(ws["A1"].value, "BOM Tools 导出报告")
+        self.assertEqual(summary_values["导出来源"], "BOM Tools 平台 v2.2.0")
+        self.assertEqual(summary_values["平台版本"], "v2.2.0")
+        self.assertEqual(summary_values["工具名称"], "客户 BOM 对比 HQ BOM")
+        self.assertEqual(summary_values["工具版本"], "v1.1.0")
+        self.assertEqual(summary_values["客户 BOM 文件"], "customer.xlsx")
+        self.assertEqual(summary_values["HQ BOM 文件"], "hq.xlsx")
+        self.assertEqual(summary_values["客户 Sheet / 表头行"], "自动选择 / 1")
+        self.assertEqual(summary_values["HQ Sheet"], "自动识别")
+        self.assertEqual(summary_values["匹配模式"], "按型号+制造商匹配")
+        self.assertIn("规格型号: 规格型号", summary_values["字段映射"])
+        self.assertIn("制造商: 供应商", summary_values["字段映射"])
         links = {
             ws.cell(row, 1).value: ws.cell(row, 1).hyperlink.target
             for row in range(3, ws.max_row + 1)
@@ -94,6 +110,50 @@ class CustomerHqExportReportTests(unittest.TestCase):
         wb.close()
 
 
+
+    def test_export_auto_fits_column_widths_and_row_heights(self):
+        long_model = "MODEL-WITH-LONG-COMMERCIAL-NAME-AND-PACKAGE-DETAILS-1234567890"
+        long_maker = "Very Long Customer Manufacturer Name With Multiple Business Units And Suffixes"
+        long_refdes = ",".join(f"R{i:03d}" for i in range(1, 41))
+        customer = _xlsx_bytes(
+            ["供应商", "规格型号", "数量", "位号"],
+            [[long_maker, long_model, 123, long_refdes]],
+        )
+        hq = _hq_export_bytes([
+            ["1", "P1", long_model, "", 456, "主料", "R001,R002,R003", long_maker],
+        ])
+        resp = app.test_client().post("/api/bom_compare/customer_hq_export", data={
+            "left_file": (customer, "customer-long.xlsx"),
+            "right_file": (hq, "hq-long.xlsx"),
+            "config": json.dumps({
+                "left_header_row": 1,
+                "match_mode": "identity",
+                "mapping": {
+                    "manufacturer": "供应商",
+                    "model": "规格型号",
+                    "quantity": "数量",
+                    "refdes": "位号",
+                },
+            }),
+        }, content_type="multipart/form-data")
+        payload = resp.get_json()
+        self.assertTrue(payload["success"], payload.get("error"))
+        filename = unquote(payload["download"].split("/download/", 1)[1])
+        wb = openpyxl.load_workbook(WEB_APP / "outputs" / filename)
+        try:
+            summary = wb["差异总览"]
+            detail = wb["匹配明细"]
+            field_diff = wb["字段差异"]
+            self.assertGreaterEqual(summary.column_dimensions["B"].width, 60)
+            self.assertGreater(summary.row_dimensions[14].height, 18)
+            self.assertGreaterEqual(detail.column_dimensions["H"].width, 60)
+            self.assertGreaterEqual(detail.column_dimensions["J"].width, 60)
+            self.assertTrue(any(
+                (field_diff.row_dimensions[row].height or 0) > 18
+                for row in range(2, field_diff.max_row + 1)
+            ))
+        finally:
+            wb.close()
 
     def test_refdes_field_diff_reports_only_delta_refs(self):
         customer = _xlsx_bytes(

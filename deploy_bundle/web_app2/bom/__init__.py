@@ -1,8 +1,9 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """BOM 转换工具 — Blueprint"""
 
 import os, uuid, re
 from flask import Blueprint, render_template
+from activity import track_tool_activity
 from shared import (
     openpyxl, Workbook, Font, PatternFill, Alignment, Border, Side,
     get_column_letter, column_index_from_string,
@@ -377,6 +378,7 @@ def api_bom_detect():
 
 
 @bom_bp.route('/api/bom/convert', methods=['POST'])
+@track_tool_activity('BOM格式转换')
 def api_bom_convert():
     file = request.files.get('file')
     if not file:
@@ -473,3 +475,7 @@ def api_bom_convert():
             'total': total,
             'skipped': skipped,
         })
+
+
+
+

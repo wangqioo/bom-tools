@@ -56,30 +56,42 @@ async function postFormJson(url, fd){
 }
 
 // ═══════════════════ 左侧导航切换 ═══════════════════
+const APP_VERSION = (window.BOM_TOOLS_BOOTSTRAP && window.BOM_TOOLS_BOOTSTRAP.version) || '2.1.0';
+const TOOL_VERSIONS = (window.BOM_TOOLS_BOOTSTRAP && window.BOM_TOOLS_BOOTSTRAP.toolVersions) || {};
+function toolVersion(key, fallback){
+  const value = TOOL_VERSIONS[key] || fallback || '';
+  return value ? 'v' + String(value).replace(/^v/i, '') : '';
+}
+function applyToolVersions(root){
+  (root || document).querySelectorAll('[data-tool-version]').forEach(el=>{
+    const version = toolVersion(el.dataset.toolVersion, el.textContent || '');
+    if(version) el.textContent = version;
+  });
+}
 const TOOLS = {
-  bom:    {title:'BOM 格式转换',        badge:'v5.10', tpl:'tpl-bom',
+  bom:    {title:'BOM 格式转换',        badge:toolVersion('bom','5.10.0'), tpl:'tpl-bom',
            desc:'将客户提供的多种格式 BOM 表自动识别列映射，支持品牌型号合并列/分开列（格式A/B/C），展开为多供应商独立行。'},
-  feishu: {title:'飞书优选库+关系库匹配', badge:'v3.0',  tpl:'tpl-feishu',
+  feishu: {title:'飞书优选库+关系库匹配', badge:toolVersion('feishu','3.0.0'),  tpl:'tpl-feishu',
            desc:'连接飞书内部 API 网关，支持 15 个预置库（优选库 + 对应关系库），多键 AND 匹配（最多 3 对），批量提取字段，输出含来源表格的匹配结果。'},
-  'manufacturer-alias': {title:'\u5382\u5546\u547d\u540d\u6620\u5c04\u8868', badge:'\u6620\u5c04\u5e93', tpl:'tpl-manufacturer-alias',
+  'manufacturer-alias': {title:'\u5382\u5546\u547d\u540d\u6620\u5c04\u8868', badge:toolVersion('manufacturer-alias','1.0.0'), tpl:'tpl-manufacturer-alias',
            desc:'\u7ef4\u62a4\u5ba2\u6237\u5382\u5546\u522b\u540d\u3001\u5927\u5c0f\u5199\u53d8\u4f53\u3001\u4e2d\u6587\u540d\u548c\u97f3\u8bd1\u540d\u5230 HQ \u89c4\u8303\u5382\u5546\u540d\u7684\u7cbe\u786e\u6620\u5c04\uff0c\u4f9b\u540e\u7eed\u5339\u914d\u6d41\u7a0b\u590d\u7528\u3002'},
-  'pref-rate': {title:'查询BOM优选率', badge:'v1.0', tpl:'tpl-pref-rate',
+  'pref-rate': {title:'查询BOM优选率', badge:toolVersion('pref-rate','1.0.0'), tpl:'tpl-pref-rate',
                desc:'按 HQ料号 在所有优选库缓存中查找优选等级，输出含优选率统计的 Excel 结果文件。'},
-  plm:    {title:'转换为上传PLM系统格式', badge:'v1.6',  tpl:'tpl-plm',
+  plm:    {title:'转换为上传PLM系统格式', badge:toolVersion('plm','1.6.0'),  tpl:'tpl-plm',
            desc:'将整机 BOM 配置表转换为 PLM 系统可导入的标准格式：序号、料号、单耗等25列，主供行填单耗，替代料自动标记主辅BOM标记。'},
-  'plm-auto': {title:'PLM网页自动化', badge:'自动化', tpl:'tpl-plm-auto',
+  'plm-auto': {title:'PLM网页自动化', badge:toolVersion('plm-auto','1.0.0'), tpl:'tpl-plm-auto',
            desc:'自动登录 EIP/PLM，按标准流程上传文件、查询并导出结果。当前包含规格型号反查物料。'},
-  'bom-compare': {title:'BOM比对工具合集', badge:'v0.1', tpl:'tpl-bom-compare',
-           desc:'提供单板HQ BOM版本对比、整机HQ BOM版本对比、Cadence导出BOM对比HQ BOM三个比对子功能。'},
-  toolbox: {title:'小工具合集', badge:'工具', tpl:'tpl-toolbox',
+  'bom-compare': {title:'BOM比对工具合集', badge:toolVersion('bom-compare','0.3.0'), tpl:'tpl-bom-compare',
+           desc:'提供通用BOM对比、客户BOM对比HQ BOM、单板HQ BOM版本对比、整机HQ BOM版本对比、Cadence导出BOM对比HQ BOM五个子功能。'},
+  'bom-checklist': {title:'BOM Checklist', badge:toolVersion('bom-checklist','0.1.4'), tpl:'tpl-bom-checklist',
+           desc:'上传 BOM 后按 Checklist 标准自动扫描并输出通过、警告和失败项；检查规则会按内部标准逐条补齐。'},
+  toolbox: {title:'小工具合集', badge:toolVersion('toolbox','1.0.0'), tpl:'tpl-toolbox',
            desc:'提供轻量级本地小工具。当前包含文件哈希值计算，可直接在浏览器内得到 MD5。'},
-  'bug-report': {title:'Bug提交栏目', badge:'反馈', tpl:'tpl-bug-report',
-             desc:'提交工具问题、附件和复现信息，所有记录保存在服务端，团队成员均可查看。'},
-  'feature-request': {title:'需求开发工单', badge:'需求', tpl:'tpl-feature-request',
-            desc:'提交新功能、流程优化和开发需求，便于后续评估、排期和跟进。'},
+  'about-project': {title:'\u5173\u4e8e\u8be5\u9879\u76ee', badge:'INFO', tpl:'tpl-about-project',
+           desc:'\u67e5\u770b\u9879\u76ee\u8bf4\u660e\u548c\u8054\u7cfb\u4eba\u4fe1\u606f\uff0c\u9047\u5230\u95ee\u9898\u6216\u9700\u8981\u534f\u52a9\u65f6\u53ef\u901a\u8fc7\u98de\u4e66\u8054\u7cfb\u3002'},
   'admin-users': {title:'用户管理', badge:'ADMIN', tpl:'tpl-admin-users',
            desc:'查看注册用户、角色权限、启用状态和最近使用情况。'},
-  manual: {title:'工具说明书', badge:'说明', tpl:'tpl-manual',
+  manual: {title:'工具说明书', badge:toolVersion('manual','1.0.0'), tpl:'tpl-manual',
            desc:'集中展示每个工具的处理逻辑、输入要求、关键规则和推荐使用步骤。'},
 };
 let curTool = null;
@@ -104,9 +116,14 @@ function showOverview(){
   if(location.hash) history.replaceState(null, '', location.pathname + location.search);
   document.querySelectorAll('.sidebar nav a[data-tool]').forEach(x=>x.classList.remove('active'));
   $('toolTitle').textContent = 'BOM Tools';
-  $('toolBadge').textContent = '硬件设计辅助平台';
+  $('toolBadge').textContent = '硬件设计辅助平台 v' + APP_VERSION;
   let html = '<div class="overview-grid">';
-  for(const [key, t] of Object.entries(TOOLS)){
+  const orderedTools = Object.entries(TOOLS).sort(([a], [b])=>{
+    if(a === 'about-project') return 1;
+    if(b === 'about-project') return -1;
+    return 0;
+  });
+  for(const [key, t] of orderedTools){
     const iconEl = document.querySelector('.sidebar nav a[data-tool="'+key+'"] .icon');
     const icon = iconEl ? iconEl.textContent : '🛠';
     html += '<div class="overview-card" onclick="switchTool(\''+key+'\')">' +
@@ -118,6 +135,7 @@ function showOverview(){
   }
   html += '</div>';
   $('contentArea').innerHTML = html;
+  applyToolVersions(document.getElementById('contentArea'));
 }
 
 function switchTool(key){
@@ -137,6 +155,7 @@ document.querySelectorAll('.sidebar nav a[data-tool]').forEach(a=>{
     $('toolTitle').textContent=t.title;
     $('toolBadge').textContent=t.badge;
     $('contentArea').innerHTML=$(t.tpl).innerHTML;
+    applyToolVersions(document.getElementById('contentArea'));
     initTool(curTool);
   };
 });
@@ -153,12 +172,105 @@ function initTool(tool){
   else if(tool==='plm') initPlm();
   else if(tool==='plm-auto') initPlmAuto();
   else if(tool==='bom-compare') initBomCompare();
+  else if(tool==='bom-checklist') initBomChecklist();
   else if(tool==='toolbox') initToolbox();
-  else if(tool==='bug-report') initBugReport();
-  else if(tool==='feature-request') initFeatureRequest();
   else if(tool==='admin-users') initAdminUsers();
   else if(tool==='manufacturer-alias') initManufacturerAlias();
+  else if(tool==='about-project') initAboutProject();
   else if(window._toolInits&&window._toolInits[tool]) window._toolInits[tool]();
+}
+
+
+function bomChecklistFormData(){
+  const file = $('bomChecklistFile') && $('bomChecklistFile').files[0];
+  if(!file) throw new Error('请先上传 BOM 文件');
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('sheet_name', $('bomChecklistSheet') ? $('bomChecklistSheet').value : '');
+  fd.append('header_row', $('bomChecklistHeaderRow') ? $('bomChecklistHeaderRow').value : '1');
+  return fd;
+}
+function bomChecklistRenderPreview(data){
+  const panel = $('bomChecklistPreviewPanel');
+  if(panel) panel.style.display = 'block';
+  const note = $('bomChecklistPreviewNote');
+  if(note) note.textContent = `Sheet：${data.current_sheet}，表头 ${data.headers.length} 列，数据 ${data.data_rows} 行，空行 ${data.blank_rows} 行`;
+  const head = $('bomChecklistPreviewHead');
+  if(head) head.innerHTML = (data.headers||[]).map(h=>`<th>${_escH(h)}</th>`).join('');
+  const body = $('bomChecklistPreviewBody');
+  if(body){
+    body.innerHTML = (data.preview||[]).map(row=>'<tr>'+row.map(v=>`<td>${_escH(v)}</td>`).join('')+'</tr>').join('') || '<tr><td>无数据行</td></tr>';
+  }
+}
+function bomChecklistRenderResults(data){
+  const panel = $('bomChecklistResultPanel');
+  if(panel) panel.style.display = 'block';
+  const s = data.summary || {};
+  const summary = $('bomChecklistSummary');
+  if(summary){
+    summary.innerHTML = `<span class="badge-sm badge-green">通过 ${s.pass||0}</span> <span class="badge-sm badge-orange">警告 ${s.warn||0}</span> <span class="badge-sm badge-status-invalid">失败 ${s.fail||0}</span> <span class="badge-sm badge-blue">数据行 ${s.data_rows||0}</span>`;
+  }
+  const rows = $('bomChecklistResults');
+  if(rows){
+    rows.innerHTML = (data.checks||[]).map(item=>{
+      const cls = item.status === 'pass' ? 'badge-green' : (item.status === 'fail' ? 'badge-status-invalid' : 'badge-orange');
+      const label = item.status === 'pass' ? '通过' : (item.status === 'fail' ? '失败' : '警告');
+      return `<tr><td><span class="badge-sm ${cls}">${label}</span></td><td>${_escH(item.name)}</td><td>${_escH(item.message)}</td><td>${item.count||0}</td><td>${_escH((item.rows||[]).join(', '))}</td></tr>`;
+    }).join('');
+  }
+}
+function initBomChecklist(){
+  const file = $('bomChecklistFile');
+  const previewBtn = $('bomChecklistPreviewBtn');
+  const runBtn = $('bomChecklistRunBtn');
+  const sheet = $('bomChecklistSheet');
+  const clear = ()=>{ clearInlineError('bomChecklistError'); setPlainStatus('bomChecklistStatus',''); setPlainStatus('bomChecklistRunStatus',''); };
+  async function preview(){
+    clear();
+    try{
+      setLoadingStatus('bomChecklistStatus','正在读取 BOM...');
+      const data = await postFormJson('/api/bom_checklist/preview', bomChecklistFormData());
+      if(!data.success) throw new Error(data.error || '读取失败');
+      if(sheet){
+        const current = data.current_sheet;
+        sheet.innerHTML = (data.sheets||[]).map(name=>`<option value="${_escH(name)}"${name===current?' selected':''}>${_escH(name)}</option>`).join('');
+      }
+      bomChecklistRenderPreview(data);
+      setPlainStatus('bomChecklistStatus','读取完成');
+    }catch(e){ showInlineError('bomChecklistError', e.message, 'bomChecklistStatus'); }
+  }
+  async function run(){
+    clear();
+    try{
+      setLoadingStatus('bomChecklistRunStatus','正在执行检查...');
+      const data = await postFormJson('/api/bom_checklist/run', bomChecklistFormData());
+      if(!data.success) throw new Error(data.error || '检查失败');
+      bomChecklistRenderPreview(data);
+      bomChecklistRenderResults(data);
+      setPlainStatus('bomChecklistRunStatus','检查完成');
+    }catch(e){ showInlineError('bomChecklistError', e.message, 'bomChecklistRunStatus'); }
+  }
+  if(file) file.onchange = preview;
+  if(sheet) sheet.onchange = preview;
+  if(previewBtn) previewBtn.onclick = preview;
+  if(runBtn) runBtn.onclick = run;
+}
+function initAboutProject(){
+  const trigger=$('aboutEggTrigger');
+  const panel=$('aboutEggPanel');
+  if(!trigger||!panel) return;
+  const syncState=()=>{
+    const open=panel.classList.contains('show');
+    trigger.classList.toggle('active',open);
+    panel.setAttribute('aria-hidden',open?'false':'true');
+  };
+  syncState();
+  trigger.onclick=function(){
+    const open=!panel.classList.contains('show');
+    panel.classList.toggle('show',open);
+    trigger.classList.toggle('active',open);
+    panel.setAttribute('aria-hidden',open?'false':'true');
+  };
 }
 
 const HASH_MD5_K = [
@@ -922,6 +1034,16 @@ function cmpCollectCustomerStandardMapping(prefix){
     model: $(prefix+'StdModel')?.value||'',
   };
 }
+const BOM_DEFAULT_COMPARE_FIELDS = new Set(['型号','物料描述','单耗','替代关系','位号','生产厂家']);
+function bomNormalizeCompareFieldName(value){
+  return String(value||'').replace(/\s+/g,'').replace(/[（）]/g,ch=>ch==='（'?'(':')');
+}
+function bomShouldDefaultCompareField(col){
+  return BOM_DEFAULT_COMPARE_FIELDS.has(bomNormalizeCompareFieldName(col));
+}
+function bomCompareFieldChip(col, checked, disabled){
+  return `<label class="field-chip${disabled?' disabled':''}"><input type="checkbox" value="${_escH(col)}"${checked?' checked':''}${disabled?' disabled':''}><span>${_escH(col)}</span></label>`;
+}
 function cmpRenderPairs(prefix){
   const st=cmpState(prefix);
   const left=st.leftHeaders||[], right=st.rightHeaders||[];
@@ -936,8 +1058,8 @@ function cmpRenderPairs(prefix){
   const rightKey=(keyCfg.right_key_cols||[])[0]||'';
   let html='';
   common.forEach(col=>{
-    const checked=(col===leftKey && col===rightKey)?'':' checked';
-    html+=`<label><input type="checkbox" value="${_escH(col)}"${checked}>${_escH(col)}</label>`;
+    const isKey=col===leftKey && col===rightKey;
+    html+=bomCompareFieldChip(col,!isKey&&bomShouldDefaultCompareField(col),isKey);
   });
   $(prefix+'CommonPairs').innerHTML=html || '<span style="font-size:12px;color:#888">没有同名字段，可在下方添加自定义映射。</span>';
   cmpRenderManualPairs(prefix);
@@ -960,6 +1082,90 @@ function cmpRenderManualPairs(prefix){
     btn.onclick=function(){st.manualPairs.splice(parseInt(this.dataset.remove),1);cmpRenderManualPairs(prefix);};
   });
 }
+function cmpRenderPreviewTable(tbodyId, payload, headerRow, headerInputId, onPick){
+  const tbody=$(tbodyId);
+  if(!tbody) return;
+  if(!payload||!payload.rows||!payload.rows.length){
+    tbody.innerHTML='<tr><td style="color:#888">上传文件后显示前 12 行</td></tr>';
+    return;
+  }
+  const selected=parseInt(headerRow)||1;
+  tbody.innerHTML=(payload.rows||[]).map(row=>{
+    const isHeader=row.row_number===selected;
+    const cells=[`<th class="bom-preview-rownum">${row.row_number}</th>`].concat((row.values||[]).map(v=>`<td>${_escH(v)}</td>`));
+    return `<tr class="${isHeader?'bom-preview-header-row':''}" data-row="${row.row_number}" title="点击设为表头行">${cells.join('')}</tr>`;
+  }).join('');
+  tbody.querySelectorAll('tr[data-row]').forEach(tr=>{
+    tr.onclick=()=>{
+      if(headerInputId&&$(headerInputId)) $(headerInputId).value=tr.dataset.row;
+      cmpRenderPreviewTable(tbodyId,payload,tr.dataset.row,headerInputId,onPick);
+      if(onPick) onPick();
+    };
+  });
+}
+async function cmpPreviewFreeBom(apiPrefix='/api/bom_compare'){
+  const leftFile=$('freeLeftFile')&&$('freeLeftFile').files[0];
+  const rightFile=$('freeRightFile')&&$('freeRightFile').files[0];
+  if(!leftFile&&!rightFile){
+    cmpRenderPreviewTable('freeLeftPreviewRows',null,1);
+    cmpRenderPreviewTable('freeRightPreviewRows',null,1);
+    return;
+  }
+  const fd=new FormData();
+  if(leftFile) fd.append('left_file',leftFile);
+  if(rightFile) fd.append('right_file',rightFile);
+  const ls=$('freeLeftSheet').value, rs=$('freeRightSheet').value;
+  if(ls&&ls!=='先选择文件'&&ls!=='加载中...') fd.append('left_sheet',ls);
+  if(rs&&rs!=='先选择文件'&&rs!=='加载中...') fd.append('right_sheet',rs);
+  try{
+    const d=await postFormJson(apiPrefix+'/free_preview',fd);
+    if(!d.success) throw new Error(d.error||'预览失败');
+    const reloadColumns=()=>cmpRefresh('free','free_bom',apiPrefix);
+    if(d.left){
+      $('freeLeftSheet').innerHTML=(d.left.sheets||[]).map(s=>`<option${s===d.left.current_sheet?' selected':''}>${_escH(s)}</option>`).join('');
+      cmpRenderPreviewTable('freeLeftPreviewRows',d.left,$('freeLeftHdr').value,'freeLeftHdr',reloadColumns);
+    }
+    if(d.right){
+      $('freeRightSheet').innerHTML=(d.right.sheets||[]).map(s=>`<option${s===d.right.current_sheet?' selected':''}>${_escH(s)}</option>`).join('');
+      cmpRenderPreviewTable('freeRightPreviewRows',d.right,$('freeRightHdr').value,'freeRightHdr',reloadColumns);
+    }
+  }catch(e){
+    showInlineError('freeError',e.message,'freeStatus');
+  }
+}
+
+async function cmpPreviewGenericBom(prefix, compareType, apiPrefix='/api/bom_compare'){
+  const leftFile=$(prefix+'LeftFile')&&$(prefix+'LeftFile').files[0];
+  const rightFile=$(prefix+'RightFile')&&$(prefix+'RightFile').files[0];
+  if(!leftFile&&!rightFile){
+    cmpRenderPreviewTable(prefix+'LeftPreviewRows',null,1);
+    cmpRenderPreviewTable(prefix+'RightPreviewRows',null,1);
+    return;
+  }
+  const fd=new FormData();
+  fd.append('compare_type',compareType||'cadence_hq');
+  if(leftFile) fd.append('left_file',leftFile);
+  if(rightFile) fd.append('right_file',rightFile);
+  const ls=$(prefix+'LeftSheet').value, rs=$(prefix+'RightSheet').value;
+  if(ls&&ls!=='先选择文件'&&ls!=='加载中...') fd.append('left_sheet',ls);
+  if(rs&&rs!=='先选择文件'&&rs!=='加载中...') fd.append('right_sheet',rs);
+  try{
+    const d=await postFormJson(apiPrefix+'/generic_preview',fd);
+    if(!d.success) throw new Error(d.error||'预览失败');
+    const reloadColumns=()=>cmpRefresh(prefix,compareType,apiPrefix);
+    if(d.left){
+      $(prefix+'LeftSheet').innerHTML=(d.left.sheets||[]).map(s=>`<option${s===d.left.current_sheet?' selected':''}>${_escH(s)}</option>`).join('');
+      cmpRenderPreviewTable(prefix+'LeftPreviewRows',d.left,$(prefix+'LeftHdr').value,prefix+'LeftHdr',reloadColumns);
+    }
+    if(d.right){
+      $(prefix+'RightSheet').innerHTML=(d.right.sheets||[]).map(s=>`<option${s===d.right.current_sheet?' selected':''}>${_escH(s)}</option>`).join('');
+      cmpRenderPreviewTable(prefix+'RightPreviewRows',d.right,$(prefix+'RightHdr').value,prefix+'RightHdr',reloadColumns);
+    }
+  }catch(e){
+    showInlineError(prefix+'Error',e.message,prefix+'Status');
+  }
+}
+
 async function cmpRefresh(prefix, compareType, apiPrefix='/api/bom_compare'){
   const leftFile=$(prefix+'LeftFile').files[0], rightFile=$(prefix+'RightFile').files[0];
   const st=cmpState(prefix);
@@ -982,7 +1188,8 @@ async function cmpRefresh(prefix, compareType, apiPrefix='/api/bom_compare'){
   if(ls&&ls!=='先选择文件'&&ls!=='加载中...') fd.append('left_sheet',ls);
   if(rs&&rs!=='先选择文件'&&rs!=='加载中...') fd.append('right_sheet',rs);
   try{
-    const d=await postFormJson(apiPrefix+'/generic_sheets',fd);
+    const sheetsEndpoint=compareType==='free_bom'?'/free_sheets':'/generic_sheets';
+    const d=await postFormJson(apiPrefix+sheetsEndpoint,fd);
     if(!d.success) throw new Error(d.error||'读取列失败');
     $(prefix+'LeftSheet').innerHTML=(d.left_sheets||[]).map(s=>`<option${s===d.left_current_sheet?' selected':''}>${_escH(s)}</option>`).join('');
     $(prefix+'RightSheet').innerHTML=(d.right_sheets||[]).map(s=>`<option${s===d.right_current_sheet?' selected':''}>${_escH(s)}</option>`).join('');
@@ -996,7 +1203,7 @@ async function cmpRefresh(prefix, compareType, apiPrefix='/api/bom_compare'){
     cmpRenderKeyPairs(prefix);
     cmpRenderPairs(prefix);
     const rightFmt=st.rightFormat==='plm_full'?'PLM 全量 BOM':'标准 HQ BOM';
-    const rightSheetHint=st.rightFormat==='plm_full'?`，HQ 已识别 ${rightFmt}（${(st.rightBomSheets||[]).join('、')}）`:`，HQ 已识别 ${rightFmt}`;
+    const rightSheetHint=compareType==='free_bom'?'':(st.rightFormat==='plm_full'?`，HQ 已识别 ${rightFmt}（${(st.rightBomSheets||[]).join('、')}）`:`，HQ 已识别 ${rightFmt}`);
     setPlainStatus(prefix+'LoadStatus',`已加载：左侧 ${st.leftHeaders.length} 列，右侧 ${st.rightHeaders.length} 列${rightSheetHint}`);
   }catch(e){
     if($(prefix+'CommonPairs')) $(prefix+'CommonPairs').innerHTML='<span style="font-size:12px;color:#888">列读取失败</span>';
@@ -1005,7 +1212,7 @@ async function cmpRefresh(prefix, compareType, apiPrefix='/api/bom_compare'){
 }
 function cmpCollectPairs(prefix){
   const pairs=[];
-  document.querySelectorAll('#'+prefix+'CommonPairs input[type="checkbox"]:checked').forEach(x=>pairs.push({left:x.value,right:x.value}));
+  document.querySelectorAll('#'+prefix+'CommonPairs input[type="checkbox"]:checked:not(:disabled)').forEach(x=>pairs.push({left:x.value,right:x.value}));
   (cmpState(prefix).manualPairs||[]).forEach(p=>{if(p.left&&p.right)pairs.push({left:p.left,right:p.right});});
   const seen=new Set();
   return pairs.filter(p=>{const k=p.left+'\u0000'+p.right;if(seen.has(k))return false;seen.add(k);return true;});
@@ -1013,16 +1220,20 @@ function cmpCollectPairs(prefix){
 function initGenericBomCompare(prefix, compareType, apiPrefix='/api/bom_compare'){
   cmpState(prefix);
   $(prefix+'Refresh').onclick=()=>cmpRefresh(prefix,compareType,apiPrefix);
-  $(prefix+'LeftFile').onchange=()=>cmpRefresh(prefix,compareType,apiPrefix);
-  $(prefix+'RightFile').onchange=()=>cmpRefresh(prefix,compareType,apiPrefix);
-  $(prefix+'LeftSheet').onchange=()=>cmpRefresh(prefix,compareType,apiPrefix);
-  $(prefix+'RightSheet').onchange=()=>cmpRefresh(prefix,compareType,apiPrefix);
-  $(prefix+'LeftHdr').onchange=()=>cmpRefresh(prefix,compareType,apiPrefix);
-  $(prefix+'RightHdr').onchange=()=>cmpRefresh(prefix,compareType,apiPrefix);
+  const autoRefresh=()=>cmpRefresh(prefix,compareType,apiPrefix);
+  const previewThenRefresh=()=>{cmpPreviewFreeBom(apiPrefix);cmpRefresh(prefix,compareType,apiPrefix);};
+  const genericPreviewThenRefresh=()=>{cmpPreviewGenericBom(prefix,compareType,apiPrefix);cmpRefresh(prefix,compareType,apiPrefix);};
+  const refreshHandler=compareType==='free_bom'?previewThenRefresh:(compareType==='cadence_hq'?genericPreviewThenRefresh:autoRefresh);
+  $(prefix+'LeftFile').onchange=refreshHandler;
+  $(prefix+'RightFile').onchange=refreshHandler;
+  $(prefix+'LeftSheet').onchange=refreshHandler;
+  $(prefix+'RightSheet').onchange=refreshHandler;
+  $(prefix+'LeftHdr').onchange=refreshHandler;
+  $(prefix+'RightHdr').onchange=refreshHandler;
   if($(prefix+'LeftKey')) $(prefix+'LeftKey').onchange=()=>{cmpRenderKeyPairs(prefix);cmpRenderPairs(prefix);};
   if($(prefix+'RightKey')) $(prefix+'RightKey').onchange=()=>{cmpRenderKeyPairs(prefix);cmpRenderPairs(prefix);};
-  if($(prefix+'SelectAll')) $(prefix+'SelectAll').onclick=()=>document.querySelectorAll('#'+prefix+'CommonPairs input[type="checkbox"]').forEach(x=>x.checked=true);
-  if($(prefix+'SelectNone')) $(prefix+'SelectNone').onclick=()=>document.querySelectorAll('#'+prefix+'CommonPairs input[type="checkbox"]').forEach(x=>x.checked=false);
+  if($(prefix+'SelectAll')) $(prefix+'SelectAll').onclick=()=>document.querySelectorAll('#'+prefix+'CommonPairs input[type="checkbox"]:not(:disabled)').forEach(x=>x.checked=true);
+  if($(prefix+'SelectNone')) $(prefix+'SelectNone').onclick=()=>document.querySelectorAll('#'+prefix+'CommonPairs input[type="checkbox"]:not(:disabled)').forEach(x=>x.checked=false);
   if($(prefix+'AddPair')) $(prefix+'AddPair').onclick=()=>{const st=cmpState(prefix);st.manualPairs.push({left:'',right:''});cmpRenderManualPairs(prefix);};
   if($(prefix+'AddKey')) $(prefix+'AddKey').onclick=()=>{const st=cmpState(prefix);cmpEnsureKeyPairs(prefix);st.keyPairs.push({left:'',right:'',transform:''});cmpRenderKeyPairs(prefix);cmpRenderPairs(prefix);};
   $(prefix+'Run').onclick=async function(){
@@ -1040,10 +1251,11 @@ function initGenericBomCompare(prefix, compareType, apiPrefix='/api/bom_compare'
       field_pairs:fieldPairs};
     const fd=new FormData();fd.append('left_file',leftFile);fd.append('right_file',rightFile);fd.append('config',JSON.stringify(cfg));
     try{
-      const d=await postFormJson(apiPrefix+'/generic',fd);
+      const compareEndpoint=compareType==='free_bom'?'/free':'/generic';
+      const d=await postFormJson(apiPrefix+compareEndpoint,fd);
       if(!d.success) throw new Error(d.error||'比对失败');
-      const leftName='Cadence BOM';
-      const rightName='HQ BOM';
+      const leftName=compareType==='free_bom'?'基准 BOM':'Cadence BOM';
+      const rightName=compareType==='free_bom'?'对比 BOM':'HQ BOM';
       const expandHint=d.expanded_refdes?'<br>已按位号展开逐点比对':'';
       const diffText=false
         ? `制造商差异 <b style="color:#c07000">${d.manufacturer_diff||0}</b> | 型号差异 <b style="color:#c00000">${d.model_diff||0}</b> | 二供差异 <b style="color:#c07000">${d.second_source_diff||0}</b>`
@@ -1146,23 +1358,29 @@ function initCustomerHqPreview(apiPrefix='/api/bom_compare'){
 }
 
 function initBomCompare(apiPrefix='/api/bom_compare'){
+  const activateBomCompareTab=(tab)=>{
+    const btn=document.querySelector('.bomcmp-tab-btn[data-bomcmp-tab="'+tab+'"]');
+    if(!btn) return;
+    document.querySelectorAll('.bomcmp-tab-btn').forEach(b=>{
+      b.classList.remove('active');
+      b.style.color='#888';
+      b.style.borderBottomColor='transparent';
+    });
+    btn.classList.add('active');
+    btn.style.color='#1a5ad4';
+    btn.style.borderBottomColor='#1a5ad4';
+    document.querySelectorAll('#bomcmp-tab-customer-hq,#bomcmp-tab-hq-version,#bomcmp-tab-machine-hq-version,#bomcmp-tab-free-bom,#bomcmp-tab-cadence-hq').forEach(el=>el.style.display='none');
+    $('bomcmp-tab-'+tab).style.display='block';
+  };
   document.querySelectorAll('.bomcmp-tab-btn').forEach(btn=>{
     btn.onclick=function(){
-      document.querySelectorAll('.bomcmp-tab-btn').forEach(b=>{
-        b.classList.remove('active');
-        b.style.color='#888';
-        b.style.borderBottomColor='transparent';
-      });
-      this.classList.add('active');
-      this.style.color='#1a5ad4';
-      this.style.borderBottomColor='#1a5ad4';
-      document.querySelectorAll('#bomcmp-tab-customer-hq,#bomcmp-tab-hq-version,#bomcmp-tab-machine-hq-version,#bomcmp-tab-cadence-hq').forEach(el=>el.style.display='none');
-      $('bomcmp-tab-'+this.dataset.bomcmpTab).style.display='block';
+      activateBomCompareTab(this.dataset.bomcmpTab);
     };
   });
   initCustomerHqPreview(apiPrefix);
   initVersionCompare('hqv',{sheetsApi:apiPrefix+'/local_sheets',compareApi:apiPrefix+'/hq_version',label:'HQ BOM'});
   initVersionCompare('machv',{sheetsApi:apiPrefix+'/machine_local_sheets',compareApi:apiPrefix+'/machine_hq_version',label:'整机 HQ BOM'});
+  initGenericBomCompare('free','free_bom',apiPrefix);
   initGenericBomCompare('cad','cadence_hq',apiPrefix);
 }
 
@@ -1173,7 +1391,7 @@ function vcState(prefix){
 }
 
 function vcGetCheckedCols(prefix){
-  return [...document.querySelectorAll('#'+prefix+'CompareCols input[type="checkbox"]:checked')].map(x=>x.value);
+  return [...document.querySelectorAll('#'+prefix+'CompareCols input[type="checkbox"]:checked:not(:disabled)')].map(x=>x.value);
 }
 
 function vcRenderCompareCols(prefix, opts={}){
@@ -1183,8 +1401,8 @@ function vcRenderCompareCols(prefix, opts={}){
   if($(prefix+'RuleSummary')) $(prefix+'RuleSummary').textContent=`匹配规则：按「${key||'料号'}」匹配同一物料`;
   let h='';
   common.forEach(col=>{
-    const checked=col===key?'':' checked';
-    h+=`<label><input type="checkbox" value="${_escH(col)}"${checked}>${_escH(col)}</label>`;
+    const isKey=col===key;
+    h+=bomCompareFieldChip(col,!isKey&&bomShouldDefaultCompareField(col),isKey);
   });
   $(prefix+'CompareCols').innerHTML=h || '<span style="font-size:12px;color:#888">请先加载两份 BOM 的列</span>';
 }
@@ -1241,8 +1459,8 @@ function initVersionCompare(prefix, opts){
   $(prefix+'NewSheet').onchange=()=>vcRefreshColumns(prefix,opts);
   $(prefix+'Refresh').onclick=()=>vcRefreshColumns(prefix,opts);
   $(prefix+'KeyCol').onchange=()=>vcRenderCompareCols(prefix,opts);
-  $(prefix+'SelectAll').onclick=()=>document.querySelectorAll('#'+prefix+'CompareCols input[type="checkbox"]').forEach(x=>x.checked=true);
-  $(prefix+'SelectNone').onclick=()=>document.querySelectorAll('#'+prefix+'CompareCols input[type="checkbox"]').forEach(x=>x.checked=false);
+  $(prefix+'SelectAll').onclick=()=>document.querySelectorAll('#'+prefix+'CompareCols input[type="checkbox"]:not(:disabled)').forEach(x=>x.checked=true);
+  $(prefix+'SelectNone').onclick=()=>document.querySelectorAll('#'+prefix+'CompareCols input[type="checkbox"]:not(:disabled)').forEach(x=>x.checked=false);
   $(prefix+'Run').onclick=async function(){
     const oldFile=$(prefix+'OldFile').files[0], newFile=$(prefix+'NewFile').files[0];
     if(!oldFile||!newFile){showInlineError(prefix+'Error',`请上传基准版本和对比版本 ${opts.label}` ,prefix+'Status');return;}
@@ -1616,6 +1834,11 @@ function initPlm(){
 function initPlmAuto(){
   $('paRun').onclick=plmAutoRun;
   $('paAttRun').onclick=plmAutoAttachmentRun;
+  if($('paAttBatchFile')) $('paAttBatchFile').onchange=()=>plmAttBatchLoad({clearSheet:true});
+  if($('paAttBatchSheet')) $('paAttBatchSheet').onchange=()=>plmAttBatchLoad({clearSheet:false});
+  if($('paAttBatchHdr')) $('paAttBatchHdr').onchange=()=>plmAttBatchLoad({clearSheet:false});
+  if($('paAttBatchLoad')) $('paAttBatchLoad').onclick=()=>plmAttBatchLoad({clearSheet:false});
+  if($('paAttBatchRun')) $('paAttBatchRun').onclick=plmAttBatchRun;
   $('paAttHqpn').addEventListener('input',()=>{
     const cleaned=($('paAttHqpn').value||'').replace(/\s+/g,'');
     if($('paAttHqpn').value!==cleaned) $('paAttHqpn').value=cleaned;
@@ -1631,6 +1854,9 @@ function initPlmAuto(){
       });
       $('paTabSpec').style.display=tab==='spec'?'flex':'none';
       $('paTabAttach').style.display=tab==='attach'?'flex':'none';
+      if(tab==='attach' && $('paAttBatchFile')?.files?.[0] && !$('paAttBatchCol')?.dataset.loaded){
+        plmAttBatchLoad({clearSheet:true});
+      }
     };
   });
 }
@@ -1673,44 +1899,256 @@ async function plmAutoRun(){
   btn.disabled=false;
 }
 
+function plmAttSetProgress(stage,pct,note){
+  const panel=$('paAttProgressPanel');
+  const bar=$('paAttProgressBar');
+  const pctEl=$('paAttProgressPct');
+  const stageEl=$('paAttProgressStage');
+  const noteEl=$('paAttProgressNote');
+  const value=Math.max(0,Math.min(100,parseInt(pct)||0));
+  if(panel) show(panel);
+  if(bar) bar.style.width=value+'%';
+  if(pctEl) pctEl.textContent=value+'%';
+  if(stageEl) stageEl.textContent=stage||'\u5904\u7406\u4e2d';
+  if(noteEl) noteEl.textContent=note||'PLM \u81ea\u52a8\u5316\u6b63\u5728\u6267\u884c\uff0c\u8bf7\u52ff\u5173\u95ed\u672c\u9875\u9762';
+}
+
+
+function plmAttBatchSetStatus(text){
+  const el=$('paAttBatchStatus');
+  if(el) el.textContent=text||'';
+}
+
+function plmAttBatchSetOverall(stage,pct,download){
+  const panel=$('paAttBatchOverall');
+  const stageEl=$('paAttBatchStage');
+  const pctEl=$('paAttBatchPct');
+  const bar=$('paAttBatchBar');
+  const dlBox=$('paAttBatchDownload');
+  const dl=$('paAttBatchDl');
+  const cancelBtn=$('paAttBatchCancel');
+  const value=Math.max(0,Math.min(100,parseInt(pct)||0));
+  if(panel) show(panel);
+  if(stageEl) stageEl.textContent=stage||'处理中';
+  if(pctEl) pctEl.textContent=value+'%';
+  if(bar) bar.style.width=value+'%';
+  if(cancelBtn) cancelBtn.style.display=(value>0&&value<100&&window._paAttBatchStatusUrl)?'inline-block':'none';
+  if(download&&dl&&dlBox){
+    dl.href=download;
+    show(dlBox);
+    dlBox.style.display='flex';
+  }else if(dlBox){
+    hide(dlBox);
+  }
+}
+
+async function plmAttBatchCancel(){
+  const batchId=window._paAttBatchId;
+  if(!batchId) return;
+  const btn=$('paAttBatchCancel');
+  if(btn) btn.disabled=true;
+  try{
+    const r=await fetch('/api/plm/auto_hq_attachments/batch/cancel/'+encodeURIComponent(batchId),{method:'POST'});
+    const s=await r.json();
+    if(!s.success) throw new Error(s.error||'取消失败');
+    window._paAttBatchJobs=s.jobs||window._paAttBatchJobs||[];
+    plmAttBatchRenderJobs(window._paAttBatchJobs);
+    plmAttBatchSetOverall('正在取消剩余任务',s.progress||0,s.download);
+    plmAttBatchSetStatus(`已请求取消：共 ${s.total||0} 个，已完成 ${s.done||0} 个，失败 ${s.failed||0} 个，已取消 ${s.cancelled||0} 个`);
+  }catch(e){
+    plmAttBatchSetStatus('取消失败：'+e.message);
+  }finally{
+    if(btn) btn.disabled=false;
+  }
+}
+
+function plmAttBatchRenderPreview(headers, rows){
+  const box=$('paAttBatchPreview');
+  if(!box) return;
+  headers=headers||[]; rows=rows||[];
+  if(!headers.length){ box.innerHTML=''; hide(box); return; }
+  const head='<tr>'+headers.map(h=>`<th>${_escH(h)}</th>`).join('')+'</tr>';
+  const body=rows.slice(0,12).map(r=>'<tr>'+headers.map((_,i)=>`<td>${_escH((r||[])[i]||'')}</td>`).join('')+'</tr>').join('');
+  box.innerHTML=`<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+  show(box);
+}
+
+async function plmAttBatchLoad(opts={}){
+  const f=$('paAttBatchFile')?.files?.[0];
+  clearInlineError('paAttError');
+  if(!f){
+    clearSelectOptions('paAttBatchSheet','先选择文件');
+    clearSelectOptions('paAttBatchCol','先加载列');
+    plmAttBatchRenderPreview([],[]);
+    plmAttBatchSetStatus('');
+    return;
+  }
+  plmAttBatchSetStatus('正在读取 Excel...');
+  const fd=new FormData();
+  fd.append('file',f);
+  fd.append('header_row',$('paAttBatchHdr')?.value||1);
+  const sheet=$('paAttBatchSheet')?.value||'';
+  if(!opts.clearSheet && sheet && sheet!=='先选择文件' && sheet!=='加载中...') fd.append('sheet_name',sheet);
+  if(opts.clearSheet) clearSelectOptions('paAttBatchSheet','加载中...');
+  clearSelectOptions('paAttBatchCol','加载中...');
+  try{
+    const r=await fetch('/api/plm/auto_hq_attachments/excel_detect',{method:'POST',body:fd});
+    const d=await r.json();
+    if(!d.success) throw new Error(d.error||'读取 Excel 失败');
+    const sheetEl=$('paAttBatchSheet');
+    if(sheetEl) sheetEl.innerHTML=(d.sheets||[]).map(s=>`<option${s===d.current_sheet?' selected':''}>${_escH(s)}</option>`).join('');
+    const colEl=$('paAttBatchCol');
+    if(colEl){
+      colEl.innerHTML=(d.headers||[]).map((h,i)=>`<option value="${plmIndexToCol(i+1)}">${plmIndexToCol(i+1)} - ${_escH(h||'(空列名)')}</option>`).join('');
+      if(d.detected&&d.detected.hqpn) colEl.value=d.detected.hqpn;
+      colEl.dataset.loaded='1';
+    }
+    plmAttBatchRenderPreview(d.headers||[], d.preview||[]);
+    plmAttBatchSetStatus(`已加载 ${(d.headers||[]).length} 列`);
+  }catch(e){
+    plmAttBatchSetStatus('');
+    showInlineError('paAttError',e.message,'paAttBatchStatus');
+    clearSelectOptions('paAttBatchCol','加载失败');
+  }
+}
+
+function plmAttBatchRenderJobs(jobs){
+  const box=$('paAttBatchJobs');
+  if(!box) return;
+  window._paAttBatchJobs=jobs||[];
+  if(!window._paAttBatchJobs.length){ box.innerHTML=''; hide(box); return; }
+  const rows=window._paAttBatchJobs.map((j,i)=>{
+    const pct=Math.max(0,Math.min(100,parseInt(j.progress)||0));
+    const state=j.status==='done'?'完成':(j.status==='error'?'失败':(j.status==='cancelled'?'已取消':(j.status==='queued'?'排队中':'执行中')));
+    const action=j.download?`<a href="${_escH(j.download)}" class="download" style="padding:4px 9px;margin:0;font-size:12px">下载</a>`:'';
+    return `<tr><td>${i+1}</td><td>${_escH(j.hqpn)}</td><td>${state}</td><td>${_escH(j.stage||'')}</td><td style="min-width:140px"><div style="height:8px;background:#dbe8ff;border-radius:999px;overflow:hidden"><div style="width:${pct}%;height:100%;background:#2d6cdf"></div></div><span style="font-size:11px;color:#667085">${pct}%</span></td><td>${action}</td></tr>`;
+  }).join('');
+  box.innerHTML=`<table><thead><tr><th>#</th><th>HQ 料号</th><th>状态</th><th>步骤</th><th>进度</th><th>文件</th></tr></thead><tbody>${rows}</tbody></table>`;
+  show(box);
+}
+
+async function plmAttBatchPoll(){
+  const statusUrl=window._paAttBatchStatusUrl;
+  if(!statusUrl) return;
+  const r=await fetch(statusUrl);
+  const s=await r.json();
+  if(!s.success) throw new Error(s.error||'读取批量任务状态失败');
+  window._paAttBatchJobs=s.jobs||[];
+  plmAttBatchRenderJobs(window._paAttBatchJobs);
+  plmAttBatchSetOverall(s.stage,s.progress,s.download);
+  plmAttBatchSetStatus(`共 ${s.total||0} 个，已完成 ${s.done||0} 个，失败 ${s.failed||0} 个，已取消 ${s.cancelled||0} 个，剩余 ${(s.total||0)-(s.finished||0)} 个`);
+  if(s.status==='done' && window._paAttBatchTimer){
+    clearInterval(window._paAttBatchTimer);
+    window._paAttBatchTimer=null;
+    $('paAttBatchRun').disabled=false;
+  }
+}
+
+async function plmAttBatchRun(){
+  const user=($('paAttUser').value||'').trim();
+  const pass=$('paAttPass').value||'';
+  const f=$('paAttBatchFile')?.files?.[0];
+  const col=$('paAttBatchCol')?.value||'';
+  if(!user){showInlineError('paAttError','请输入账号','paAttBatchStatus');return;}
+  if(!pass){showInlineError('paAttError','请输入密码','paAttBatchStatus');return;}
+  if(!f){showInlineError('paAttError','请选择 Excel 文件','paAttBatchStatus');return;}
+  if(!col||col==='先加载列'||col==='加载失败'){showInlineError('paAttError','请选择 HQ 料号列','paAttBatchStatus');return;}
+  clearInlineError('paAttError');
+  const btn=$('paAttBatchRun');
+  btn.disabled=true;
+  plmAttBatchSetStatus('正在批量创建下载任务...');
+  const fd=new FormData();
+  fd.append('username',user);
+  fd.append('password',pass);
+  fd.append('file',f);
+  fd.append('sheet_name',$('paAttBatchSheet')?.value||'');
+  fd.append('header_row',$('paAttBatchHdr')?.value||1);
+  fd.append('col_hqpn',col);
+  try{
+    const r=await fetch('/api/plm/auto_hq_attachments/batch',{method:'POST',body:fd});
+    const d=await r.json();
+    if(!d.success) throw new Error(d.error||'批量任务创建失败');
+    window._paAttBatchId=d.batch_id;
+    window._paAttBatchStatusUrl=d.status_url;
+    window._paAttBatchJobs=(d.jobs||[]).map(j=>Object.assign({status:'queued',stage:'已加入下载队列',progress:3},j));
+    plmAttBatchRenderJobs(window._paAttBatchJobs);
+    plmAttBatchSetOverall('已加入下载队列',3,'');
+    if($('paAttBatchCancel')) $('paAttBatchCancel').onclick=plmAttBatchCancel;
+    plmAttBatchSetStatus(`已加入 ${d.count||window._paAttBatchJobs.length} 个下载任务`);
+    if(window._paAttBatchTimer) clearInterval(window._paAttBatchTimer);
+    await plmAttBatchPoll();
+    window._paAttBatchTimer=setInterval(()=>{plmAttBatchPoll().catch(e=>{
+      plmAttBatchSetStatus('状态刷新失败：'+e.message);
+    });},1500);
+  }catch(e){
+    showInlineError('paAttError',e.message,'paAttBatchStatus');
+    btn.disabled=false;
+  }
+}
 async function plmAutoAttachmentRun(){
   const user=($('paAttUser').value||'').trim();
   const pass=$('paAttPass').value||'';
   const hqpn=($('paAttHqpn').value||'').replace(/\s+/g,'');
-  if(!user){showInlineError('paAttError','请输入账号','paAttStatus');return;}
-  if(!pass){showInlineError('paAttError','请输入密码','paAttStatus');return;}
-  if(!hqpn){showInlineError('paAttError','请输入 HQ 料号','paAttStatus');return;}
+  if(!user){showInlineError('paAttError','\u8bf7\u8f93\u5165\u8d26\u53f7','paAttStatus');return;}
+  if(!pass){showInlineError('paAttError','\u8bf7\u8f93\u5165\u5bc6\u7801','paAttStatus');return;}
+  if(!hqpn){showInlineError('paAttError','\u8bf7\u8f93\u5165 HQ \u6599\u53f7','paAttStatus');return;}
   const btn=$('paAttRun');
   btn.disabled=true;
-  $('paAttStatus').textContent='正在运行，浏览器会自动打开并操作 PLM...';
+  $('paAttStatus').textContent='\u6b63\u5728\u521b\u5efa\u4e0b\u8f7d\u4efb\u52a1...';
   hide($('paAttResult'));hide($('paAttLogBox'));clearInlineError('paAttError');
+  plmAttSetProgress('\u51c6\u5907\u542f\u52a8',3,'\u6b63\u5728\u63d0\u4ea4\u4efb\u52a1');
   const fd=new FormData();
   fd.append('username',user);
   fd.append('password',pass);
   fd.append('hqpn',hqpn);
+  let pollTimer=null;
   try{
     const r=await fetch('/api/plm/auto_hq_attachments',{method:'POST',body:fd});
     const d=await r.json();
-    if(d.success){
-      $('paAttDl').href=d.download;
-      $('paAttStats').textContent=d.filename||'PLM 附件已下载';
-      $('paAttStatus').textContent='完成！';
-      show($('paAttResult'));
-      if(d.log){$('paAttLog').textContent=d.log;show($('paAttLogBox'));}
-    }else{
-      $('paAttError').textContent=d.error||'自动化执行失败';
+    if(!d.success) throw new Error(d.error||'\u81ea\u52a8\u5316\u4efb\u52a1\u521b\u5efa\u5931\u8d25');
+    const statusUrl=d.status_url||('/api/plm/auto_hq_attachments/status/'+d.job_id);
+    $('paAttStatus').textContent='\u4efb\u52a1\u5df2\u542f\u52a8\uff0c\u6b63\u5728\u6267\u884c PLM \u81ea\u52a8\u5316...';
+    const poll=async()=>{
+      const sr=await fetch(statusUrl);
+      const s=await sr.json();
+      if(!s.success) throw new Error(s.error||'\u8bfb\u53d6\u4efb\u52a1\u72b6\u6001\u5931\u8d25');
+      plmAttSetProgress(s.stage||'\u5904\u7406\u4e2d',s.progress||0,s.status==='done'?'\u5904\u7406\u5b8c\u6210':'\u6b63\u5728\u6267\u884c\uff1a'+(s.hqpn||hqpn));
+      if(s.log){$('paAttLog').textContent=s.log;show($('paAttLogBox'));}
+      if(s.status==='done'){
+        if(pollTimer) clearInterval(pollTimer);
+        $('paAttDl').href=s.download;
+        $('paAttStats').textContent=s.filename||'PLM \u9644\u4ef6\u5df2\u4e0b\u8f7d';
+        $('paAttStatus').textContent='\u5b8c\u6210\uff01';
+        plmAttSetProgress('\u4e0b\u8f7d\u5b8c\u6210',100,'\u53ef\u4ee5\u70b9\u51fb\u4e0b\u65b9\u94fe\u63a5\u4e0b\u8f7d\u9644\u4ef6');
+        show($('paAttResult'));
+        $('paAttResult').style.display='flex';
+        btn.disabled=false;
+      }else if(s.status==='error'){
+        if(pollTimer) clearInterval(pollTimer);
+        $('paAttError').textContent=s.error||'\u81ea\u52a8\u5316\u6267\u884c\u5931\u8d25';
+        show($('paAttError'));
+        $('paAttStatus').textContent='';
+        plmAttSetProgress('\u6267\u884c\u5931\u8d25',100,'\u8bf7\u67e5\u770b\u6267\u884c\u65e5\u5fd7');
+        btn.disabled=false;
+      }
+    };
+    await poll();
+    pollTimer=setInterval(()=>{poll().catch(e=>{
+      if(pollTimer) clearInterval(pollTimer);
+      $('paAttError').textContent=e.message;
       show($('paAttError'));
       $('paAttStatus').textContent='';
-      if(d.log){$('paAttLog').textContent=d.log;show($('paAttLogBox'));}
-    }
+      btn.disabled=false;
+    });},1000);
   }catch(e){
+    if(pollTimer) clearInterval(pollTimer);
     $('paAttError').textContent=e.message;
     show($('paAttError'));
     $('paAttStatus').textContent='';
+    plmAttSetProgress('\u6267\u884c\u5931\u8d25',100,'\u4efb\u52a1\u672a\u80fd\u542f\u52a8\u6216\u72b6\u6001\u8bfb\u53d6\u5931\u8d25');
+    btn.disabled=false;
   }
-  btn.disabled=false;
 }
-
 async function seLoadFile(){
   const f=$('seFile').files[0];
   clearInlineError('seError');hide($('seResult'));

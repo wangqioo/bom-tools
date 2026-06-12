@@ -1,4 +1,4 @@
-﻿// ═══════════════════ 通用函数 ═══════════════════
+// ═══════════════════ 通用函数 ═══════════════════
 async function logout(){await fetch('/api/logout',{method:'POST'}); location.href='/login';}
 function $(id){return document.getElementById(id);}
 function show(el){if(el) el.style.display='block';}
@@ -56,28 +56,42 @@ async function postFormJson(url, fd){
 }
 
 // ═══════════════════ 左侧导航切换 ═══════════════════
+const APP_VERSION = (window.BOM_TOOLS_BOOTSTRAP && window.BOM_TOOLS_BOOTSTRAP.version) || '2.1.0';
+const TOOL_VERSIONS = (window.BOM_TOOLS_BOOTSTRAP && window.BOM_TOOLS_BOOTSTRAP.toolVersions) || {};
+function toolVersion(key, fallback){
+  const value = TOOL_VERSIONS[key] || fallback || '';
+  return value ? 'v' + String(value).replace(/^v/i, '') : '';
+}
+function applyToolVersions(root){
+  (root || document).querySelectorAll('[data-tool-version]').forEach(el=>{
+    const version = toolVersion(el.dataset.toolVersion, el.textContent || '');
+    if(version) el.textContent = version;
+  });
+}
 const TOOLS = {
-  bom:    {title:'BOM 格式转换',        badge:'v5.10', tpl:'tpl-bom',
+  bom:    {title:'BOM 格式转换',        badge:toolVersion('bom','5.10.0'), tpl:'tpl-bom',
            desc:'将客户提供的多种格式 BOM 表自动识别列映射，支持品牌型号合并列/分开列（格式A/B/C），展开为多供应商独立行。'},
-  feishu: {title:'飞书优选库+关系库匹配', badge:'v3.0',  tpl:'tpl-feishu',
+  feishu: {title:'飞书优选库+关系库匹配', badge:toolVersion('feishu','3.0.0'),  tpl:'tpl-feishu',
            desc:'连接飞书内部 API 网关，支持 15 个预置库（优选库 + 对应关系库），多键 AND 匹配（最多 3 对），批量提取字段，输出含来源表格的匹配结果。'},
-  'manufacturer-alias': {title:'\u5382\u5546\u547d\u540d\u6620\u5c04\u8868', badge:'\u6620\u5c04\u5e93', tpl:'tpl-manufacturer-alias',
+  'manufacturer-alias': {title:'\u5382\u5546\u547d\u540d\u6620\u5c04\u8868', badge:toolVersion('manufacturer-alias','1.0.0'), tpl:'tpl-manufacturer-alias',
            desc:'\u7ef4\u62a4\u5ba2\u6237\u5382\u5546\u522b\u540d\u3001\u5927\u5c0f\u5199\u53d8\u4f53\u3001\u4e2d\u6587\u540d\u548c\u97f3\u8bd1\u540d\u5230 HQ \u89c4\u8303\u5382\u5546\u540d\u7684\u7cbe\u786e\u6620\u5c04\uff0c\u4f9b\u540e\u7eed\u5339\u914d\u6d41\u7a0b\u590d\u7528\u3002'},
-  'pref-rate': {title:'查询BOM优选率', badge:'v1.0', tpl:'tpl-pref-rate',
+  'pref-rate': {title:'查询BOM优选率', badge:toolVersion('pref-rate','1.0.0'), tpl:'tpl-pref-rate',
                desc:'按 HQ料号 在所有优选库缓存中查找优选等级，输出含优选率统计的 Excel 结果文件。'},
-  plm:    {title:'转换为上传PLM系统格式', badge:'v1.6',  tpl:'tpl-plm',
+  plm:    {title:'转换为上传PLM系统格式', badge:toolVersion('plm','1.6.0'),  tpl:'tpl-plm',
            desc:'将整机 BOM 配置表转换为 PLM 系统可导入的标准格式：序号、料号、单耗等25列，主供行填单耗，替代料自动标记主辅BOM标记。'},
-  'plm-auto': {title:'PLM网页自动化', badge:'自动化', tpl:'tpl-plm-auto',
+  'plm-auto': {title:'PLM网页自动化', badge:toolVersion('plm-auto','1.0.0'), tpl:'tpl-plm-auto',
            desc:'自动登录 EIP/PLM，按标准流程上传文件、查询并导出结果。当前包含规格型号反查物料。'},
-  'bom-compare': {title:'BOM比对工具合集', badge:'v0.1', tpl:'tpl-bom-compare',
-           desc:'提供单板HQ BOM版本对比、整机HQ BOM版本对比、Cadence导出BOM对比HQ BOM三个比对子功能。'},
-  toolbox: {title:'小工具合集', badge:'工具', tpl:'tpl-toolbox',
+  'bom-compare': {title:'BOM比对工具合集', badge:toolVersion('bom-compare','0.3.0'), tpl:'tpl-bom-compare',
+           desc:'提供通用BOM对比、客户BOM对比HQ BOM、单板HQ BOM版本对比、整机HQ BOM版本对比、Cadence导出BOM对比HQ BOM五个子功能。'},
+  'bom-checklist': {title:'BOM Checklist', badge:toolVersion('bom-checklist','0.1.4'), tpl:'tpl-bom-checklist',
+           desc:'上传 BOM 后按 Checklist 标准自动扫描并输出通过、警告和失败项；检查规则会按内部标准逐条补齐。'},
+  toolbox: {title:'小工具合集', badge:toolVersion('toolbox','1.0.0'), tpl:'tpl-toolbox',
            desc:'提供轻量级本地小工具。当前包含文件哈希值计算，可直接在浏览器内得到 MD5。'},
   'about-project': {title:'\u5173\u4e8e\u8be5\u9879\u76ee', badge:'INFO', tpl:'tpl-about-project',
            desc:'\u67e5\u770b\u9879\u76ee\u8bf4\u660e\u548c\u8054\u7cfb\u4eba\u4fe1\u606f\uff0c\u9047\u5230\u95ee\u9898\u6216\u9700\u8981\u534f\u52a9\u65f6\u53ef\u901a\u8fc7\u98de\u4e66\u8054\u7cfb\u3002'},
   'admin-users': {title:'用户管理', badge:'ADMIN', tpl:'tpl-admin-users',
            desc:'查看注册用户、角色权限、启用状态和最近使用情况。'},
-  manual: {title:'工具说明书', badge:'说明', tpl:'tpl-manual',
+  manual: {title:'工具说明书', badge:toolVersion('manual','1.0.0'), tpl:'tpl-manual',
            desc:'集中展示每个工具的处理逻辑、输入要求、关键规则和推荐使用步骤。'},
 };
 let curTool = null;
@@ -102,7 +116,7 @@ function showOverview(){
   if(location.hash) history.replaceState(null, '', location.pathname + location.search);
   document.querySelectorAll('.sidebar nav a[data-tool]').forEach(x=>x.classList.remove('active'));
   $('toolTitle').textContent = 'BOM Tools';
-  $('toolBadge').textContent = '硬件设计辅助平台';
+  $('toolBadge').textContent = '硬件设计辅助平台 v' + APP_VERSION;
   let html = '<div class="overview-grid">';
   const orderedTools = Object.entries(TOOLS).sort(([a], [b])=>{
     if(a === 'about-project') return 1;
@@ -121,6 +135,7 @@ function showOverview(){
   }
   html += '</div>';
   $('contentArea').innerHTML = html;
+  applyToolVersions(document.getElementById('contentArea'));
 }
 
 function switchTool(key){
@@ -140,6 +155,7 @@ document.querySelectorAll('.sidebar nav a[data-tool]').forEach(a=>{
     $('toolTitle').textContent=t.title;
     $('toolBadge').textContent=t.badge;
     $('contentArea').innerHTML=$(t.tpl).innerHTML;
+    applyToolVersions(document.getElementById('contentArea'));
     initTool(curTool);
   };
 });
@@ -156,6 +172,7 @@ function initTool(tool){
   else if(tool==='plm') initPlm();
   else if(tool==='plm-auto') initPlmAuto();
   else if(tool==='bom-compare') initBomCompare();
+  else if(tool==='bom-checklist') initBomChecklist();
   else if(tool==='toolbox') initToolbox();
   else if(tool==='admin-users') initAdminUsers();
   else if(tool==='manufacturer-alias') initManufacturerAlias();
@@ -163,6 +180,81 @@ function initTool(tool){
   else if(window._toolInits&&window._toolInits[tool]) window._toolInits[tool]();
 }
 
+
+function bomChecklistFormData(){
+  const file = $('bomChecklistFile') && $('bomChecklistFile').files[0];
+  if(!file) throw new Error('请先上传 BOM 文件');
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('sheet_name', $('bomChecklistSheet') ? $('bomChecklistSheet').value : '');
+  fd.append('header_row', $('bomChecklistHeaderRow') ? $('bomChecklistHeaderRow').value : '1');
+  return fd;
+}
+function bomChecklistRenderPreview(data){
+  const panel = $('bomChecklistPreviewPanel');
+  if(panel) panel.style.display = 'block';
+  const note = $('bomChecklistPreviewNote');
+  if(note) note.textContent = `Sheet：${data.current_sheet}，表头 ${data.headers.length} 列，数据 ${data.data_rows} 行，空行 ${data.blank_rows} 行`;
+  const head = $('bomChecklistPreviewHead');
+  if(head) head.innerHTML = (data.headers||[]).map(h=>`<th>${_escH(h)}</th>`).join('');
+  const body = $('bomChecklistPreviewBody');
+  if(body){
+    body.innerHTML = (data.preview||[]).map(row=>'<tr>'+row.map(v=>`<td>${_escH(v)}</td>`).join('')+'</tr>').join('') || '<tr><td>无数据行</td></tr>';
+  }
+}
+function bomChecklistRenderResults(data){
+  const panel = $('bomChecklistResultPanel');
+  if(panel) panel.style.display = 'block';
+  const s = data.summary || {};
+  const summary = $('bomChecklistSummary');
+  if(summary){
+    summary.innerHTML = `<span class="badge-sm badge-green">通过 ${s.pass||0}</span> <span class="badge-sm badge-orange">警告 ${s.warn||0}</span> <span class="badge-sm badge-status-invalid">失败 ${s.fail||0}</span> <span class="badge-sm badge-blue">数据行 ${s.data_rows||0}</span>`;
+  }
+  const rows = $('bomChecklistResults');
+  if(rows){
+    rows.innerHTML = (data.checks||[]).map(item=>{
+      const cls = item.status === 'pass' ? 'badge-green' : (item.status === 'fail' ? 'badge-status-invalid' : 'badge-orange');
+      const label = item.status === 'pass' ? '通过' : (item.status === 'fail' ? '失败' : '警告');
+      return `<tr><td><span class="badge-sm ${cls}">${label}</span></td><td>${_escH(item.name)}</td><td>${_escH(item.message)}</td><td>${item.count||0}</td><td>${_escH((item.rows||[]).join(', '))}</td></tr>`;
+    }).join('');
+  }
+}
+function initBomChecklist(){
+  const file = $('bomChecklistFile');
+  const previewBtn = $('bomChecklistPreviewBtn');
+  const runBtn = $('bomChecklistRunBtn');
+  const sheet = $('bomChecklistSheet');
+  const clear = ()=>{ clearInlineError('bomChecklistError'); setPlainStatus('bomChecklistStatus',''); setPlainStatus('bomChecklistRunStatus',''); };
+  async function preview(){
+    clear();
+    try{
+      setLoadingStatus('bomChecklistStatus','正在读取 BOM...');
+      const data = await postFormJson('/api/bom_checklist/preview', bomChecklistFormData());
+      if(!data.success) throw new Error(data.error || '读取失败');
+      if(sheet){
+        const current = data.current_sheet;
+        sheet.innerHTML = (data.sheets||[]).map(name=>`<option value="${_escH(name)}"${name===current?' selected':''}>${_escH(name)}</option>`).join('');
+      }
+      bomChecklistRenderPreview(data);
+      setPlainStatus('bomChecklistStatus','读取完成');
+    }catch(e){ showInlineError('bomChecklistError', e.message, 'bomChecklistStatus'); }
+  }
+  async function run(){
+    clear();
+    try{
+      setLoadingStatus('bomChecklistRunStatus','正在执行检查...');
+      const data = await postFormJson('/api/bom_checklist/run', bomChecklistFormData());
+      if(!data.success) throw new Error(data.error || '检查失败');
+      bomChecklistRenderPreview(data);
+      bomChecklistRenderResults(data);
+      setPlainStatus('bomChecklistRunStatus','检查完成');
+    }catch(e){ showInlineError('bomChecklistError', e.message, 'bomChecklistRunStatus'); }
+  }
+  if(file) file.onchange = preview;
+  if(sheet) sheet.onchange = preview;
+  if(previewBtn) previewBtn.onclick = preview;
+  if(runBtn) runBtn.onclick = run;
+}
 function initAboutProject(){
   const trigger=$('aboutEggTrigger');
   const panel=$('aboutEggPanel');
@@ -1042,6 +1134,38 @@ async function cmpPreviewFreeBom(apiPrefix='/api/bom_compare'){
   }
 }
 
+async function cmpPreviewGenericBom(prefix, compareType, apiPrefix='/api/bom_compare'){
+  const leftFile=$(prefix+'LeftFile')&&$(prefix+'LeftFile').files[0];
+  const rightFile=$(prefix+'RightFile')&&$(prefix+'RightFile').files[0];
+  if(!leftFile&&!rightFile){
+    cmpRenderPreviewTable(prefix+'LeftPreviewRows',null,1);
+    cmpRenderPreviewTable(prefix+'RightPreviewRows',null,1);
+    return;
+  }
+  const fd=new FormData();
+  fd.append('compare_type',compareType||'cadence_hq');
+  if(leftFile) fd.append('left_file',leftFile);
+  if(rightFile) fd.append('right_file',rightFile);
+  const ls=$(prefix+'LeftSheet').value, rs=$(prefix+'RightSheet').value;
+  if(ls&&ls!=='先选择文件'&&ls!=='加载中...') fd.append('left_sheet',ls);
+  if(rs&&rs!=='先选择文件'&&rs!=='加载中...') fd.append('right_sheet',rs);
+  try{
+    const d=await postFormJson(apiPrefix+'/generic_preview',fd);
+    if(!d.success) throw new Error(d.error||'预览失败');
+    const reloadColumns=()=>cmpRefresh(prefix,compareType,apiPrefix);
+    if(d.left){
+      $(prefix+'LeftSheet').innerHTML=(d.left.sheets||[]).map(s=>`<option${s===d.left.current_sheet?' selected':''}>${_escH(s)}</option>`).join('');
+      cmpRenderPreviewTable(prefix+'LeftPreviewRows',d.left,$(prefix+'LeftHdr').value,prefix+'LeftHdr',reloadColumns);
+    }
+    if(d.right){
+      $(prefix+'RightSheet').innerHTML=(d.right.sheets||[]).map(s=>`<option${s===d.right.current_sheet?' selected':''}>${_escH(s)}</option>`).join('');
+      cmpRenderPreviewTable(prefix+'RightPreviewRows',d.right,$(prefix+'RightHdr').value,prefix+'RightHdr',reloadColumns);
+    }
+  }catch(e){
+    showInlineError(prefix+'Error',e.message,prefix+'Status');
+  }
+}
+
 async function cmpRefresh(prefix, compareType, apiPrefix='/api/bom_compare'){
   const leftFile=$(prefix+'LeftFile').files[0], rightFile=$(prefix+'RightFile').files[0];
   const st=cmpState(prefix);
@@ -1098,12 +1222,14 @@ function initGenericBomCompare(prefix, compareType, apiPrefix='/api/bom_compare'
   $(prefix+'Refresh').onclick=()=>cmpRefresh(prefix,compareType,apiPrefix);
   const autoRefresh=()=>cmpRefresh(prefix,compareType,apiPrefix);
   const previewThenRefresh=()=>{cmpPreviewFreeBom(apiPrefix);cmpRefresh(prefix,compareType,apiPrefix);};
-  $(prefix+'LeftFile').onchange=compareType==='free_bom'?previewThenRefresh:autoRefresh;
-  $(prefix+'RightFile').onchange=compareType==='free_bom'?previewThenRefresh:autoRefresh;
-  $(prefix+'LeftSheet').onchange=compareType==='free_bom'?previewThenRefresh:autoRefresh;
-  $(prefix+'RightSheet').onchange=compareType==='free_bom'?previewThenRefresh:autoRefresh;
-  $(prefix+'LeftHdr').onchange=compareType==='free_bom'?()=>{cmpPreviewFreeBom(apiPrefix);cmpRefresh(prefix,compareType,apiPrefix);}:autoRefresh;
-  $(prefix+'RightHdr').onchange=compareType==='free_bom'?()=>{cmpPreviewFreeBom(apiPrefix);cmpRefresh(prefix,compareType,apiPrefix);}:autoRefresh;
+  const genericPreviewThenRefresh=()=>{cmpPreviewGenericBom(prefix,compareType,apiPrefix);cmpRefresh(prefix,compareType,apiPrefix);};
+  const refreshHandler=compareType==='free_bom'?previewThenRefresh:(compareType==='cadence_hq'?genericPreviewThenRefresh:autoRefresh);
+  $(prefix+'LeftFile').onchange=refreshHandler;
+  $(prefix+'RightFile').onchange=refreshHandler;
+  $(prefix+'LeftSheet').onchange=refreshHandler;
+  $(prefix+'RightSheet').onchange=refreshHandler;
+  $(prefix+'LeftHdr').onchange=refreshHandler;
+  $(prefix+'RightHdr').onchange=refreshHandler;
   if($(prefix+'LeftKey')) $(prefix+'LeftKey').onchange=()=>{cmpRenderKeyPairs(prefix);cmpRenderPairs(prefix);};
   if($(prefix+'RightKey')) $(prefix+'RightKey').onchange=()=>{cmpRenderKeyPairs(prefix);cmpRenderPairs(prefix);};
   if($(prefix+'SelectAll')) $(prefix+'SelectAll').onclick=()=>document.querySelectorAll('#'+prefix+'CommonPairs input[type="checkbox"]:not(:disabled)').forEach(x=>x.checked=true);

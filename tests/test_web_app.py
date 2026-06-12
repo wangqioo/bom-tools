@@ -21,6 +21,7 @@ if str(WEB_APP) not in sys.path:
     sys.path.insert(0, str(WEB_APP))
 
 from app import app  # noqa: E402
+from bom_checklist import _run_checks as _run_bom_checklist_checks  # noqa: E402
 from bom_compare import _save_uploaded_hq_excel  # noqa: E402
 from feishu import _is_preferred_level, _write_cache  # noqa: E402
 from manufacturer_alias import normalize_manufacturer_name  # noqa: E402
@@ -107,6 +108,13 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         html = resp.get_data(as_text=True)
         self.assertIn("BOM Tools", html)
+        self.assertIn("\u786c\u4ef6\u8bbe\u8ba1\u8f85\u52a9\u5e73\u53f0 v2.2.0", html)
+        self.assertIn("css/app.css?v=2.2.0", html)
+        self.assertIn("js/app.js?v=2.2.0", html)
+        self.assertIn("version: \"2.2.0\"", html)
+        self.assertIn("toolVersions", html)
+        self.assertIn("free-bom-compare", html)
+        self.assertIn("1.1.2", html)
         self.assertIn("飞书优选库+关系库匹配", html)
         self.assertIn("BOM比对工具合集", html)
         self.assertIn("\u5c0f\u5de5\u5177\u5408\u96c6", html)
@@ -145,6 +153,135 @@ class WebAppTests(unittest.TestCase):
         js = (WEB_APP / "static" / "js" / "app.js").read_text(encoding="utf-8")
         self.assertIn("function initAboutProject", js)
         self.assertIn("tool==='about-project'", js)
+
+    def test_bom_checklist_nav_and_api_detect_basic_issues(self):
+        resp = app.test_client().get("/")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.get_data(as_text=True)
+        self.assertIn('data-tool="bom-checklist"', html)
+        self.assertIn("BOM Checklist", html)
+        self.assertIn("当前检查项说明", html)
+
+        data = {
+            "file": (_xlsx_bytes(["料号", "型号", "型号"], [["A", "M1", "M1"], [None, None, None], ["B", "M2", "M2"]]), "check.xlsx"),
+            "header_row": "1",
+        }
+        payload = app.test_client().post(
+            "/api/bom_checklist/run",
+            data=data,
+            content_type="multipart/form-data",
+        ).get_json()
+        self.assertTrue(payload["success"], payload.get("error"))
+        checks = {item["id"]: item for item in payload["checks"]}
+        self.assertEqual(checks["duplicate_headers"]["status"], "fail")
+        self.assertEqual(checks["blank_rows"]["status"], "warn")
+        self.assertEqual(checks["required_headers"]["status"], "warn")
+        self.assertEqual(payload["summary"]["data_rows"], 2)
+
+    def test_bom_checklist_web_documents_every_backend_check(self):
+        html = app.test_client().get("/").get_data(as_text=True)
+        headers = ["序号", "料号", "上阶BOM名称", "BOM层级", "型号", "物料描述", "单耗", "替代关系", "位号", "生产厂家", "是否环保", "湿敏属性"]
+        data_rows = [
+            (2, ["1", "HQ-PCB", "ROOT", "1", "PCB", "PCB main", "1", "主料", "PCB", "HQ", "I", "非湿敏器件"]),
+        ]
+        _, checks = _run_bom_checklist_checks(headers, data_rows, [])
+
+        for check in checks:
+            self.assertIn(f'data-check-id="{check["id"]}"', html)
+
+    def test_bom_checklist_pcba_rules_detect_structural_issues(self):
+        headers = ["序号", "料号", "上阶BOM名称", "BOM层级", "型号", "物料描述", "单耗", "替代关系", "位号", "生产厂家", "是否环保", "湿敏属性"]
+        rows = [
+            ["1", "HQ-PCBA", "ROOT", 1, "PCBA", "PCB main", 1, "主料", "", "HQ", "I", "非湿敏器件"],
+            ["2", "HQ-DEPOP", "ROOT", 1, "R1", "DEPOP resistor", "", "主料", "R1", "Maker", "I", "非湿敏器件"],
+            ["3", "HQ-ALT", "ROOT", 1, "C1", "capacitor", 1, "替代料", "C1", "Maker", "I", "非湿敏器件"],
+            ["1", "HQ-CHILD", "MISSING-PARENT", 2, "U1", "child", 1, "主料", "U1", "Maker", "I", "非湿敏器件"],
+        ]
+        data = {
+            "file": (_xlsx_bytes(headers, rows), "pcba-bad.xlsx"),
+            "header_row": "1",
+        }
+        payload = app.test_client().post("/api/bom_checklist/run", data=data, content_type="multipart/form-data").get_json()
+        self.assertTrue(payload["success"], payload.get("error"))
+        checks = {item["id"]: item for item in payload["checks"]}
+        self.assertEqual(checks["pcba_standard_headers"]["status"], "pass")
+        self.assertEqual(checks["pcba_depop_removed"]["status"], "fail")
+        self.assertEqual(checks["pcba_pcb_location"]["status"], "fail")
+        self.assertEqual(checks["pcba_qty_by_substitute_type"]["status"], "fail")
+        self.assertEqual(checks["pcba_parent_bom_reference"]["status"], "fail")
+
+
+    def test_bom_checklist_chip_labels_detect_missing_and_stage(self):
+        headers = ["序号", "料号", "上阶BOM名称", "BOM层级", "型号", "物料描述", "单耗", "替代关系", "位号", "生产厂家", "是否环保", "湿敏属性"]
+        chip_rows = [
+            ["1", "HQ-BMC", "PCBA-ROOT", 1, "AST2600", "BMC AST2600 controller", 1, "主料", "U1", "Aspeed", "I", "非湿敏器件"],
+            ["2", "HQ-MAC", "PCBA-ROOT", 1, "WGI210AT", "网卡芯片_MAC_千兆", 1, "主料", "U2", "Intel", "I", "非湿敏器件"],
+        ]
+        payload = app.test_client().post("/api/bom_checklist/run", data={"file": (_xlsx_bytes(headers, chip_rows), "missing-label.xlsx"), "header_row": "1"}, content_type="multipart/form-data").get_json()
+        checks = {item["id"]: item for item in payload["checks"]}
+        self.assertEqual(checks["pcba_bmc_bios_auth_labels"]["status"], "fail")
+        self.assertIn("HQ11111801009", checks["pcba_bmc_bios_auth_labels"]["message"])
+        self.assertIn("MAC 标签", checks["pcba_bmc_bios_auth_labels"]["message"])
+        self.assertIn("SN 标签", checks["pcba_bmc_bios_auth_labels"]["message"])
+
+        loose_rows = chip_rows + [
+            ["3", "HQ60410125009", "ROOT", 2, "BIOS LABEL", "AMI BIOS label", "", "主料", "", "AMI", "I", "非湿敏器件"],
+            ["4", "HQ11111801009", "ROOT", 2, "BMC LABEL", "AST2600 label", "", "主料", "", "AMI", "I", "非湿敏器件"],
+            ["5", "HQ-MAC-LABEL", "ROOT", 2, "MAC LABEL", "MAC address label", "", "主料", "", "", "I", "非湿敏器件"],
+            ["6", "HQ-SN-LABEL", "ROOT", 2, "SN LABEL", "Serial Number label", "", "主料", "", "", "I", "非湿敏器件"],
+        ]
+        payload = app.test_client().post("/api/bom_checklist/run", data={"file": (_xlsx_bytes(headers, loose_rows), "loose-label.xlsx"), "header_row": "1"}, content_type="multipart/form-data").get_json()
+        checks = {item["id"]: item for item in payload["checks"]}
+        self.assertEqual(checks["pcba_bmc_bios_auth_labels"]["status"], "warn")
+        self.assertIn("组装虚拟阶", checks["pcba_bmc_bios_auth_labels"]["message"])
+
+        assembly_rows = chip_rows + [
+            ["3", "HQ60410125009", "PCBA-ROOT", 1, "PCBA ASSY BIOS LABEL", "AMI BIOS label", "", "主料", "BIOS_LABEL", "AMI", "I", "非湿敏器件"],
+            ["4", "HQ11111801009", "PCBA-ROOT", 1, "PCBA ASSY BMC LABEL", "AST2600 label", "", "主料", "BMC_LABEL", "AMI", "I", "非湿敏器件"],
+            ["5", "HQ-MAC-LABEL", "PCBA-ROOT", 1, "PCBA ASSY MAC LABEL", "MAC address label", "", "主料", "MAC_LABEL", "", "I", "非湿敏器件"],
+            ["6", "HQ-SN-LABEL", "PCBA-ROOT", 1, "PCBA ASSY SN LABEL", "Serial Number label", "", "主料", "SN_LABEL", "", "I", "非湿敏器件"],
+        ]
+        payload = app.test_client().post("/api/bom_checklist/run", data={"file": (_xlsx_bytes(headers, assembly_rows), "assembly-label.xlsx"), "header_row": "1"}, content_type="multipart/form-data").get_json()
+        checks = {item["id"]: item for item in payload["checks"]}
+        self.assertEqual(checks["pcba_bmc_bios_auth_labels"]["status"], "pass")
+
+
+    def test_bom_checklist_chip_labels_use_standard_pcba_sample(self):
+        sample_path = ROOT / "samples" / "pcba_bom_standard_sample.xlsx"
+        with sample_path.open("rb") as f:
+            payload = app.test_client().post(
+                "/api/bom_checklist/run",
+                data={"file": (io.BytesIO(f.read()), "pcba_bom_standard_sample.xlsx"), "header_row": "8"},
+                content_type="multipart/form-data",
+            ).get_json()
+        checks = {item["id"]: item for item in payload["checks"]}
+        label_check = checks["pcba_bmc_bios_auth_labels"]
+        self.assertEqual(label_check["status"], "fail")
+        self.assertIn("HQ11111788009", label_check["message"])
+        self.assertIn("MAC 标签", label_check["message"])
+        self.assertIn("SN 标签", label_check["message"])
+        self.assertEqual(label_check["rows"], [11, 224])
+
+
+    def test_bom_checklist_flash_socket_and_smt_flash_are_mutually_exclusive(self):
+        headers = ["序号", "料号", "上阶BOM名称", "BOM层级", "型号", "物料描述", "单耗", "替代关系", "位号", "生产厂家", "是否环保", "湿敏属性"]
+        socket_row = ["1", "HQ-FLASH-SOCKET", "PCBA-ROOT", 1, "FLASH SOCKET", "SPI Flash Socket", 1, "主料", "U100", "Maker", "I", "非湿敏器件"]
+        flash_row = ["2", "HQ-SPI-FLASH", "PCBA-ROOT", 1, "W25Q128JVSIQ", "SPI Flash_128Mbit_SOIC-8", 1, "主料", "U101", "Winbond", "I", "非湿敏器件"]
+
+        payload = app.test_client().post("/api/bom_checklist/run", data={"file": (_xlsx_bytes(headers, [socket_row, flash_row]), "flash-conflict.xlsx"), "header_row": "1"}, content_type="multipart/form-data").get_json()
+        checks = {item["id"]: item for item in payload["checks"]}
+        self.assertEqual(checks["pcba_flash_socket_smt_conflict"]["status"], "fail")
+        self.assertEqual(checks["pcba_flash_socket_smt_conflict"]["rows"], [2, 3])
+
+        payload = app.test_client().post("/api/bom_checklist/run", data={"file": (_xlsx_bytes(headers, [socket_row]), "flash-socket.xlsx"), "header_row": "1"}, content_type="multipart/form-data").get_json()
+        checks = {item["id"]: item for item in payload["checks"]}
+        self.assertEqual(checks["pcba_flash_socket_smt_conflict"]["status"], "warn")
+        self.assertIn("colay", checks["pcba_flash_socket_smt_conflict"]["message"])
+
+        payload = app.test_client().post("/api/bom_checklist/run", data={"file": (_xlsx_bytes(headers, [flash_row]), "flash-smt.xlsx"), "header_row": "1"}, content_type="multipart/form-data").get_json()
+        checks = {item["id"]: item for item in payload["checks"]}
+        self.assertEqual(checks["pcba_flash_socket_smt_conflict"]["status"], "pass")
+
 
     def test_bom_detect_returns_fifty_preview_rows(self):
         rows = [["PN-%02d" % i, "Model-%02d" % i] for i in range(1, 56)]
@@ -937,6 +1074,73 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(payload["right_only"], 0)
         self.assertEqual(payload["changed"], 1)
         self.assertEqual(payload["same"], 2)
+
+    def test_generic_cadence_preview_returns_rows_before_header_selection(self):
+        cadence = _xlsx_bytes(["REFDES", "PART_NUMBER", "QTY"], [["R1", "A", 1], ["R2", "A", 1]])
+        hq = _hq_export_bytes([
+            ["1", "A", "M1", "", 1, "\u4e3b\u6599", "R1", "\u5382\u5546A"],
+        ])
+
+        resp = app.test_client().post("/api/bom_compare/generic_preview", data={
+            "left_file": (cadence, "cadence.xlsx"),
+            "right_file": (hq, "hq.xlsx"),
+            "compare_type": "cadence_hq",
+        }, content_type="multipart/form-data")
+        payload = resp.get_json()
+
+        self.assertTrue(payload["success"], payload.get("error"))
+        self.assertEqual(payload["left"]["current_sheet"], "Sheet")
+        self.assertEqual(payload["left"]["rows"][1]["values"][:3], ["R1", "A", "1"])
+        self.assertIn("right", payload)
+        self.assertGreaterEqual(len(payload["right"]["rows"]), 3)
+
+
+    def test_generic_cadence_summary_links_to_detail_sheets(self):
+        part_no = "\u6599\u53f7"
+        model = "\u578b\u53f7"
+        refdes = "\u4f4d\u53f7"
+        main = "\u4e3b\u6599"
+        maker = "\u5382\u5546A"
+        left_bytes = _hq_export_bytes([
+            ["1", "A", "M1", "", 1, main, "R1", maker],
+            ["2", "B", "M2", "", 1, main, "R2", maker],
+        ]).getvalue()
+        right_bytes = _hq_export_bytes([
+            ["1", "A", "M1X", "", 1, main, "R1", maker],
+            ["3", "C", "M3", "", 1, main, "R3", maker],
+        ]).getvalue()
+
+        compare_resp = app.test_client().post("/api/bom_compare/generic", data={
+            "left_file": (io.BytesIO(left_bytes), "cadence.xlsx"),
+            "right_file": (io.BytesIO(right_bytes), "hq.xlsx"),
+            "config": json.dumps({
+                "compare_type": "cadence_hq",
+                "left_header_row": 3,
+                "right_header_row": 3,
+                "left_key_col": part_no,
+                "right_key_col": part_no,
+                "field_pairs": [{"left": model, "right": model}, {"left": refdes, "right": refdes}],
+            }),
+        }, content_type="multipart/form-data")
+        payload = compare_resp.get_json()
+        self.assertTrue(payload["success"], payload)
+        filename = unquote(payload["download"].split("/download/", 1)[1])
+        wb = openpyxl.load_workbook(WEB_APP / "outputs" / filename, data_only=False)
+        try:
+            summary = wb["\u5dee\u5f02\u603b\u89c8"]
+            link_by_name = {
+                summary.cell(row=row, column=1).value: summary.cell(row=row, column=2).hyperlink.target
+                for row in range(1, summary.max_row + 1)
+                if summary.cell(row=row, column=2).hyperlink
+            }
+            self.assertEqual(link_by_name["\u4ec5 Cadence BOM \u5b58\u5728"], "#'\u4ec5Cadence BOM\u5b58\u5728'!A1")
+            self.assertEqual(link_by_name["\u4ec5 HQ BOM \u5b58\u5728"], "#'\u4ec5HQ BOM\u5b58\u5728'!A1")
+            self.assertEqual(link_by_name["\u5b57\u6bb5\u53d8\u66f4"], "#'\u5b57\u6bb5\u53d8\u66f4'!A1")
+            self.assertEqual(link_by_name["Cadence BOM \u91cd\u590d\u952e"], "#'\u91cd\u590d\u952e'!A1")
+            self.assertEqual(link_by_name["HQ BOM \u91cd\u590d\u952e"], "#'\u91cd\u590d\u952e'!A1")
+        finally:
+            wb.close()
+
 
     def test_generic_cadence_treats_refdes_order_as_same(self):
         part_no = "料号"
