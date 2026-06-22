@@ -12,3 +12,4 @@ def configure_test_environment() -> None:
     os.environ.setdefault("BOM_TOOLS_BUG_REPORT_DIR", str(data_dir / "bug_reports"))
     os.environ.setdefault("BOM_TOOLS_FEATURE_REQUEST_DIR", str(data_dir / "feature_requests"))
     os.environ.setdefault("BOM_TOOLS_AUTH_DATA_DIR", str(data_dir / "auth_data"))
+    os.environ.setdefault("BOM_TOOLS_MANUFACTURER_ALIAS_DIR", str(data_dir / "manufacturer_aliases"))

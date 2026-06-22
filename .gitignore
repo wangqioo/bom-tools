@@ -19,3 +19,4 @@ deploy_bundle/ms-playwright/
 
 
 web_app2/logs/
+deploy_bundle/web_app2/auth_data/

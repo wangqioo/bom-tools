@@ -41,6 +41,8 @@ function Test-IsExcluded {
   param([string]$RelativePath)
   $normalized = $RelativePath -replace "\\", "/"
   if ($normalized -eq ".git" -or $normalized.StartsWith(".git/")) { return $true }
+  if ($normalized -match "^deploy_bundle.*\.zip$") { return $true }
+  if ($normalized -match "^bom-tools_offline_.*\.zip$") { return $true }
   if ($normalized -eq "deploy_bundle") { return $true }
   if ($normalized.StartsWith("deploy_bundle/offline_")) { return $true }
   if ($normalized -eq "deploy_bundle/web_app2" -or $normalized.StartsWith("deploy_bundle/web_app2/")) { return $true }

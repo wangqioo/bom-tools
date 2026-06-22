@@ -111,9 +111,9 @@ class FreeBomCompareTests(unittest.TestCase):
             summary_values = {summary.cell(row=row, column=1).value: summary.cell(row=row, column=2).value for row in range(1, summary.max_row + 1)}
             summary_rows = {summary.cell(row=row, column=1).value: row for row in range(1, summary.max_row + 1)}
             self.assertEqual(summary["A1"].value, "BOM Tools 导出报告")
-            self.assertEqual(summary_values["导出来源"], "BOM Tools 平台 v2.2.0")
-            self.assertEqual(summary_values["平台版本"], "v2.2.0")
-            self.assertEqual(summary_values["工具版本"], "v1.1.2")
+            self.assertEqual(summary_values["导出来源"], "BOM Tools 平台 v2.2.1")
+            self.assertEqual(summary_values["平台版本"], "v2.2.1")
+            self.assertEqual(summary_values["工具版本"], "v1.1.3")
             self.assertIsNone(summary.freeze_panes)
             self.assertEqual(summary_values["工具名称"], "通用 BOM 对比")
             self.assertEqual(summary_values["基准 BOM 文件"], "left.xlsx")
@@ -230,6 +230,10 @@ class FreeBomCompareTests(unittest.TestCase):
         self.assertIn("tool_versions['free-bom-compare']", html)
         self.assertIn('data-tool-version="customer-hq-compare"', html)
         self.assertIn("tool_versions['customer-hq-compare']", html)
+        self.assertIn('data-tool-version="hq-version-compare"', html)
+        self.assertIn("tool_versions['hq-version-compare']", html)
+        self.assertIn('data-tool-version="machine-hq-version-compare"', html)
+        self.assertIn("tool_versions['machine-hq-version-compare']", html)
         self.assertIn('data-tool-version="cadence-hq-compare"', html)
         self.assertIn("tool_versions['cadence-hq-compare']", html)
         self.assertIn('Cadence BOM 预览', html)

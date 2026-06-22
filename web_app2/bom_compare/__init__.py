@@ -21,6 +21,7 @@ from shared import (
 from manufacturer_alias import lookup_manufacturer
 from .customer_hq import preview as customer_hq_preview
 from .customer_hq_export import build_report as customer_hq_build_report
+from .export_info import write_export_info
 
 
 bom_compare_bp = Blueprint('bom_compare', __name__)
@@ -484,6 +485,10 @@ def _generic_field_values_for_report(left_col, right_col, left_value, right_valu
         '、'.join(ref for ref in right_refs if ref not in left_set),
     )
 
+def _pair_label(left_col, right_col):
+    return left_col if left_col == right_col else f'{left_col} <-> {right_col}'
+
+
 def _generic_diff_items(left_rows, right_rows, field_pairs, labels=None):
     labels = labels or {'left_label': '左侧', 'right_label': '右侧'}
     left_only_type = f"仅{labels['left_label']}存在"
@@ -513,7 +518,7 @@ def _generic_diff_items(left_rows, right_rows, field_pairs, labels=None):
     return items
 
 
-def _write_generic_compare_report(out_path, left_rows, right_rows, field_pairs, stats, duplicate_notes, labels, left_headers=None, right_headers=None):
+def _write_generic_compare_report(out_path, left_rows, right_rows, field_pairs, stats, duplicate_notes, labels, left_headers=None, right_headers=None, meta=None):
     wb = Workbook()
     ws = wb.active
     ws.title = '\u5dee\u5f02\u603b\u89c8'
@@ -533,11 +538,27 @@ def _write_generic_compare_report(out_path, left_rows, right_rows, field_pairs, 
     title_fill = PatternFill('solid', fgColor='1F4E78')
     title_font = Font(bold=True, color='FFFFFF', size=14)
 
-    ws.merge_cells('A1:D1')
-    ws['A1'] = labels['title']
-    ws['A1'].font = title_font
-    ws['A1'].fill = title_fill
-    ws['A1'].alignment = center
+    meta = meta or {}
+    tool_name = labels.get('tool_name') or labels.get('title', '').replace(' \u5dee\u5f02\u603b\u89c8', '')
+    tool_version_key = labels.get('tool_version_key') or 'cadence-hq-compare'
+    summary_start_row = write_export_info(
+        ws,
+        labels['title'],
+        tool_name,
+        tool_version_key,
+        rows=[
+            (f"{labels['left_label']} \u6587\u4ef6", meta.get('left_filename', '')),
+            (f"{labels['right_label']} \u6587\u4ef6", meta.get('right_filename', '')),
+            ("\u5339\u914d\u952e", labels.get('key_label', '')),
+            ("\u6bd4\u5bf9\u5b57\u6bb5", '\uff1b'.join(_pair_label(l, r) for l, r in field_pairs)),
+        ],
+        note="\u672c\u62a5\u544a\u7531 BOM Tools \u81ea\u52a8\u751f\u6210\uff0c\u7ed3\u679c\u4f9d\u8d56\u4e0a\u4f20\u6587\u4ef6\u5185\u5bb9\u3001\u5339\u914d\u952e\u548c\u6bd4\u5bf9\u5b57\u6bb5\u3002",
+        title_fill=title_fill,
+        title_font=title_font,
+        header_fill=header_fill,
+        border=bdr,
+        value_alignment=left_align,
+    )
 
     summary_rows = [
         (f"{labels['left_label']} \u552f\u4e00\u9879", stats['left_total']),
@@ -552,7 +573,7 @@ def _write_generic_compare_report(out_path, left_rows, right_rows, field_pairs, 
         (f"{labels['right_label']} \u7a7a\u952e\u8df3\u8fc7", stats['right_blank_keys']),
     ]
     summary_row_by_name = {}
-    for ri, (name, value) in enumerate(summary_rows, 3):
+    for ri, (name, value) in enumerate(summary_rows, summary_start_row):
         summary_row_by_name[name] = ri
         ws.cell(row=ri, column=1, value=name).font = Font(bold=True)
         ws.cell(row=ri, column=2, value=value)
@@ -939,7 +960,7 @@ def _duplicate_notes(old_dups, new_dups, sheet_label=''):
     )
 
 
-def _write_diff_report(out_path, old_rows, new_rows, compare_cols, stats, duplicate_notes, old_meta=None, new_meta=None):
+def _write_diff_report(out_path, old_rows, new_rows, compare_cols, stats, duplicate_notes, old_meta=None, new_meta=None, report_title=None, tool_name=None, tool_version_key=None):
     wb = Workbook()
     ws = wb.active
     ws.title = '差异总览'
@@ -965,11 +986,29 @@ def _write_diff_report(out_path, old_rows, new_rows, compare_cols, stats, duplic
     new_meta = new_meta or {}
     items = _diff_items(old_rows, new_rows, compare_cols)
 
-    ws.merge_cells('A1:D1')
-    ws['A1'] = 'HQ BOM 版本差异总览'
-    ws['A1'].font = title_font
-    ws['A1'].fill = title_fill
-    ws['A1'].alignment = center
+    report_title = report_title or 'HQ BOM \u7248\u672c\u5dee\u5f02\u603b\u89c8'
+    tool_name = tool_name or 'HQ BOM \u7248\u672c\u5bf9\u6bd4'
+    tool_version_key = tool_version_key or 'hq-version-compare'
+    summary_start_row = write_export_info(
+        ws,
+        report_title,
+        tool_name,
+        tool_version_key,
+        rows=[
+            ('\u9879\u76ee\u914d\u7f6e\u540d', new_meta.get('\u9879\u76ee\u914d\u7f6e\u540d') or old_meta.get('\u9879\u76ee\u914d\u7f6e\u540d', '')),
+            ('BOM\u540d\u79f0', new_meta.get('BOM\u540d\u79f0') or old_meta.get('BOM\u540d\u79f0', '')),
+            ('\u57fa\u51c6\u7248\u672c\u53f7', old_meta.get('\u7248\u672c', '')),
+            ('\u5bf9\u6bd4\u7248\u672c\u53f7', new_meta.get('\u7248\u672c', '')),
+            ('\u6bd4\u5bf9\u5b57\u6bb5', '\uff1b'.join(compare_cols)),
+        ],
+        note='\u672c\u62a5\u544a\u7531 BOM Tools \u81ea\u52a8\u751f\u6210\uff0c\u7ed3\u679c\u4f9d\u8d56\u4e0a\u4f20\u6587\u4ef6\u5185\u5bb9\u3001\u7248\u672c\u4fe1\u606f\u548c\u6bd4\u5bf9\u5b57\u6bb5\u3002',
+        title_fill=title_fill,
+        title_font=title_font,
+        header_fill=header_fill,
+        border=bdr,
+        value_alignment=left,
+    )
+
     summary_rows = [
         ('项目配置名', new_meta.get('项目配置名') or old_meta.get('项目配置名', '')),
         ('BOM名称', new_meta.get('BOM名称') or old_meta.get('BOM名称', '')),
@@ -985,7 +1024,7 @@ def _write_diff_report(out_path, old_rows, new_rows, compare_cols, stats, duplic
         ('对比版本重复键', stats['new_duplicates']),
     ]
     summary_row_by_name = {}
-    for ri, (name, value) in enumerate(summary_rows, 3):
+    for ri, (name, value) in enumerate(summary_rows, summary_start_row):
         summary_row_by_name[name] = ri
         ws.cell(row=ri, column=1, value=name).font = Font(bold=True)
         ws.cell(row=ri, column=2, value=value)
@@ -1393,7 +1432,10 @@ def api_generic_compare():
         )
         out_name = f"{labels['filename']}_{uid}.xlsx"
         out_path = os.path.join(OUTPUT_DIR, out_name)
-        _write_generic_compare_report(out_path, left_rows, right_rows, field_pairs, stats, duplicate_notes, labels, left_headers, right_headers)
+        _write_generic_compare_report(out_path, left_rows, right_rows, field_pairs, stats, duplicate_notes, labels, left_headers, right_headers, {
+            'left_filename': left_file.filename,
+            'right_filename': right_file.filename,
+        })
         return jsonify({'success': True, 'download': f'/download/{out_name}', 'left_format': left_fmt['kind'], 'left_header_row': left_fmt['header_row'], 'right_format': right_fmt['kind'], 'right_header_row': right_fmt['header_row'], 'expanded_refdes': expand_refdes, 'left_ignored_headers': ignored_left_headers, **stats})
     except ValueError as e:
         return jsonify({'success': False, 'error': str(e)})
@@ -1515,7 +1557,7 @@ def api_machine_hq_version_compare():
             duplicate_notes = _duplicate_notes(old_dups, new_dups)
             out_name = f"Machine_HQ_BOM_version_diff_{uid}.xlsx"
             out_path = os.path.join(OUTPUT_DIR, out_name)
-            _write_diff_report(out_path, old_rows, new_rows, compare_cols, stats, duplicate_notes, old_meta, new_meta)
+            _write_diff_report(out_path, old_rows, new_rows, compare_cols, stats, duplicate_notes, old_meta, new_meta, '\u6574\u673a HQ BOM \u7248\u672c\u5dee\u5f02\u603b\u89c8', '\u6574\u673a HQ BOM \u7248\u672c\u5bf9\u6bd4', 'machine-hq-version-compare')
             return jsonify({'success': True, 'download': f'/download/{out_name}', 'format': 'plm_full', 'sheets': common_sheets, **stats})
 
         old_rows, old_dups, _ = _load_rows(old_path, config.get('old_sheet', ''), HQ_STANDARD_HEADER_ROW, key_col, compare_cols)
@@ -1524,7 +1566,7 @@ def api_machine_hq_version_compare():
         duplicate_notes = _duplicate_notes(old_dups, new_dups)
         out_name = f"Machine_HQ_BOM_version_diff_{uid}.xlsx"
         out_path = os.path.join(OUTPUT_DIR, out_name)
-        _write_diff_report(out_path, old_rows, new_rows, compare_cols, stats, duplicate_notes, old_meta, new_meta)
+        _write_diff_report(out_path, old_rows, new_rows, compare_cols, stats, duplicate_notes, old_meta, new_meta, '\u6574\u673a HQ BOM \u7248\u672c\u5dee\u5f02\u603b\u89c8', '\u6574\u673a HQ BOM \u7248\u672c\u5bf9\u6bd4', 'machine-hq-version-compare')
         return jsonify({'success': True, 'download': f'/download/{out_name}', 'format': 'standard', **stats})
     except ValueError as e:
         return jsonify({'success': False, 'error': str(e)})
@@ -1577,7 +1619,7 @@ def api_hq_version_compare():
             duplicate_notes = _duplicate_notes(old_dups, new_dups)
             out_name = f"PLM_full_BOM_version_diff_{uid}.xlsx"
             out_path = os.path.join(OUTPUT_DIR, out_name)
-            _write_diff_report(out_path, old_rows, new_rows, compare_cols, stats, duplicate_notes, old_meta, new_meta)
+            _write_diff_report(out_path, old_rows, new_rows, compare_cols, stats, duplicate_notes, old_meta, new_meta, '\u5355\u677f HQ BOM \u7248\u672c\u5dee\u5f02\u603b\u89c8', '\u5355\u677f HQ BOM \u7248\u672c\u5bf9\u6bd4', 'hq-version-compare')
             return jsonify({'success': True, 'download': f'/download/{out_name}', 'format': 'plm_full', 'sheets': common_sheets, **stats})
 
         old_rows, old_dups, _ = _load_rows(old_path, config.get('old_sheet', ''), header_row, key_col, compare_cols)
@@ -1587,7 +1629,7 @@ def api_hq_version_compare():
 
         out_name = f"HQ_BOM_version_diff_{uid}.xlsx"
         out_path = os.path.join(OUTPUT_DIR, out_name)
-        _write_diff_report(out_path, old_rows, new_rows, compare_cols, stats, duplicate_notes, old_meta, new_meta)
+        _write_diff_report(out_path, old_rows, new_rows, compare_cols, stats, duplicate_notes, old_meta, new_meta, '\u5355\u677f HQ BOM \u7248\u672c\u5dee\u5f02\u603b\u89c8', '\u5355\u677f HQ BOM \u7248\u672c\u5bf9\u6bd4', 'hq-version-compare')
         return jsonify({'success': True, 'download': f'/download/{out_name}', 'format': 'standard', **stats})
     except ValueError as e:
         return jsonify({'success': False, 'error': str(e)})

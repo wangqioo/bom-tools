@@ -149,6 +149,14 @@ class AuthTests(unittest.TestCase):
         activity_payload = admin_client.get("/api/admin/activity?limit=10").get_json()
         self.assertTrue(activity_payload["success"])
         self.assertTrue(any(item["action"] == "admin_update_user_active" for item in activity_payload["activities"]))
+        refreshed = admin_client.get(f"/api/admin/users?q={employee_id}").get_json()["users"][0]
+        self.assertEqual(refreshed["activity_count"], listed["login_count"])
+        self.assertEqual(refreshed["tool_run_count"], 0)
+        self.assertEqual(refreshed["tool_export_count"], 0)
+        self.assertNotIn("bug_submit_count", refreshed)
+        self.assertNotIn("feature_submit_count", refreshed)
+        self.assertNotIn("feature_like_count", refreshed)
+        self.assertNotIn("status_update_count", refreshed)
 
     def test_tool_export_activity_records_tool_and_filename(self):
         client = app.test_client()

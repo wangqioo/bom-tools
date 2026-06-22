@@ -1154,5 +1154,4 @@ def api_auto_hq_attachments_status(job_id):
         'error': job.get('error'),
         'log': chr(10).join(job.get('logs') or []),
     })
-
-
+from . import customer_hq  # noqa: E402,F401

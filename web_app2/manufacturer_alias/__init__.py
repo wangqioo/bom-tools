@@ -16,7 +16,7 @@ from shared import jsonify, request
 manufacturer_alias_bp = Blueprint('manufacturer_alias', __name__)
 
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
-DATA_DIR = os.path.join(BASE_DIR, 'manufacturer_aliases')
+DATA_DIR = os.environ.get('BOM_TOOLS_MANUFACTURER_ALIAS_DIR') or os.path.join(BASE_DIR, 'manufacturer_aliases')
 DB_PATH = os.path.join(DATA_DIR, 'aliases.sqlite3')
 
 

@@ -58,6 +58,10 @@ async function postFormJson(url, fd){
 // ═══════════════════ 左侧导航切换 ═══════════════════
 const APP_VERSION = (window.BOM_TOOLS_BOOTSTRAP && window.BOM_TOOLS_BOOTSTRAP.version) || '2.1.0';
 const TOOL_VERSIONS = (window.BOM_TOOLS_BOOTSTRAP && window.BOM_TOOLS_BOOTSTRAP.toolVersions) || {};
+function currentEmployeeId(){
+  const user = window.BOM_TOOLS_BOOTSTRAP && window.BOM_TOOLS_BOOTSTRAP.currentUser;
+  return user && user.employee_id ? String(user.employee_id) : '';
+}
 function toolVersion(key, fallback){
   const value = TOOL_VERSIONS[key] || fallback || '';
   return value ? 'v' + String(value).replace(/^v/i, '') : '';
@@ -81,7 +85,7 @@ const TOOLS = {
            desc:'将整机 BOM 配置表转换为 PLM 系统可导入的标准格式：序号、料号、单耗等25列，主供行填单耗，替代料自动标记主辅BOM标记。'},
   'plm-auto': {title:'PLM网页自动化', badge:toolVersion('plm-auto','1.0.0'), tpl:'tpl-plm-auto',
            desc:'自动登录 EIP/PLM，按标准流程上传文件、查询并导出结果。当前包含规格型号反查物料。'},
-  'bom-compare': {title:'BOM比对工具合集', badge:toolVersion('bom-compare','0.3.0'), tpl:'tpl-bom-compare',
+  'bom-compare': {title:'BOM比对工具合集', badge:toolVersion('bom-compare','0.3.1'), tpl:'tpl-bom-compare',
            desc:'提供通用BOM对比、客户BOM对比HQ BOM、单板HQ BOM版本对比、整机HQ BOM版本对比、Cadence导出BOM对比HQ BOM五个子功能。'},
   'bom-checklist': {title:'BOM Checklist', badge:toolVersion('bom-checklist','0.1.4'), tpl:'tpl-bom-checklist',
            desc:'上传 BOM 后按 Checklist 标准自动扫描并输出通过、警告和失败项；检查规则会按内部标准逐条补齐。'},
@@ -587,10 +591,10 @@ async function adminLoadUsers(){
       <td><select data-admin-role="${_escH(u.id)}"><option value="user" ${u.role==='user'?'selected':''}>普通用户</option><option value="admin" ${u.role==='admin'?'selected':''}>管理员</option></select></td>
       <td>${u.is_active?'<span class="badge-sm badge-green">启用</span>':'<span class="badge-sm badge-gray">禁用</span>'}</td>
       <td>${adminFmtTime(u.created_at)}</td><td>${adminFmtTime(u.last_login_at)}</td>
-      <td>${u.login_count||0}</td><td>${u.bug_submit_count||0}</td><td>${u.feature_submit_count||0}</td><td>${u.feature_like_count||0}</td><td>${u.status_update_count||0}</td>
+      <td>${u.login_count||0}</td><td>${u.tool_run_count||0}</td><td>${u.tool_export_count||0}</td><td>${adminFmtTime(u.last_activity_at)}</td>
       <td><button class="btn btn-sm btn-gray" data-admin-active="${_escH(u.id)}" data-active="${u.is_active?0:1}">${u.is_active?'禁用':'启用'}</button></td>
     </tr>`).join('');
-    $('adminUserRows').innerHTML=rows||'<tr><td colspan="12">暂无用户</td></tr>';
+    $('adminUserRows').innerHTML=rows||'<tr><td colspan="11">暂无用户</td></tr>';
     document.querySelectorAll('[data-admin-role]').forEach(el=>{el.onchange=()=>adminSetRole(el.dataset.adminRole,el.value);});
     document.querySelectorAll('[data-admin-active]').forEach(el=>{el.onclick=()=>adminSetActive(el.dataset.adminActive,el.dataset.active==='1');});
     if(status) status.textContent='已加载 '+(d.users||[]).length+' 个用户';
@@ -598,7 +602,7 @@ async function adminLoadUsers(){
 }
 async function adminLoadActivity(){
   try{
-    const r=await fetch('/api/admin/activity?limit=30');
+    const r=await fetch('/api/admin/activity');
     const d=await r.json();
     if(!d.success) throw new Error(d.error||'加载失败');
     const rows=(d.activities||[]).map(a=>{
@@ -1767,6 +1771,106 @@ function plmCollectQtyConfigs(){
     .filter(cfg=>cfg.qty_col);
 }
 
+
+function chqBuildColMap(headers){
+  const el=$('chqColMap');
+  if(!el) return;
+  if(!headers||!headers.length){el.innerHTML='';return;}
+  let h='<table><tr style="background:#e8f0fe"><th style="width:50px">列</th><th>列名</th></tr>';
+  headers.forEach(e=>{
+    const m=String(e||'').match(/^([A-Z]+):(.+)/);
+    if(m) h+=`<tr><td style="font-weight:700;color:#1a5ad4">${_escH(m[1])}</td><td>${_escH(m[2])}</td></tr>`;
+    else h+=`<tr><td></td><td>${_escH(e||'')}</td></tr>`;
+  });
+  h+='</table>';
+  el.innerHTML=h;
+}
+
+function chqUpdateFromApi(d){
+  if(!d.success) return;
+  const ss=$('chqSheet');
+  ss.innerHTML=(d.sheets||[]).map(s=>`<option${s===d.current_sheet?' selected':''}>${_escH(s)}</option>`).join('');
+  if(d.detected){
+    if(d.detected.seq) $('chqColSeq').value=d.detected.seq;
+    if(d.detected.brand) $('chqColBrand').value=d.detected.brand;
+    if(d.detected.model) $('chqColModel').value=d.detected.model;
+    if(d.detected.qty) $('chqColQty').value=d.detected.qty;
+    if(d.detected.name) $('chqColName').value=d.detected.name;
+  }
+  $('chqDetectLog').textContent='自动识别：'+(d.headers||[]).join(' | ');
+  chqBuildColMap(d.headers||[]);
+}
+
+async function chqLoadDetect(opts={}){
+  const f=$('chqFile')?.files?.[0];
+  hide($('chqResult'));clearInlineError('chqError');
+  if(!f){
+    chqBuildColMap([]);
+    $('chqDetectLog').textContent='';
+    setSelectPlaceholder('chqSheet','先选择文件');
+    setPlainStatus('chqStatus','');
+    return;
+  }
+  setLoadingStatus('chqStatus','正在读取客户 BOM...');
+  if(opts.clearSheet) setSelectPlaceholder('chqSheet','加载中...');
+  const fd=new FormData();
+  fd.append('file',f);
+  fd.append('header_row',$('chqHdr').value||1);
+  const cur=$('chqSheet').value;
+  if(!opts.clearSheet && cur && cur!=='先选择文件' && cur!=='加载中...') fd.append('sheet_name',cur);
+  try{
+    const r=await fetch('/api/plm/customer_hq_detect',{method:'POST',body:fd});
+    const d=await r.json();
+    if(!d.success) throw new Error(d.error||'读取失败');
+    chqUpdateFromApi(d);
+    setPlainStatus('chqStatus',`已加载 ${(d.headers||[]).length} 列`);
+  }catch(e){
+    chqBuildColMap([]);
+    $('chqDetectLog').textContent='';
+    showInlineError('chqError',e.message,'chqStatus');
+  }
+}
+
+async function chqRun(){
+  const f=$('chqFile')?.files?.[0];
+  if(!f){showInlineError('chqError','请选择客户 BOM 文件','chqStatus');return;}
+  const btn=$('chqRun');
+  btn.disabled=true;
+  setLoadingStatus('chqStatus','正在转换...');
+  hide($('chqResult'));clearInlineError('chqError');
+  const fd=new FormData();
+  fd.append('file',f);
+  fd.append('sheet',$('chqSheet').value);
+  fd.append('header_row',$('chqHdr').value||1);
+  fd.append('col_seq',$('chqColSeq').value);
+  fd.append('col_hqpn',$('chqColHqpn').value);
+  fd.append('col_brand',$('chqColBrand').value);
+  fd.append('col_model',$('chqColModel').value);
+  fd.append('col_qty',$('chqColQty').value);
+  fd.append('col_name',$('chqColName').value);
+  fd.append('col_refdes',$('chqColRefdes').value);
+  fd.append('part_no',$('chqPartNo').value);
+  fd.append('description',$('chqDesc').value);
+  fd.append('config_name',$('chqConfig').value);
+  fd.append('engineer',$('chqEngineer').value);
+  fd.append('version',$('chqVersion').value);
+  fd.append('bom_name',$('chqBomName').value);
+  fd.append('archive_dept',$('chqDept').value);
+  try{
+    const r=await fetch('/api/plm/customer_hq_convert',{method:'POST',body:fd});
+    const d=await r.json();
+    if(!d.success) throw new Error(d.error||'转换失败');
+    $('chqStats').innerHTML=`写入 <b>${d.total}</b> 行${d.skipped?`，跳过 ${d.skipped} 行`:''}`;
+    $('chqDl').href=d.download;
+    show($('chqResult'));
+    setPlainStatus('chqStatus','完成');
+  }catch(e){
+    showInlineError('chqError',e.message,'chqStatus');
+  }
+  btn.disabled=false;
+}
+
+
 function initPlm(){
   // ── PLM sub-tab switching ──
   document.querySelectorAll('.plm-tab-btn').forEach(btn=>{
@@ -1775,10 +1879,17 @@ function initPlm(){
         b.style.color='#888'; b.style.borderBottomColor='transparent';
       });
       this.style.color='#1a5ad4'; this.style.borderBottomColor='#1a5ad4';
-      document.querySelectorAll('#plm-tab-bom-cfg,#plm-tab-spec-extract').forEach(el=>el.style.display='none');
+      document.querySelectorAll('#plm-tab-bom-cfg,#plm-tab-customer-hq,#plm-tab-spec-extract').forEach(el=>el.style.display='none');
       $('plm-tab-'+this.dataset.plmTab).style.display='block';
     };
   });
+
+  if($('chqFile')){
+    $('chqFile').onchange=()=>chqLoadDetect({clearSheet:true});
+    $('chqSheet').onchange=()=>chqLoadDetect({clearSheet:false});
+    $('chqRefresh').onclick=()=>chqLoadDetect({clearSheet:false});
+    $('chqRun').onclick=chqRun;
+  }
 
   // ── 规格型号提取 ──
   $('seFile').onchange = seLoadFile;
@@ -1832,6 +1943,12 @@ function initPlm(){
 
 
 function initPlmAuto(){
+  if($('paUser') && !$('paUser').value){
+    $('paUser').value = currentEmployeeId();
+  }
+  if($('paAttUser') && !$('paAttUser').value){
+    $('paAttUser').value = currentEmployeeId();
+  }
   $('paRun').onclick=plmAutoRun;
   $('paAttRun').onclick=plmAutoAttachmentRun;
   if($('paAttBatchFile')) $('paAttBatchFile').onchange=()=>plmAttBatchLoad({clearSheet:true});

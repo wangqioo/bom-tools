@@ -19,21 +19,21 @@ from flask import request, jsonify, send_file
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads")
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "outputs")
 CACHE_DIR  = os.path.join(os.path.dirname(__file__), "cache")
-PLATFORM_VERSION = "2.2.0"
+PLATFORM_VERSION = "2.2.1"
 TOOL_VERSIONS = {
     "bom": "5.10.0",
     "bom-checklist": "0.1.4",
     "feishu": "3.0.0",
     "manufacturer-alias": "1.0.0",
     "pref-rate": "1.0.0",
-    "plm": "1.6.0",
+    "plm": "1.7.0",
     "plm-auto": "1.0.0",
-    "bom-compare": "0.3.0",
-    "free-bom-compare": "1.1.2",
+    "bom-compare": "0.3.1",
+    "free-bom-compare": "1.1.3",
     "customer-hq-compare": "1.1.0",
-    "hq-version-compare": "1.0.0",
-    "machine-hq-version-compare": "1.0.0",
-    "cadence-hq-compare": "1.0.0",
+    "hq-version-compare": "1.0.1",
+    "machine-hq-version-compare": "1.0.1",
+    "cadence-hq-compare": "1.0.1",
     "toolbox": "1.0.0",
     "manual": "1.0.0",
 }

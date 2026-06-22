@@ -258,13 +258,11 @@ def _activity_summary_by_user(conn):
     rows = conn.execute(
         """
         SELECT user_id,
-               COUNT(*) AS activity_count,
+               SUM(CASE WHEN action IN ('login', 'tool_run', 'tool_export') THEN 1 ELSE 0 END) AS activity_count,
                SUM(CASE WHEN action = 'login' THEN 1 ELSE 0 END) AS login_count,
-               SUM(CASE WHEN action = 'submit_bug' THEN 1 ELSE 0 END) AS bug_submit_count,
-               SUM(CASE WHEN action = 'submit_feature' THEN 1 ELSE 0 END) AS feature_submit_count,
-               SUM(CASE WHEN action = 'like_feature' THEN 1 ELSE 0 END) AS feature_like_count,
-               SUM(CASE WHEN action IN ('update_bug_status', 'update_feature_status') THEN 1 ELSE 0 END) AS status_update_count,
-               MAX(created_at) AS last_activity_at
+               SUM(CASE WHEN action = 'tool_run' THEN 1 ELSE 0 END) AS tool_run_count,
+               SUM(CASE WHEN action = 'tool_export' THEN 1 ELSE 0 END) AS tool_export_count,
+               MAX(CASE WHEN action IN ('login', 'tool_run', 'tool_export') THEN created_at ELSE NULL END) AS last_activity_at
         FROM user_activity
         GROUP BY user_id
         """
@@ -281,10 +279,8 @@ def _admin_user_payload(row, activity):
     stats = activity.get(row["id"], {})
     item["activity_count"] = int(stats.get("activity_count") or 0)
     item["login_count"] = int(stats.get("login_count") or 0)
-    item["bug_submit_count"] = int(stats.get("bug_submit_count") or 0)
-    item["feature_submit_count"] = int(stats.get("feature_submit_count") or 0)
-    item["feature_like_count"] = int(stats.get("feature_like_count") or 0)
-    item["status_update_count"] = int(stats.get("status_update_count") or 0)
+    item["tool_run_count"] = int(stats.get("tool_run_count") or 0)
+    item["tool_export_count"] = int(stats.get("tool_export_count") or 0)
     item["last_activity_at"] = stats.get("last_activity_at")
     return item
 
@@ -389,10 +385,14 @@ def api_admin_activity():
     denied = require_admin_json()
     if denied:
         return denied
-    limit = min(max(int(request.args.get("limit") or 50), 1), 200)
+    raw_limit = str(request.args.get("limit") or "").strip()
+    limit = min(max(int(raw_limit), 1), 1000) if raw_limit else None
     conn = _connect()
     try:
-        rows = conn.execute("SELECT * FROM user_activity ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall()
+        if limit:
+            rows = conn.execute("SELECT * FROM user_activity ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall()
+        else:
+            rows = conn.execute("SELECT * FROM user_activity ORDER BY created_at DESC").fetchall()
         activities = []
         for row in rows:
             item = dict(row)

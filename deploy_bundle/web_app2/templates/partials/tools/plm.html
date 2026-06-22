@@ -2,6 +2,7 @@
 <!-- 子功能 Tab -->
 <div style="display:flex;gap:8px;margin-bottom:18px;border-bottom:2px solid #e0e4ef;padding-bottom:0">
   <button class="plm-tab-btn active" data-plm-tab="bom-cfg" style="padding:6px 18px;border:none;background:none;font-size:13px;font-weight:600;color:#1a5ad4;border-bottom:2px solid #1a5ad4;margin-bottom:-2px;cursor:pointer">整机BOM配置表转换</button>
+  <button class="plm-tab-btn" data-plm-tab="customer-hq" style="padding:6px 18px;border:none;background:none;font-size:13px;font-weight:600;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer">客户BOM转换成HQ格式单板BOM</button>
   <button class="plm-tab-btn" data-plm-tab="spec-extract" style="padding:6px 18px;border:none;background:none;font-size:13px;font-weight:600;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer">规格型号提取</button>
 </div>
 
@@ -58,6 +59,41 @@
 </div>
 
 <!-- 规格型号提取 -->
+
+<!-- 客户BOM转换成HQ格式单板BOM -->
+<div id="plm-tab-customer-hq" class="plm-shell" style="display:none">
+<div class="plm-hero">
+  <h4>客户BOM转换成HQ格式单板BOM</h4>
+  <p>上传已拆解供应商的客户 BOM，按序号判断主二供，生成 PLM 系统导出的 HQ 单板 BOM 标准格式。</p>
+</div>
+<div class="section"><h3>第一步：选择客户BOM</h3>
+  <div class="workflow-step-desc">选择已经完成供应商拆解的客户 BOM 文件，并确认 Sheet 和表头行。</div>
+  <div class="row"><label>文件路径：</label><input type="file" id="chqFile" accept=".xlsx,.xlsm,.xls" style="width:320px"></div>
+  <div class="row"><label>Sheet：</label><select id="chqSheet" style="width:180px"><option>先选择文件</option></select><label>表头行：</label><input type="number" id="chqHdr" value="1" min="1" style="width:55px"><button class="btn btn-sm btn-gray" id="chqRefresh" type="button">加载 / 刷新</button></div>
+</div>
+<div class="section"><h3>第二步：确认列映射</h3>
+  <div id="chqDetectLog" style="font-size:12px;color:#555;background:#f7f9fc;padding:8px;border-radius:6px;margin-bottom:8px"></div>
+  <div id="chqColMap" class="table-wrap" style="margin-bottom:10px;max-height:200px"></div>
+  <div class="row"><label>序号列：</label><input type="text" id="chqColSeq" style="width:60px" placeholder="如 A"><label>料号列：</label><input type="text" id="chqColHqpn" style="width:60px" placeholder="可空"><label>型号列：</label><input type="text" id="chqColModel" style="width:60px" placeholder="如 C"><label>物料描述列：</label><input type="text" id="chqColName" style="width:60px" placeholder="如 D"></div>
+  <div class="row"><label>单耗/用量列：</label><input type="text" id="chqColQty" style="width:60px" placeholder="如 E"><label>位号列：</label><input type="text" id="chqColRefdes" style="width:60px" placeholder="可空"><label>生产厂家列：</label><input type="text" id="chqColBrand" style="width:60px" placeholder="如 H"></div>
+</div>
+<div class="section"><h3>第三步：输出设置</h3>
+  <div class="workflow-step-desc">填写导出文件首页信息；不确定的字段可不填，系统会保留对应位置为空。</div>
+  <div class="chq-output-grid">
+    <div class="chq-output-field"><label for="chqPartNo">料号 <span class="chq-optional">可不填</span></label><input type="text" id="chqPartNo" placeholder="可不填"></div>
+    <div class="chq-output-field"><label for="chqDesc">描述 <span class="chq-optional">可不填</span></label><input type="text" id="chqDesc" placeholder="可不填"></div>
+    <div class="chq-output-field"><label for="chqConfig">项目配置名 <span class="chq-optional">可不填</span></label><input type="text" id="chqConfig" placeholder="可不填"></div>
+    <div class="chq-output-field"><label for="chqEngineer">工程师 <span class="chq-optional">可不填</span></label><input type="text" id="chqEngineer" placeholder="可不填"></div>
+    <div class="chq-output-field"><label for="chqVersion">版本 <span class="chq-optional">可不填</span></label><input type="text" id="chqVersion" placeholder="可不填"></div>
+    <div class="chq-output-field"><label for="chqBomName">BOM名称 <span class="chq-optional">可不填</span></label><input type="text" id="chqBomName" placeholder="可不填"></div>
+    <div class="chq-output-field"><label for="chqDept">归档部门 <span class="chq-optional">可不填</span></label><input type="text" id="chqDept" placeholder="可不填"></div>
+  </div>
+  <div class="chq-output-actions"><button class="btn btn-primary" id="chqRun" type="button">开始转换</button><span id="chqStatus" style="font-size:13px;color:#888"></span></div>
+</div>
+<div class="result" id="chqResult"><span class="title">转换完成</span><br><span id="chqStats" style="display:inline-block;margin-top:6px"></span><br><a class="download" id="chqDl" href="#">下载 HQ格式单板BOM</a></div>
+<div class="error" id="chqError"></div>
+</div>
+
 <div id="plm-tab-spec-extract" style="display:none">
 <div class="workflow-shell">
 <div class="workflow-hero">

@@ -6,6 +6,11 @@ from functools import wraps
 from urllib.parse import unquote
 
 
+_IGNORED_TOOL_ENDPOINTS = {
+    'api_feishu_load',
+}
+
+
 def _payload_from_response(response):
     try:
         return response.get_json(silent=True) or {}
@@ -27,6 +32,8 @@ def track_tool_activity(tool_name):
             from auth import record_activity
 
             response = func(*args, **kwargs)
+            if getattr(func, '__name__', '') in _IGNORED_TOOL_ENDPOINTS:
+                return response
             payload = _payload_from_response(response)
             detail = {
                 "tool": tool_name,

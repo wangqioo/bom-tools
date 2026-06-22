@@ -5,7 +5,6 @@ import json
 import os
 import re
 import uuid
-from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
 from flask import Blueprint
@@ -16,8 +15,6 @@ from shared import (
     _open_workbook,
     _save_uploaded_excel,
     _to_int,
-    PLATFORM_VERSION,
-    TOOL_VERSIONS,
     get_column_letter,
     request,
     jsonify,
@@ -28,6 +25,7 @@ from shared import (
     Border,
     Side,
 )
+from .export_info import write_export_info
 
 free_bom_compare_bp = Blueprint("free_bom_compare", __name__)
 
@@ -260,36 +258,26 @@ def _pair_label(left_col, right_col):
 
 def _write_export_info(ws, title, meta, title_fill, title_font, header_fill, border, left_align):
     meta = meta or {}
-    ws.merge_cells("A1:D1")
-    ws["A1"] = "BOM Tools 导出报告"
-    ws["A1"].font = title_font
-    ws["A1"].fill = title_fill
-    ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
-    rows = [
-        ("报告名称", title),
-        ("导出来源", f"BOM Tools 平台 v{PLATFORM_VERSION}"),
-        ("平台版本", f"v{PLATFORM_VERSION}"),
-        ("工具名称", "通用 BOM 对比"),
-        ("工具版本", f"v{TOOL_VERSIONS['free-bom-compare']}"),
-        ("导出时间", datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
-        ("基准 BOM 文件", meta.get("left_filename", "")),
-        ("对比 BOM 文件", meta.get("right_filename", "")),
-        ("基准 Sheet / 表头行", f"{meta.get('left_sheet', '')} / {meta.get('left_header_row', '')}"),
-        ("对比 Sheet / 表头行", f"{meta.get('right_sheet', '')} / {meta.get('right_header_row', '')}"),
-        ("匹配键", f"{meta.get('left_key_col', '')} <-> {meta.get('right_key_col', '')}"),
-        ("比对字段", meta.get("field_pairs", "")),
-        ("报告说明", "本报告由 BOM Tools 自动生成，结果依赖上传文件内容和用户选择的匹配键及比对字段。"),
-    ]
-    for offset, (name, value) in enumerate(rows, 2):
-        key = ws.cell(row=offset, column=1, value=name)
-        val = ws.cell(row=offset, column=2, value=value)
-        key.font = Font(bold=True)
-        key.fill = header_fill
-        key.border = border
-        val.border = border
-        val.alignment = left_align
-    return len(rows) + 3
-
+    return write_export_info(
+        ws,
+        title,
+        "\u901a\u7528 BOM \u5bf9\u6bd4",
+        "free-bom-compare",
+        rows=[
+            ("\u57fa\u51c6 BOM \u6587\u4ef6", meta.get("left_filename", "")),
+            ("\u5bf9\u6bd4 BOM \u6587\u4ef6", meta.get("right_filename", "")),
+            ("\u57fa\u51c6 Sheet / \u8868\u5934\u884c", f"{meta.get('left_sheet', '')} / {meta.get('left_header_row', '')}"),
+            ("\u5bf9\u6bd4 Sheet / \u8868\u5934\u884c", f"{meta.get('right_sheet', '')} / {meta.get('right_header_row', '')}"),
+            ("\u5339\u914d\u952e", f"{meta.get('left_key_col', '')} <-> {meta.get('right_key_col', '')}"),
+            ("\u6bd4\u5bf9\u5b57\u6bb5", meta.get("field_pairs", "")),
+        ],
+        note="\u672c\u62a5\u544a\u7531 BOM Tools \u81ea\u52a8\u751f\u6210\uff0c\u7ed3\u679c\u4f9d\u8d56\u4e0a\u4f20\u6587\u4ef6\u5185\u5bb9\u548c\u7528\u6237\u9009\u62e9\u7684\u5339\u914d\u952e\u53ca\u6bd4\u5bf9\u5b57\u6bb5\u3002",
+        title_fill=title_fill,
+        title_font=title_font,
+        header_fill=header_fill,
+        border=border,
+        value_alignment=left_align,
+    )
 
 def _write_report(out_path, left_rows, right_rows, field_pairs, stats, duplicate_notes, meta=None):
     wb = Workbook()

@@ -108,13 +108,14 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         html = resp.get_data(as_text=True)
         self.assertIn("BOM Tools", html)
-        self.assertIn("\u786c\u4ef6\u8bbe\u8ba1\u8f85\u52a9\u5e73\u53f0 v2.2.0", html)
-        self.assertIn("css/app.css?v=2.2.0", html)
-        self.assertIn("js/app.js?v=2.2.0", html)
-        self.assertIn("version: \"2.2.0\"", html)
+        self.assertIn("\u786c\u4ef6\u8bbe\u8ba1\u8f85\u52a9\u5e73\u53f0 v2.2.1", html)
+        self.assertIn("css/app.css?v=2.2.1", html)
+        self.assertIn("js/app.js?v=2.2.1", html)
+        self.assertIn("version: \"2.2.1\"", html)
         self.assertIn("toolVersions", html)
+        self.assertIn("currentUser", html)
         self.assertIn("free-bom-compare", html)
-        self.assertIn("1.1.2", html)
+        self.assertIn("1.1.3", html)
         self.assertIn("飞书优选库+关系库匹配", html)
         self.assertIn("BOM比对工具合集", html)
         self.assertIn("\u5c0f\u5de5\u5177\u5408\u96c6", html)
@@ -122,8 +123,19 @@ class WebAppTests(unittest.TestCase):
         self.assertIn("单板HQ BOM版本对比", html)
         self.assertIn("整机HQ BOM版本对比", html)
         self.assertIn("Cadence导出BOM对比HQ BOM", html)
+        self.assertIn("\u5ba2\u6237BOM\u8f6c\u6362\u6210HQ\u683c\u5f0f\u5355\u677fBOM", html)
 
 
+    def test_plm_auto_defaults_account_from_logged_in_employee_id(self):
+        html = (WEB_APP / "templates" / "partials" / "tools" / "plm-auto.html").read_text(encoding="utf-8")
+        js = (WEB_APP / "static" / "js" / "app.js").read_text(encoding="utf-8")
+        self.assertIn('id="paUser"', html)
+        self.assertIn('id="paAttUser"', html)
+        self.assertNotIn('value="100448405"', html)
+        self.assertIn("function currentEmployeeId()", js)
+        self.assertIn("BOM_TOOLS_BOOTSTRAP.currentUser", js)
+        self.assertIn("$('paUser').value = currentEmployeeId();", js)
+        self.assertIn("$('paAttUser').value = currentEmployeeId();", js)
     def test_about_project_nav_is_last_and_hides_direct_contact_sentence(self):
         resp = app.test_client().get("/")
         self.assertEqual(resp.status_code, 200)
@@ -543,6 +555,62 @@ class WebAppTests(unittest.TestCase):
         self.assertTrue(delete_resp.get_json()["success"])
         missing_lookup = client.get(f"/api/manufacturer_aliases/lookup?name={alias}").get_json()
         self.assertIsNone(missing_lookup["match"])
+
+    def test_plm_customer_hq_converts_customer_bom_to_single_board_hq_format(self):
+        source = _xlsx_bytes(
+            ["Seq", "HQ PN", "Model", "Description", "Qty", "Refdes", "Maker", "\u662f\u5426\u73af\u4fdd", "\u6e7f\u654f\u5c5e\u6027", "\u004d\u0042\u0047\u4f18\u9009\u5c5e\u6027", "\u0043\u0042\u0047\u4f18\u9009\u5c5e\u6027", "\u0044\u0042\u0047\u4f18\u9009\u5c5e\u6027", "\u4e3b\u5236\u63a7", "\u5b50\u5236\u63a7", "\u5b50\u5236\u63a7\u6570\u91cf", "\u0041\u0042\u0047\u4f18\u9009\u5c5e\u6027"],
+            [
+                ["6", "HQ1", "M-A", "Cap 1uF", 2, "C1,C2", "MakerA", "\u2160\u7ea7(\u65e0\u5364\u6b27\u76df\u73af\u4fdd)", "\u6e7f\u654f\u5668\u4ef6", "\u65e0", "\u65e0", "\u9650\u9009", "SMT", "", "", "\u65e0"],
+                ["6", "HQ2", "M-B", "Cap 1uF", 2, "C1,C2", "MakerB", "\u2160\u7ea7(\u65e0\u5364\u6b27\u76df\u73af\u4fdd)", "\u975e\u6e7f\u654f\u5668\u4ef6", "\u53ef\u9009", "\u9650\u9009", "\u4f18\u9009", "", "", "", "\u9650\u9009"],
+                ["7", "HQ3", "R-A", "Res 10K", 4, "R1", "MakerC", "\u2160\u7ea7(\u65e0\u5364\u6b27\u76df\u73af\u4fdd)", "\u6e7f\u654f\u5668\u4ef6", "\u65e0", "\u65e0", "\u9650\u9009", "DIP", "", "", "\u65e0"],
+            ],
+        )
+        resp = app.test_client().post(
+            "/api/plm/customer_hq_convert",
+            data={
+                "file": (source, "customer.xlsx"),
+                "sheet": "Sheet",
+                "header_row": "1",
+                "col_seq": "A",
+                "col_hqpn": "B",
+                "col_model": "C",
+                "col_name": "D",
+                "col_qty": "E",
+                "col_refdes": "F",
+                "col_brand": "G",
+                "part_no": "HQ31200063SB0",
+                "description": "Demo Board PCBA",
+                "config_name": "DEMO",
+                "engineer": "Tester",
+                "version": "I.1",
+                "bom_name": "Demo Board PCBA",
+                "archive_dept": "HW",
+            },
+            content_type="multipart/form-data",
+        )
+        payload = resp.get_json()
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(payload["success"], payload.get("error"))
+        self.assertEqual(payload["total"], 3)
+        filename = unquote(payload["download"].split("/download/", 1)[1])
+        wb = openpyxl.load_workbook(WEB_APP / "outputs" / filename, data_only=True)
+        ws = wb.active
+        self.assertEqual(ws.title, "BOM")
+        self.assertEqual(ws.max_column, 19)
+        self.assertEqual(ws["A1"].value, "\u6599\u53f7")
+        self.assertEqual(ws["B1"].value, "HQ31200063SB0")
+        self.assertEqual(ws["D1"].value, "Demo Board PCBA")
+        self.assertEqual(ws["F1"].value, "DEMO")
+        self.assertEqual(ws["H1"].value, "Tester")
+        self.assertEqual([ws.cell(row=3, column=i).value for i in range(1, 20)], [
+            "\u5e8f\u53f7", "\u6599\u53f7", "\u578b\u53f7", "\u7269\u6599\u63cf\u8ff0", "\u5355\u8017", "\u66ff\u4ee3\u5173\u7cfb", "\u4f4d\u53f7", "\u751f\u4ea7\u5382\u5bb6", "\u662f\u5426\u73af\u4fdd", "\u6e7f\u654f\u5c5e\u6027", "\u5907\u6ce8", "\u4e3b\u8f85BOM\u6807\u8bb0", "\u004d\u0042\u0047\u4f18\u9009\u5c5e\u6027", "\u0043\u0042\u0047\u4f18\u9009\u5c5e\u6027", "\u0044\u0042\u0047\u4f18\u9009\u5c5e\u6027", "\u4e3b\u5236\u63a7", "\u5b50\u5236\u63a7", "\u5b50\u5236\u63a7\u6570\u91cf", "\u0041\u0042\u0047\u4f18\u9009\u5c5e\u6027"
+        ])
+        self.assertEqual([ws["A4"].value, ws["B4"].value, ws["C4"].value, ws["D4"].value, ws["E4"].value, ws["G4"].value, ws["H4"].value], ["6", "HQ1", "M-A", "Cap 1uF", 2, "C1,C2", "MakerA"])
+        self.assertEqual([ws["I4"].value, ws["J4"].value, ws["M4"].value, ws["O4"].value, ws["P4"].value, ws["S4"].value], ["\u2160\u7ea7(\u65e0\u5364\u6b27\u76df\u73af\u4fdd)", "\u6e7f\u654f\u5668\u4ef6", "\u65e0", "\u9650\u9009", "SMT", "\u65e0"])
+        self.assertEqual([ws["A5"].value, ws["B5"].value, ws["C5"].value, ws["D5"].value, ws["E5"].value, ws["G5"].value, ws["H5"].value], ["6", "HQ2", "M-B", "Cap 1uF", None, None, "MakerB"])
+        self.assertEqual([ws["M5"].value, ws["N5"].value, ws["O5"].value, ws["S5"].value], ["\u53ef\u9009", "\u9650\u9009", "\u4f18\u9009", "\u9650\u9009"])
+        self.assertEqual([ws["A6"].value, ws["B6"].value, ws["E6"].value, ws["G6"].value, ws["H6"].value], ["7", "HQ3", 4, "R1", "MakerC"])
+        wb.close()
 
     def test_hq_bom_version_compare_reports_added_removed_and_changed(self):
         base_bom = _hq_export_bytes(
