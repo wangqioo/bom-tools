@@ -20,10 +20,122 @@ if str(WEB_APP) not in sys.path:
     sys.path.insert(0, str(WEB_APP))
 
 from app import app  # noqa: E402
-from openpyxl import Workbook  # noqa: E402
+from openpyxl import Workbook, load_workbook  # noqa: E402
 
 
 class PlmAttachmentJobTests(unittest.TestCase):
+    def test_plm_spec_reverse_single_value_creates_background_job(self):
+        from plm import _PLM_SPEC_REVERSE_JOBS
+
+        run_calls = []
+
+        class FakePlaywrightContext:
+            def __enter__(self):
+                return object()
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+        def fake_run_plm_feature(playwright, *, username, password, feature, upload_file, output_dir, headless=False, log=None):
+            wb_in = load_workbook(upload_file, data_only=True)
+            ws_in = wb_in.active
+            single_value = ws_in.cell(row=2, column=1).value
+            all_values = [ws_in.cell(row=row, column=1).value for row in range(2, ws_in.max_row + 1)]
+            wb_in.close()
+            run_calls.append((username, upload_file.name, single_value, all_values))
+            if log:
+                log("启动浏览器")
+                log("上传文件：" + upload_file.name)
+                log("导出完成：mock.xlsx")
+            out_path = Path(output_dir) / "mock_spec_reverse.xlsx"
+            wb = Workbook()
+            wb.active.append(["HQ料号"])
+            wb.active.append(["HQTEST001"])
+            wb.save(out_path)
+            return out_path
+
+        def wait_done(client, job_id):
+            for _ in range(40):
+                status = client.get(f"/api/plm/auto_spec_reverse/status/{job_id}").get_json()
+                if status.get("status") == "done":
+                    return status
+                if status.get("status") == "error":
+                    self.fail(status.get("error"))
+                time.sleep(0.05)
+            self.fail("job did not finish")
+
+        with app.test_client() as client:
+            client.post("/api/login", json={"employee_id": "ADMIN"})
+            with patch("playwright.sync_api.sync_playwright", return_value=FakePlaywrightContext()), patch(
+                "plm.automation.run_plm_feature", fake_run_plm_feature
+            ):
+                resp = client.post(
+                    "/api/plm/auto_spec_reverse",
+                    data={"username": "100448405", "password": "pw", "single_value": " HQ TEST 001 "},
+                )
+                payload = resp.get_json()
+                self.assertTrue(payload["success"], payload)
+                self.assertIn("/api/plm/auto_spec_reverse/status/", payload["status_url"])
+                status = wait_done(client, payload["job_id"])
+                self.assertEqual(status["download"], "/download/mock_spec_reverse.xlsx")
+                self.assertEqual(status["progress"], 100)
+                self.assertIn("上传文件", status["log"])
+                self.assertEqual(run_calls[0][0], "100448405")
+                self.assertEqual(run_calls[0][2], "HQ TEST 001")
+                self.assertEqual(run_calls[0][3], ["HQ TEST 001"])
+
+            _PLM_SPEC_REVERSE_JOBS.pop(payload["job_id"], None)
+
+    def test_plm_spec_reverse_single_value_accepts_comma_separated_values(self):
+        from plm import _PLM_SPEC_REVERSE_JOBS
+
+        run_calls = []
+
+        class FakePlaywrightContext:
+            def __enter__(self):
+                return object()
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+        def fake_run_plm_feature(playwright, *, username, password, feature, upload_file, output_dir, headless=False, log=None):
+            wb_in = load_workbook(upload_file, data_only=True)
+            values = [wb_in.active.cell(row=row, column=1).value for row in range(2, wb_in.active.max_row + 1)]
+            wb_in.close()
+            run_calls.append(values)
+            out_path = Path(output_dir) / "mock_spec_reverse_multi.xlsx"
+            wb = Workbook()
+            wb.active.append(["HQ料号"])
+            wb.active.append(["HQTEST001"])
+            wb.save(out_path)
+            return out_path
+
+        def wait_done(client, job_id):
+            for _ in range(40):
+                status = client.get(f"/api/plm/auto_spec_reverse/status/{job_id}").get_json()
+                if status.get("status") == "done":
+                    return status
+                if status.get("status") == "error":
+                    self.fail(status.get("error"))
+                time.sleep(0.05)
+            self.fail("job did not finish")
+
+        with app.test_client() as client:
+            client.post("/api/login", json={"employee_id": "ADMIN"})
+            with patch("playwright.sync_api.sync_playwright", return_value=FakePlaywrightContext()), patch(
+                "plm.automation.run_plm_feature", fake_run_plm_feature
+            ):
+                resp = client.post(
+                    "/api/plm/auto_spec_reverse",
+                    data={"username": "100448405", "password": "pw", "single_value": " HQ TEST 001, A B 002 ，HQ003 "},
+                )
+                payload = resp.get_json()
+                self.assertTrue(payload["success"], payload)
+                wait_done(client, payload["job_id"])
+                self.assertEqual(run_calls[0], ["HQ TEST 001", "A B 002", "HQ003"])
+
+            _PLM_SPEC_REVERSE_JOBS.pop(payload["job_id"], None)
+
     def test_plm_attachment_batch_excel_enqueues_unique_hqpns(self):
         from plm import _PLM_ATTACHMENT_JOBS
 
@@ -158,10 +270,20 @@ class PlmAttachmentJobTests(unittest.TestCase):
             )
             payload = resp.get_json()
             self.assertTrue(payload["success"], payload)
-            self.assertEqual(payload["detected"]["hqpn"], "B")
+            self.assertEqual(payload["detected"].get("hqpn"), "B")
             self.assertEqual(payload["headers"], ["序号", "HQ PN", "说明"])
 
-    def test_plm_attachment_jobs_queue_and_reuse_session(self):
+            second = client.post(
+                "/api/plm/auto_hq_attachments/excel_detect",
+                data={"header_row": "2", "uid": payload["uid"], "sheet_name": payload["current_sheet"]},
+                content_type="multipart/form-data",
+            ).get_json()
+            self.assertTrue(second["success"], second)
+            self.assertEqual(second["uid"], payload["uid"])
+            self.assertEqual(second["headers"], ["1", "HQ17001007NC0", "single"])
+
+
+    def test_plm_attachment_single_jobs_start_new_session_after_success(self):
         from plm import _PLM_ATTACHMENT_JOBS
 
         init_calls = []
@@ -263,11 +385,10 @@ class PlmAttachmentJobTests(unittest.TestCase):
                 self.assertEqual(first["download"], "/download/HQTEST1_attachment.zip")
                 self.assertEqual(second["download"], "/download/HQTEST2_attachment.zip")
                 self.assertEqual(run_calls, ["HQTEST1", "HQTEST2"])
-                self.assertEqual(init_calls.count(("search", "100448405")), 1)
+                self.assertEqual(init_calls.count(("search", "100448405")), 2)
 
             for job_id in job_ids:
                 _PLM_ATTACHMENT_JOBS.pop(job_id, None)
-
     def test_plm_attachment_job_retries_once_with_existing_session(self):
         from plm import _PLM_ATTACHMENT_JOBS
 

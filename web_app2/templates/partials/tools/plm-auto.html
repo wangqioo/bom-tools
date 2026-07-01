@@ -13,19 +13,35 @@
     <div class="row"><label>账号：</label><input type="text" id="paUser" autocomplete="username" style="width:220px"></div>
     <div class="row"><label>密码：</label><input type="password" id="paPass" autocomplete="current-password" style="width:220px"></div>
   </div>
-  <div class="section"><h3>第二步：选择上传文件</h3>
-    <div class="row"><label>文件路径：</label><input type="file" id="paFile" accept=".xlsx,.xlsm,.xls" style="width:360px"></div>
+  <div class="section"><h3>查询方式一：规格型号 / HQ 料号直接查询</h3>
+    <div class="workflow-step-desc">适合临时查询少量对象。多个规格型号或 HQ 料号可用半角逗号或全角逗号分隔；每一项只会去掉前后空格，中间空格会保留。</div>
+    <div class="row plm-attach-action-row"><label>直接输入：</label><input type="text" id="paSingleValue" placeholder="规格型号或 HQ 料号，多个用逗号分隔" style="width:320px"><button class="btn btn-primary" id="paRunSingle" type="button">开始查询导出</button><span id="paStatus" style="font-size:13px;color:#888"></span></div>
   </div>
-  <div class="section"><h3>第三步：运行自动化</h3>
-    <button class="btn btn-primary" id="paRun">开始自动查询导出</button>
-    <span id="paStatus" style="font-size:13px;margin-left:10px;color:#888"></span>
+  <div class="section"><h3>查询方式二：Excel 批量查询</h3>
+    <div class="workflow-step-desc">适合一次查询多个规格型号 / HQ 料号。上传符合 PLM 规格型号反查格式的 Excel 后执行查询导出。</div>
+    <div class="row plm-attach-action-row"><label>文件路径：</label><input type="file" id="paFile" accept=".xlsx,.xlsm,.xls" style="width:360px"><button class="btn btn-primary" id="paRunFile" type="button">开始批量查询导出</button></div>
   </div>
-  <div class="result" id="paResult">
-    <span class="title">导出完成</span>
-    <div id="paStats" style="margin-top:6px;font-size:13px"></div>
-    <a class="download" id="paDl" href="#">下载 PLM 导出结果</a>
-  </div>
-  <div class="error" id="paError"></div>
+  <div class="section"><h3>执行进度与结果</h3>
+    <div id="paProgressPanel" class="plm-auto-progress" style="display:none;margin-top:12px;border:1px solid #b7d4ff;background:#f4f8ff;border-radius:8px;padding:12px 14px">
+      <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:8px">
+        <div>
+          <div id="paProgressStage" style="font-size:14px;font-weight:700;color:#163a6b">等待开始</div>
+          <div id="paProgressNote" style="font-size:12px;color:#52657d;margin-top:3px">任务启动后会实时刷新当前步骤</div>
+        </div>
+        <div id="paProgressPct" style="font-size:22px;font-weight:800;color:#1a5ad4;min-width:58px;text-align:right">0%</div>
+      </div>
+      <div style="height:10px;border-radius:999px;background:#dbe8ff;border:1px solid #c6d8f5;overflow:hidden">
+        <div id="paProgressBar" style="width:0%;height:100%;background:linear-gradient(90deg,#2d6cdf,#2a8a2a);transition:width .2s ease"></div>
+      </div>
+    </div>
+    <div class="result plm-attach-download-result" id="paResult">
+      <div>
+        <span class="title">导出完成</span>
+        <div id="paStats" style="margin-top:6px;font-size:13px"></div>
+      </div>
+      <a class="download" id="paDl" href="#">下载 PLM 导出结果</a>
+    </div>
+  </div>  <div class="error" id="paError"></div>
   <div id="paLogBox" style="display:none;margin-top:10px"><h4 style="margin:0 0 6px;font-size:13px">执行日志</h4><pre id="paLog" style="font-size:12px;background:#1a1a2e;color:#e0e0e0;padding:10px;border-radius:6px;max-height:220px;overflow:auto;white-space:pre-wrap;font-family:Consolas,'Courier New',monospace"></pre></div>
 </div>
 

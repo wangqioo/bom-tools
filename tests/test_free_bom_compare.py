@@ -111,9 +111,9 @@ class FreeBomCompareTests(unittest.TestCase):
             summary_values = {summary.cell(row=row, column=1).value: summary.cell(row=row, column=2).value for row in range(1, summary.max_row + 1)}
             summary_rows = {summary.cell(row=row, column=1).value: row for row in range(1, summary.max_row + 1)}
             self.assertEqual(summary["A1"].value, "BOM Tools 导出报告")
-            self.assertEqual(summary_values["导出来源"], "BOM Tools 平台 v2.2.1")
-            self.assertEqual(summary_values["平台版本"], "v2.2.1")
-            self.assertEqual(summary_values["工具版本"], "v1.1.3")
+            self.assertEqual(summary_values["导出来源"], "BOM Tools 平台 v2.2.2")
+            self.assertEqual(summary_values["平台版本"], "v2.2.2")
+            self.assertEqual(summary_values["工具版本"], "v1.1.4")
             self.assertIsNone(summary.freeze_panes)
             self.assertEqual(summary_values["工具名称"], "通用 BOM 对比")
             self.assertEqual(summary_values["基准 BOM 文件"], "left.xlsx")
@@ -244,6 +244,8 @@ class FreeBomCompareTests(unittest.TestCase):
         self.assertIn('第二步：确认匹配规则和字段映射', html)
         self.assertIn('2.1 选择匹配规则', html)
         self.assertIn('2.2 映射客户 BOM 字段', html)
+        self.assertIn('客户 BOM 不要求固定列名', html)
+        self.assertIn('列名不需要叫“规格型号”“制造商”或“位号”', html)
         self.assertIn('数量会参与差异判断', html)
         self.assertIn('第三步：预览或导出', html)
 

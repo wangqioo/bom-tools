@@ -31,6 +31,10 @@ function setLoadingStatus(id,msg){
   const el=$(id); if(!el) return;
   el.innerHTML=`<span class="spinner">&#8635;</span> ${_escH(msg||'\u52a0\u8f7d\u4e2d...')}`;
 }
+function setFeishuLocalLoadingStatus(msg){
+  const el=$('fsLocalLoadStatus') || $('fsRunStatus2'); if(!el) return;
+  el.innerHTML=`<span class="fs-local-loading-fist" aria-hidden="true">&#9994;</span> ${_escH(msg||'\u6b63\u5728\u8bfb\u53d6\u672c\u5730 BOM \u5217...')}`;
+}
 function setPlainStatus(id,msg){
   const el=$(id); if(!el) return;
   el.textContent=msg||'';
@@ -38,6 +42,20 @@ function setPlainStatus(id,msg){
 function setSelectPlaceholder(id,msg){
   const el=$(id); if(!el) return;
   el.innerHTML=`<option>${_escH(msg||'\u52a0\u8f7d\u4e2d...')}</option>`;
+}
+function fileChangedUid(key){ window[key]=''; }
+function appendFileOrUid(fd,file,uidKey,fieldName='file',uidField='uid'){
+  if(file && !window[uidKey]) fd.append(fieldName,file);
+  else if(window[uidKey]) fd.append(uidField,window[uidKey]);
+  else if(file) fd.append(fieldName,file);
+}
+function appendSideFileOrUid(fd,file,prefix,side,fieldName){
+  const key='_'+prefix+side+'Uid';
+  appendFileOrUid(fd,file,key,fieldName,side.toLowerCase()+'_uid');
+}
+function updateSideUids(prefix,d){
+  if(d.left_uid) window['_'+prefix+'LeftUid']=d.left_uid;
+  if(d.right_uid) window['_'+prefix+'RightUid']=d.right_uid;
 }
 function clearSelectOptions(id,msg){
   const el=$(id); if(!el) return;
@@ -75,17 +93,17 @@ function applyToolVersions(root){
 const TOOLS = {
   bom:    {title:'BOM 格式转换',        badge:toolVersion('bom','5.10.0'), tpl:'tpl-bom',
            desc:'将客户提供的多种格式 BOM 表自动识别列映射，支持品牌型号合并列/分开列（格式A/B/C），展开为多供应商独立行。'},
-  feishu: {title:'飞书优选库+关系库匹配', badge:toolVersion('feishu','3.0.0'),  tpl:'tpl-feishu',
+  feishu: {title:'飞书优选库+关系库匹配', badge:toolVersion('feishu','3.0.4'),  tpl:'tpl-feishu',
            desc:'连接飞书内部 API 网关，支持 15 个预置库（优选库 + 对应关系库），多键 AND 匹配（最多 3 对），批量提取字段，输出含来源表格的匹配结果。'},
   'manufacturer-alias': {title:'\u5382\u5546\u547d\u540d\u6620\u5c04\u8868', badge:toolVersion('manufacturer-alias','1.0.0'), tpl:'tpl-manufacturer-alias',
            desc:'\u7ef4\u62a4\u5ba2\u6237\u5382\u5546\u522b\u540d\u3001\u5927\u5c0f\u5199\u53d8\u4f53\u3001\u4e2d\u6587\u540d\u548c\u97f3\u8bd1\u540d\u5230 HQ \u89c4\u8303\u5382\u5546\u540d\u7684\u7cbe\u786e\u6620\u5c04\uff0c\u4f9b\u540e\u7eed\u5339\u914d\u6d41\u7a0b\u590d\u7528\u3002'},
   'pref-rate': {title:'查询BOM优选率', badge:toolVersion('pref-rate','1.0.0'), tpl:'tpl-pref-rate',
                desc:'按 HQ料号 在所有优选库缓存中查找优选等级，输出含优选率统计的 Excel 结果文件。'},
-  plm:    {title:'转换为上传PLM系统格式', badge:toolVersion('plm','1.6.0'),  tpl:'tpl-plm',
+  plm:    {title:'转换为上传PLM系统格式', badge:toolVersion('plm','1.7.1'),  tpl:'tpl-plm',
            desc:'将整机 BOM 配置表转换为 PLM 系统可导入的标准格式：序号、料号、单耗等25列，主供行填单耗，替代料自动标记主辅BOM标记。'},
-  'plm-auto': {title:'PLM网页自动化', badge:toolVersion('plm-auto','1.0.0'), tpl:'tpl-plm-auto',
+  'plm-auto': {title:'PLM网页自动化', badge:toolVersion('plm-auto','1.2.0'), tpl:'tpl-plm-auto',
            desc:'自动登录 EIP/PLM，按标准流程上传文件、查询并导出结果。当前包含规格型号反查物料。'},
-  'bom-compare': {title:'BOM比对工具合集', badge:toolVersion('bom-compare','0.3.1'), tpl:'tpl-bom-compare',
+  'bom-compare': {title:'BOM比对工具合集', badge:toolVersion('bom-compare','0.3.2'), tpl:'tpl-bom-compare',
            desc:'提供通用BOM对比、客户BOM对比HQ BOM、单板HQ BOM版本对比、整机HQ BOM版本对比、Cadence导出BOM对比HQ BOM五个子功能。'},
   'bom-checklist': {title:'BOM Checklist', badge:toolVersion('bom-checklist','0.1.4'), tpl:'tpl-bom-checklist',
            desc:'上传 BOM 后按 Checklist 标准自动扫描并输出通过、警告和失败项；检查规则会按内部标准逐条补齐。'},
@@ -1186,7 +1204,7 @@ async function cmpRefresh(prefix, compareType, apiPrefix='/api/bom_compare'){
   }
   setLoadingStatus(prefix+'LoadStatus','正在读取列...');
   const fd=new FormData();
-  fd.append('left_file',leftFile);fd.append('right_file',rightFile);fd.append('compare_type',compareType||'cadence_hq');
+  appendSideFileOrUid(fd,leftFile,prefix,'Left','left_file');appendSideFileOrUid(fd,rightFile,prefix,'Right','right_file');fd.append('compare_type',compareType||'cadence_hq');
   fd.append('left_header_row',$(prefix+'LeftHdr').value||1);fd.append('right_header_row',$(prefix+'RightHdr').value||1);
   const ls=$(prefix+'LeftSheet').value, rs=$(prefix+'RightSheet').value;
   if(ls&&ls!=='先选择文件'&&ls!=='加载中...') fd.append('left_sheet',ls);
@@ -1228,8 +1246,8 @@ function initGenericBomCompare(prefix, compareType, apiPrefix='/api/bom_compare'
   const previewThenRefresh=()=>{cmpPreviewFreeBom(apiPrefix);cmpRefresh(prefix,compareType,apiPrefix);};
   const genericPreviewThenRefresh=()=>{cmpPreviewGenericBom(prefix,compareType,apiPrefix);cmpRefresh(prefix,compareType,apiPrefix);};
   const refreshHandler=compareType==='free_bom'?previewThenRefresh:(compareType==='cadence_hq'?genericPreviewThenRefresh:autoRefresh);
-  $(prefix+'LeftFile').onchange=refreshHandler;
-  $(prefix+'RightFile').onchange=refreshHandler;
+  $(prefix+'LeftFile').onchange=()=>{fileChangedUid('_'+prefix+'LeftUid');refreshHandler();};
+  $(prefix+'RightFile').onchange=()=>{fileChangedUid('_'+prefix+'RightUid');refreshHandler();};
   $(prefix+'LeftSheet').onchange=refreshHandler;
   $(prefix+'RightSheet').onchange=refreshHandler;
   $(prefix+'LeftHdr').onchange=refreshHandler;
@@ -1286,7 +1304,7 @@ async function custLoadColumns(apiPrefix='/api/bom_compare'){
   if(!leftFile||!rightFile){$('custLoadStatus').textContent='请先上传客户 BOM 和 HQ BOM';return;}
   setLoadingStatus('custLoadStatus','正在读取列...');
   const fd=new FormData();
-  fd.append('left_file',leftFile);fd.append('right_file',rightFile);fd.append('compare_type','customer_preview');
+  appendSideFileOrUid(fd,leftFile,'cust','Left','left_file');appendSideFileOrUid(fd,rightFile,'cust','Right','right_file');fd.append('compare_type','customer_preview');
   fd.append('left_header_row',$('custLeftHdr').value||1);
   const ls=$('custLeftSheet').value, rs=$('custRightSheet').value;
   if(ls&&ls!=='先选择文件'&&ls!=='加载中...') fd.append('left_sheet',ls);
@@ -1352,8 +1370,8 @@ async function custRunExport(apiPrefix='/api/bom_compare'){
 }
 function initCustomerHqPreview(apiPrefix='/api/bom_compare'){
   $('custRefresh').onclick=()=>custLoadColumns(apiPrefix);
-  $('custLeftFile').onchange=()=>custLoadColumns(apiPrefix);
-  $('custRightFile').onchange=()=>custLoadColumns(apiPrefix);
+  $('custLeftFile').onchange=()=>{fileChangedUid('_custLeftUid');custLoadColumns(apiPrefix);};
+  $('custRightFile').onchange=()=>{fileChangedUid('_custRightUid');custLoadColumns(apiPrefix);};
   $('custLeftSheet').onchange=()=>custLoadColumns(apiPrefix);
   $('custRightSheet').onchange=()=>custLoadColumns(apiPrefix);
   $('custLeftHdr').onchange=()=>custLoadColumns(apiPrefix);
@@ -1416,12 +1434,13 @@ async function vcLoadOne(prefix, which, sheetsApi){
   const sheetEl=$(which==='old'?prefix+'OldSheet':prefix+'NewSheet');
   const f=fileEl.files[0]; if(!f) return null;
   const fd=new FormData();
-  fd.append('file',f);
+  appendFileOrUid(fd,f,'_'+prefix+which+'Uid');
   fd.append('header_row',$(prefix+'Hdr').value||1);
   if(sheetEl.value && sheetEl.value!=='先选择文件' && sheetEl.value!=='加载中...') fd.append('sheet_name',sheetEl.value);
   const r=await fetch(sheetsApi,{method:'POST',body:fd});
   const d=await r.json();
   if(!d.success) throw new Error(d.error||'读取文件失败');
+  window['_'+prefix+which+'Uid']=d.uid||window['_'+prefix+which+'Uid']||'';
   sheetEl.innerHTML=(d.sheets||[]).map(s=>`<option${s===d.current_sheet?' selected':''}>${_escH(s)}</option>`).join('');
   const st=vcState(prefix);
   if(which==='old'){st.oldHeaders=d.headers||[];st.oldFormat=d.format||'';st.oldBomSheets=d.bom_sheets||[];}
@@ -1457,8 +1476,8 @@ async function vcRefreshColumns(prefix, opts){
 
 function initVersionCompare(prefix, opts){
   vcState(prefix);
-  $(prefix+'OldFile').onchange=()=>vcRefreshColumns(prefix,opts);
-  $(prefix+'NewFile').onchange=()=>vcRefreshColumns(prefix,opts);
+  $(prefix+'OldFile').onchange=()=>{fileChangedUid('_'+prefix+'oldUid');vcRefreshColumns(prefix,opts);};
+  $(prefix+'NewFile').onchange=()=>{fileChangedUid('_'+prefix+'newUid');vcRefreshColumns(prefix,opts);};
   $(prefix+'OldSheet').onchange=()=>vcRefreshColumns(prefix,opts);
   $(prefix+'NewSheet').onchange=()=>vcRefreshColumns(prefix,opts);
   $(prefix+'Refresh').onclick=()=>vcRefreshColumns(prefix,opts);
@@ -1545,12 +1564,13 @@ async function bomLoadDetect(opts={}){
   }
   bomPrepareLoad(!!opts.clearSheet);
   const fd=new FormData();
-  fd.append('file',f);
+  appendFileOrUid(fd,f,'_bomDetectUid');
   fd.append('header_row',$('bomHdr').value||1);
   if(!opts.clearSheet && $('bomSheet').value && $('bomSheet').value!=='\u5148\u9009\u62e9\u6587\u4ef6' && $('bomSheet').value!=='\u52a0\u8f7d\u4e2d...') fd.append('sheet_name',$('bomSheet').value);
   try{
     const r=await fetch('/api/bom/detect',{method:'POST',body:fd});
     const d=await r.json();
+    if(d.success) window._bomDetectUid=d.uid||window._bomDetectUid||'';
     updateBomFromApi(d);
   }catch(e){
     $('bomPreview').innerHTML='';
@@ -1560,7 +1580,7 @@ async function bomLoadDetect(opts={}){
 
 function initBom(){
   $('bomSheet').onchange=()=>bomLoadDetect({clearSheet:false});
-  $('bomFile').onchange=()=>bomLoadDetect({clearSheet:true});
+  $('bomFile').onchange=()=>{fileChangedUid('_bomDetectUid');bomLoadDetect({clearSheet:true});};
   $('bomRefresh').onclick=()=>bomLoadDetect({clearSheet:false});
   $('bomRun').onclick=async function(){
     const f=$('bomFile').files[0];if(!f){showInlineError('bomError','\u8bf7\u9009\u62e9\u6587\u4ef6','bomStatus');return;}
@@ -1638,12 +1658,13 @@ async function plmLoadDetect(opts={}){
     return;
   }
   plmPrepareLoad(!!opts.clearSheet, !!opts.clearConfigs);
-  const fd=new FormData();fd.append('file',f);fd.append('header_row',$('plmHdr').value||4);
+  const fd=new FormData();appendFileOrUid(fd,f,'_plmDetectUid');fd.append('header_row',$('plmHdr').value||4);
   if(!opts.clearSheet && $('plmSheet').value && $('plmSheet').value!=='\u5148\u9009\u62e9\u6587\u4ef6' && $('plmSheet').value!=='\u52a0\u8f7d\u4e2d...') fd.append('sheet_name',$('plmSheet').value);
   try{
     const r=await fetch('/api/plm/detect',{method:'POST',body:fd});
     const d=await r.json();
     if(!d.success) throw new Error(d.error||'\u8bfb\u53d6 Excel \u5931\u8d25');
+    window._plmDetectUid=d.uid||window._plmDetectUid||'';
     updatePlmFromApi(d);
     setPlainStatus('plmStatus',`\u5df2\u52a0\u8f7d ${(d.headers||[]).length} \u5217`);
   }catch(e){
@@ -1726,7 +1747,7 @@ function plmRefreshOneQtyName(i,force){
     return;
   }
   const fd=new FormData();
-  fd.append('file',f);
+  appendFileOrUid(fd,f,'_plmDetectUid');
   fd.append('sheet_name',$('plmSheet').value);
   fd.append('header_row',row);
   fetch('/api/plm/detect',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{
@@ -1808,13 +1829,14 @@ async function chqLoadDetect(opts={}){
     chqBuildColMap([]);
     $('chqDetectLog').textContent='';
     setSelectPlaceholder('chqSheet','先选择文件');
+    window._chqDetectUid='';
     setPlainStatus('chqStatus','');
     return;
   }
   setLoadingStatus('chqStatus','正在读取客户 BOM...');
   if(opts.clearSheet) setSelectPlaceholder('chqSheet','加载中...');
   const fd=new FormData();
-  fd.append('file',f);
+  appendFileOrUid(fd,f,'_chqDetectUid');
   fd.append('header_row',$('chqHdr').value||1);
   const cur=$('chqSheet').value;
   if(!opts.clearSheet && cur && cur!=='先选择文件' && cur!=='加载中...') fd.append('sheet_name',cur);
@@ -1822,6 +1844,7 @@ async function chqLoadDetect(opts={}){
     const r=await fetch('/api/plm/customer_hq_detect',{method:'POST',body:fd});
     const d=await r.json();
     if(!d.success) throw new Error(d.error||'读取失败');
+    window._chqDetectUid=d.uid||window._chqDetectUid||'';
     chqUpdateFromApi(d);
     setPlainStatus('chqStatus',`已加载 ${(d.headers||[]).length} 列`);
   }catch(e){
@@ -1885,15 +1908,17 @@ function initPlm(){
   });
 
   if($('chqFile')){
-    $('chqFile').onchange=()=>chqLoadDetect({clearSheet:true});
+    $('chqFile').onchange=()=>{fileChangedUid('_chqDetectUid');chqLoadDetect({clearSheet:true});};
     $('chqSheet').onchange=()=>chqLoadDetect({clearSheet:false});
+    if($('chqHdr')) $('chqHdr').onchange=()=>chqLoadDetect({clearSheet:false});
     $('chqRefresh').onclick=()=>chqLoadDetect({clearSheet:false});
     $('chqRun').onclick=chqRun;
   }
 
   // ── 规格型号提取 ──
-  $('seFile').onchange = seLoadFile;
+  $('seFile').onchange = ()=>{fileChangedUid('_seLoadUid');seLoadFile();};
   $('seRefresh').onclick = ()=>{ if($('seFile').files[0]) seLoadFile(); };
+  if($('seHdr')) $('seHdr').onchange = seLoadFile;
   $('seRun').onclick = seRun;
 
   window._plmQtyConfigs=[];
@@ -1949,9 +1974,14 @@ function initPlmAuto(){
   if($('paAttUser') && !$('paAttUser').value){
     $('paAttUser').value = currentEmployeeId();
   }
-  $('paRun').onclick=plmAutoRun;
+  if($('paRunFile')) $('paRunFile').onclick=()=>plmAutoRun('file');
+  if($('paRunSingle')) $('paRunSingle').onclick=()=>plmAutoRun('single');
+  if($('paSingleValue')) $('paSingleValue').addEventListener('blur',()=>{
+    const cleaned=($('paSingleValue').value||'').trim();
+    if($('paSingleValue').value!==cleaned) $('paSingleValue').value=cleaned;
+  });
   $('paAttRun').onclick=plmAutoAttachmentRun;
-  if($('paAttBatchFile')) $('paAttBatchFile').onchange=()=>plmAttBatchLoad({clearSheet:true});
+  if($('paAttBatchFile')) $('paAttBatchFile').onchange=()=>{fileChangedUid('_paAttBatchUid');plmAttBatchLoad({clearSheet:true});};
   if($('paAttBatchSheet')) $('paAttBatchSheet').onchange=()=>plmAttBatchLoad({clearSheet:false});
   if($('paAttBatchHdr')) $('paAttBatchHdr').onchange=()=>plmAttBatchLoad({clearSheet:false});
   if($('paAttBatchLoad')) $('paAttBatchLoad').onclick=()=>plmAttBatchLoad({clearSheet:false});
@@ -1978,44 +2008,91 @@ function initPlmAuto(){
   });
 }
 
-async function plmAutoRun(){
+function plmAutoSetProgress(stage,pct,note){
+  const panel=$('paProgressPanel');
+  const bar=$('paProgressBar');
+  const pctEl=$('paProgressPct');
+  const stageEl=$('paProgressStage');
+  const noteEl=$('paProgressNote');
+  const value=Math.max(0,Math.min(100,parseInt(pct)||0));
+  if(panel) show(panel);
+  if(bar) bar.style.width=value+'%';
+  if(pctEl) pctEl.textContent=value+'%';
+  if(stageEl) stageEl.textContent=stage||'处理中';
+  if(noteEl) noteEl.textContent=note||'PLM 自动化正在执行，请勿关闭本页面';
+}
+
+async function plmAutoRun(mode='file'){
   const f=$('paFile').files[0];
+  const single=($('paSingleValue')?.value||'').trim();
   const user=($('paUser').value||'').trim();
   const pass=$('paPass').value||'';
   if(!user){showInlineError('paError','请输入账号','paStatus');return;}
   if(!pass){showInlineError('paError','请输入密码','paStatus');return;}
-  if(!f){showInlineError('paError','请选择需要上传的 Excel 文件','paStatus');return;}
-  const btn=$('paRun');
-  btn.disabled=true;
-  $('paStatus').textContent='正在运行，浏览器会自动打开并操作 PLM...';
+  if(mode==='single'){
+    if(!single){showInlineError('paError','请输入规格型号或 HQ 料号','paStatus');return;}
+  }else if(!f){
+    if(single) mode='single';
+    else {showInlineError('paError','请选择需要上传的 Excel 文件，或直接输入规格型号 / HQ 料号','paStatus');return;}
+  }
+  const buttons=[$('paRunFile'),$('paRunSingle')].filter(Boolean);
+  buttons.forEach(btn=>btn.disabled=true);
+  $('paStatus').textContent='正在创建查询任务...';
   hide($('paResult'));hide($('paLogBox'));clearInlineError('paError');
+  plmAutoSetProgress('准备启动',3,'正在提交任务');
   const fd=new FormData();
   fd.append('username',user);
   fd.append('password',pass);
-  fd.append('file',f);
+  if(mode==='single') fd.append('single_value',single);
+  else fd.append('file',f);
+  let pollTimer=null;
   try{
     const r=await fetch('/api/plm/auto_spec_reverse',{method:'POST',body:fd});
     const d=await r.json();
-    if(d.success){
-      $('paDl').href=d.download;
-      $('paStats').textContent=d.filename||'PLM 导出文件已生成';
-      $('paStatus').textContent='完成！';
-      show($('paResult'));
-      if(d.log){$('paLog').textContent=d.log;show($('paLogBox'));}
-    }else{
-      $('paError').textContent=d.error||'自动化执行失败';
+    if(!d.success) throw new Error(d.error||'自动化任务创建失败');
+    const statusUrl=d.status_url||('/api/plm/auto_spec_reverse/status/'+d.job_id);
+    $('paStatus').textContent='任务已启动，正在执行 PLM 自动化...';
+    const poll=async()=>{
+      const sr=await fetch(statusUrl);
+      const s=await sr.json();
+      if(!s.success) throw new Error(s.error||'读取任务状态失败');
+      plmAutoSetProgress(s.stage||'处理中',s.progress||0,s.status==='done'?'处理完成':'正在执行：'+(s.source_label||''));
+      if(s.log){$('paLog').textContent=s.log;show($('paLogBox'));}
+      if(s.status==='done'){
+        if(pollTimer) clearInterval(pollTimer);
+        $('paDl').href=s.download;
+        $('paStats').textContent=s.filename||'PLM 导出文件已生成';
+        $('paStatus').textContent='完成！';
+        plmAutoSetProgress('导出完成',100,'可以点击下方链接下载结果');
+        show($('paResult'));
+        $('paResult').style.display='flex';
+        buttons.forEach(btn=>btn.disabled=false);
+      }else if(s.status==='error'){
+        if(pollTimer) clearInterval(pollTimer);
+        $('paError').textContent=s.error||'自动化执行失败';
+        show($('paError'));
+        $('paStatus').textContent='';
+        plmAutoSetProgress('执行失败',100,'请查看执行日志');
+        buttons.forEach(btn=>btn.disabled=false);
+      }
+    };
+    await poll();
+    pollTimer=setInterval(()=>{poll().catch(e=>{
+      if(pollTimer) clearInterval(pollTimer);
+      $('paError').textContent=e.message;
       show($('paError'));
       $('paStatus').textContent='';
-      if(d.log){$('paLog').textContent=d.log;show($('paLogBox'));}
-    }
+      buttons.forEach(btn=>btn.disabled=false);
+    });},1000);
   }catch(e){
+    if(pollTimer) clearInterval(pollTimer);
     $('paError').textContent=e.message;
     show($('paError'));
     $('paStatus').textContent='';
+    plmAutoSetProgress('执行失败',100,'任务未能启动或状态读取失败');
+    buttons.forEach(btn=>btn.disabled=false);
   }
-  btn.disabled=false;
 }
-
 function plmAttSetProgress(stage,pct,note){
   const panel=$('paAttProgressPanel');
   const bar=$('paAttProgressBar');
@@ -2094,6 +2171,7 @@ async function plmAttBatchLoad(opts={}){
   const f=$('paAttBatchFile')?.files?.[0];
   clearInlineError('paAttError');
   if(!f){
+    window._paAttBatchUid='';
     clearSelectOptions('paAttBatchSheet','先选择文件');
     clearSelectOptions('paAttBatchCol','先加载列');
     plmAttBatchRenderPreview([],[]);
@@ -2102,7 +2180,7 @@ async function plmAttBatchLoad(opts={}){
   }
   plmAttBatchSetStatus('正在读取 Excel...');
   const fd=new FormData();
-  fd.append('file',f);
+  appendFileOrUid(fd,f,'_paAttBatchUid');
   fd.append('header_row',$('paAttBatchHdr')?.value||1);
   const sheet=$('paAttBatchSheet')?.value||'';
   if(!opts.clearSheet && sheet && sheet!=='先选择文件' && sheet!=='加载中...') fd.append('sheet_name',sheet);
@@ -2112,6 +2190,7 @@ async function plmAttBatchLoad(opts={}){
     const r=await fetch('/api/plm/auto_hq_attachments/excel_detect',{method:'POST',body:fd});
     const d=await r.json();
     if(!d.success) throw new Error(d.error||'读取 Excel 失败');
+    window._paAttBatchUid=d.uid||window._paAttBatchUid||'';
     const sheetEl=$('paAttBatchSheet');
     if(sheetEl) sheetEl.innerHTML=(d.sheets||[]).map(s=>`<option${s===d.current_sheet?' selected':''}>${_escH(s)}</option>`).join('');
     const colEl=$('paAttBatchCol');
@@ -2271,10 +2350,10 @@ async function seLoadFile(){
   clearInlineError('seError');hide($('seResult'));
   clearSelectOptions('seCol','\u52a0\u8f7d\u4e2d...');
   clearSelectOptions('seExcludeCol','\u52a0\u8f7d\u4e2d...');
-  if(!f){setSelectPlaceholder('seSheet','\u5148\u9009\u62e9\u6587\u4ef6');setPlainStatus('seStatus','');return;}
+  if(!f){window._seLoadUid='';setSelectPlaceholder('seSheet','\u5148\u9009\u62e9\u6587\u4ef6');setPlainStatus('seStatus','');return;}
   setLoadingStatus('seStatus','\u6b63\u5728\u8bfb\u53d6 Excel \u5217...');
   const fd=new FormData();
-  fd.append('file',f);
+  appendFileOrUid(fd,f,'_seLoadUid');
   fd.append('header_row',$('seHdr').value||1);
   const cur=$('seSheet').value;
   if(cur&&cur!=='\u5148\u9009\u62e9\u6587\u4ef6'&&cur!=='\u52a0\u8f7d\u4e2d...') fd.append('sheet_name',cur);
@@ -2282,6 +2361,7 @@ async function seLoadFile(){
     const r=await fetch('/api/feishu/local_sheets',{method:'POST',body:fd});
     const d=await r.json();
     if(!d.success) throw new Error(d.error||'\u52a0\u8f7d\u5931\u8d25');
+    window._seLoadUid=d.uid||window._seLoadUid||'';
     const ss=$('seSheet');
     ss.innerHTML=d.sheets.map(s=>`<option${s===d.current_sheet?' selected':''}>${_escH(s)}</option>`).join('');
     ss.onchange=seLoadFile;
@@ -2320,7 +2400,7 @@ async function seRun(){
     const r=await fetch('/api/plm/spec_extract',{method:'POST',body:fd});
     const d=await r.json();
     if(d.success){
-      $('seStats').textContent=`共提取 ${d.count} 条规格型号${d.skipped_excluded?`，按剔除列跳过 ${d.skipped_excluded} 行`:''}`;
+      $('seStats').textContent=`共提取 ${d.count} 条规格型号${d.skipped_excluded?`，按剔除列跳过 ${d.skipped_excluded} 行`:''}${d.skipped_duplicates?`，自动去重跳过 ${d.skipped_duplicates} 行`:''}`;
       $('seDl').href=d.download;
       $('seStatus').textContent='';
       $('seResult').style.display='block';
@@ -2660,29 +2740,43 @@ function initFeishu(){
   $('fsRestoreDefault').onclick=fsRestoreDefault;
   $('fsClearConfig').onclick=fsClearConfig;
   $('fsRun').onclick=fsRunMatch;
-  $('fsFile').onchange=async function(){
-    const f=this.files[0];
+  window._fsLocalUid='';
+  const fsReloadLocalHeaders=async function(uploadFile){
+    const f=$('fsFile').files[0];
     window._fsLocalHeaders=[];
     setSelectPlaceholder('fsSheet','\u52a0\u8f7d\u4e2d...');
     fsRenderGLKSection();
     hide($('fsResult'));clearInlineError('fsError');
-    if(!f){setSelectPlaceholder('fsSheet','\u5148\u9009\u62e9\u6587\u4ef6');setPlainStatus('fsRunStatus2','');return;}
-    setLoadingStatus('fsRunStatus2','\u6b63\u5728\u8bfb\u53d6\u672c\u5730 BOM \u5217...');
-    const fd=new FormData();fd.append('file',f);fd.append('header_row',$('fsHdr').value||1);
+    if(!f){window._fsLocalUid='';setSelectPlaceholder('fsSheet','\u5148\u9009\u62e9\u6587\u4ef6');setPlainStatus('fsLocalLoadStatus','');setPlainStatus('fsRunStatus2','');return;}
+    setFeishuLocalLoadingStatus('\u6b63\u5728\u8bfb\u53d6\u672c\u5730 BOM \u5217...');
+    const fd=new FormData();
+    if(uploadFile || !window._fsLocalUid) fd.append('file',f);
+    else fd.append('uid',window._fsLocalUid);
+    fd.append('header_row',$('fsHdr').value||1);
+    const selectedSheet=($('fsSheet').value||'').trim();
+    if(selectedSheet && !/^\u52a0\u8f7d|^\u5148\u9009\u62e9|^\u52a0\u8f7d\u5931\u8d25/.test(selectedSheet)){
+      fd.append('sheet_name',selectedSheet);
+    }
     try{
       const r=await fetch('/api/feishu/local_sheets',{method:'POST',body:fd});
       const d=await r.json();
       if(!d.success) throw new Error(d.error||'\u8bfb\u53d6\u6587\u4ef6\u5931\u8d25');
+      window._fsLocalUid=d.uid||window._fsLocalUid||'';
       window._fsLocalHeaders=d.headers||[];
       const sel=$('fsSheet');sel.innerHTML='';
       (d.sheets||[]).forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent=s;sel.appendChild(o);});
+      if(d.current_sheet) sel.value=d.current_sheet;
       if(window._updateLkList) window._updateLkList();
+      setPlainStatus('fsLocalLoadStatus',`\u5df2\u52a0\u8f7d ${(d.headers||[]).length} \u5217`);
       setPlainStatus('fsRunStatus2',`\u5df2\u52a0\u8f7d ${(d.headers||[]).length} \u5217`);
     }catch(e){
       setSelectPlaceholder('fsSheet','\u52a0\u8f7d\u5931\u8d25');
       showInlineError('fsError',e.message,'fsRunStatus2');
     }
   };
+  $('fsFile').onchange=function(){window._fsLocalUid='';fsReloadLocalHeaders(true);};
+  $('fsHdr').onchange=function(){fsReloadLocalHeaders(false);};
+  $('fsSheet').onchange=function(){fsReloadLocalHeaders(false);};
 }
 
 function _fmtTime(ts){
@@ -3083,8 +3177,9 @@ async function fsRunMatch(){
 (function(){
   // 工具初始化（每次切换到此工具时调用）
   function prInit(){
-    $('prFile').onchange = prLoadFile;
+    $('prFile').onchange = ()=>{fileChangedUid('_prLoadUid');prLoadFile();};
     $('prRefresh').onclick = ()=>{ if($('prFile').files[0]) prLoadFile(); };
+    if($('prHdr')) $('prHdr').onchange = prLoadFile;
     $('prRun').onclick = prRun;
     hide($('prResult')); hide($('prError'));
   }
@@ -3097,7 +3192,7 @@ async function fsRunMatch(){
     setLoadingStatus('prStatus','\u6b63\u5728\u8bfb\u53d6 Excel \u5217...');
     const hdr = parseInt($('prHdr').value)||1;
     const fd = new FormData();
-    fd.append('file', f);
+    appendFileOrUid(fd,f,'_prLoadUid');
     fd.append('header_row', hdr);
     const cur = $('prSheet').value;
     if(cur && cur !== '\u5148\u9009\u62e9\u6587\u4ef6' && cur !== '\u52a0\u8f7d\u4e2d...') fd.append('sheet_name', cur);
@@ -3105,6 +3200,7 @@ async function fsRunMatch(){
       const r = await fetch('/api/feishu/local_sheets', {method:'POST', body:fd});
       const d = await r.json();
       if(!d.success) throw new Error(d.error||'\u52a0\u8f7d\u5931\u8d25');
+      window._prLoadUid=d.uid||window._prLoadUid||'';
       const ss = $('prSheet');
       ss.innerHTML = d.sheets.map(s=>`<option${s===d.current_sheet?' selected':''}>${_escH(s)}</option>`).join('');
       ss.onchange = prLoadFile;

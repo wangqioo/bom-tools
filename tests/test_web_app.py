@@ -108,14 +108,14 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         html = resp.get_data(as_text=True)
         self.assertIn("BOM Tools", html)
-        self.assertIn("\u786c\u4ef6\u8bbe\u8ba1\u8f85\u52a9\u5e73\u53f0 v2.2.1", html)
-        self.assertIn("css/app.css?v=2.2.1", html)
-        self.assertIn("js/app.js?v=2.2.1", html)
-        self.assertIn("version: \"2.2.1\"", html)
+        self.assertIn("\u786c\u4ef6\u8bbe\u8ba1\u8f85\u52a9\u5e73\u53f0 v2.2.2", html)
+        self.assertIn("css/app.css?v=2.2.2", html)
+        self.assertIn("js/app.js?v=2.2.2", html)
+        self.assertIn("version: \"2.2.2\"", html)
         self.assertIn("toolVersions", html)
         self.assertIn("currentUser", html)
         self.assertIn("free-bom-compare", html)
-        self.assertIn("1.1.3", html)
+        self.assertIn("1.1.4", html)
         self.assertIn("飞书优选库+关系库匹配", html)
         self.assertIn("BOM比对工具合集", html)
         self.assertIn("\u5c0f\u5de5\u5177\u5408\u96c6", html)
@@ -131,11 +131,22 @@ class WebAppTests(unittest.TestCase):
         js = (WEB_APP / "static" / "js" / "app.js").read_text(encoding="utf-8")
         self.assertIn('id="paUser"', html)
         self.assertIn('id="paAttUser"', html)
+        self.assertIn('id="paSingleValue"', html)
+        self.assertIn('id="paProgressPanel"', html)
+        self.assertIn('id="paRunSingle"', html)
+        self.assertIn('查询方式一：规格型号 / HQ 料号直接查询', html)
+        self.assertIn('多个规格型号或 HQ 料号可用半角逗号或全角逗号分隔', html)
+        self.assertIn('中间空格会保留', html)
+        self.assertIn('查询方式二：Excel 批量查询', html)
+        self.assertIn('执行进度与结果', html)
+        self.assertNotIn('id="paRun"', html)
         self.assertNotIn('value="100448405"', html)
         self.assertIn("function currentEmployeeId()", js)
         self.assertIn("BOM_TOOLS_BOOTSTRAP.currentUser", js)
         self.assertIn("$('paUser').value = currentEmployeeId();", js)
         self.assertIn("$('paAttUser').value = currentEmployeeId();", js)
+        self.assertIn("function plmAutoSetProgress", js)
+        self.assertIn("single_value", js)
     def test_about_project_nav_is_last_and_hides_direct_contact_sentence(self):
         resp = app.test_client().get("/")
         self.assertEqual(resp.status_code, 200)
@@ -342,6 +353,115 @@ class WebAppTests(unittest.TestCase):
         self.assertIn("表头行", payload["error"])
 
 
+    def test_feishu_local_sheets_uses_selected_header_row(self):
+        data = {
+            "file": (_xlsx_bytes(["not", "headers"], [["PN", "Maker"], ["A", "M"]]), "local.xlsx"),
+            "header_row": "2",
+        }
+        resp = app.test_client().post(
+            "/api/feishu/local_sheets",
+            data=data,
+            content_type="multipart/form-data",
+        )
+        payload = resp.get_json()
+        self.assertTrue(payload["success"], payload.get("error"))
+        self.assertEqual(payload["headers"], ["PN", "Maker"])
+
+
+    def test_feishu_local_sheets_reuses_uploaded_file_by_uid(self):
+        client = app.test_client()
+        source = _xlsx_bytes(["not", "headers"], [["PN", "Maker"], ["A", "M"]])
+        first = client.post(
+            "/api/feishu/local_sheets",
+            data={"file": (source, "local.xlsx"), "header_row": "1"},
+            content_type="multipart/form-data",
+        ).get_json()
+        self.assertTrue(first["success"], first.get("error"))
+        self.assertEqual(first["headers"], ["not", "headers"])
+
+        second = client.post(
+            "/api/feishu/local_sheets",
+            data={"uid": first["uid"], "header_row": "2", "sheet_name": first["current_sheet"]},
+            content_type="multipart/form-data",
+        ).get_json()
+        self.assertTrue(second["success"], second.get("error"))
+        self.assertEqual(second["uid"], first["uid"])
+        self.assertEqual(second["headers"], ["PN", "Maker"])
+
+
+    def test_bom_detect_reuses_uploaded_file_by_uid(self):
+        client = app.test_client()
+        source = _xlsx_bytes(["not", "headers"], [["Part", "Qty"], ["A", 1]])
+        first = client.post("/api/bom/detect", data={"file": (source, "bom.xlsx"), "header_row": "1"}, content_type="multipart/form-data").get_json()
+        self.assertTrue(first["success"], first.get("error"))
+        second = client.post("/api/bom/detect", data={"uid": first["uid"], "header_row": "2", "sheet_name": first["current_sheet"]}, content_type="multipart/form-data").get_json()
+        self.assertTrue(second["success"], second.get("error"))
+        self.assertEqual(second["uid"], first["uid"])
+        self.assertIn("Part", second["headers"])
+
+    def test_plm_detect_reuses_uploaded_file_by_uid(self):
+        client = app.test_client()
+        source = _xlsx_bytes(["not", "headers"], [["SEQ", "HQ PN", "QTY"], ["1", "A", 1]])
+        first = client.post("/api/plm/detect", data={"file": (source, "plm.xlsx"), "header_row": "1"}, content_type="multipart/form-data").get_json()
+        self.assertTrue(first["success"], first.get("error"))
+        second = client.post("/api/plm/detect", data={"uid": first["uid"], "header_row": "2", "sheet_name": first["current_sheet"]}, content_type="multipart/form-data").get_json()
+        self.assertTrue(second["success"], second.get("error"))
+        self.assertEqual(second["uid"], first["uid"])
+        self.assertTrue(any("HQ PN" in header for header in second["headers"]))
+
+
+    def test_plm_spec_extract_deduplicates_repeated_values(self):
+        client = app.test_client()
+        resp = client.post(
+            "/api/plm/spec_extract",
+            data={
+                "file": (_xlsx_bytes(
+                    ["料号", "HQ料号"],
+                    [["A 001", ""], ["A001", ""], ["B002", ""], ["C003", "已存在"]],
+                ), "spec.xlsx"),
+                "config": json.dumps({
+                    "sheet_name": "Sheet",
+                    "header_row": 1,
+                    "col_name": "料号",
+                    "exclude_col_name": "HQ料号",
+                }),
+            },
+            content_type="multipart/form-data",
+        )
+        payload = resp.get_json()
+        self.assertTrue(payload["success"], payload.get("error"))
+        self.assertEqual(payload["count"], 2)
+        self.assertEqual(payload["skipped_duplicates"], 1)
+        self.assertEqual(payload["skipped_excluded"], 1)
+
+        download = client.get(payload["download"])
+        self.assertEqual(download.status_code, 200)
+        download_buf = io.BytesIO(download.data)
+        wb = openpyxl.load_workbook(download_buf, data_only=True)
+        values = [wb.active.cell(row=i, column=1).value for i in range(2, wb.active.max_row + 1)]
+        wb.close()
+        download_buf.close()
+        self.assertEqual(values, ["A001", "B002"])
+
+    def test_customer_hq_detect_reuses_uploaded_file_by_uid(self):
+        client = app.test_client()
+        source = _xlsx_bytes(["not", "headers", "here"], [["Seq", "Brand", "Qty"], ["1", "Maker", 2]])
+        first = client.post(
+            "/api/plm/customer_hq_detect",
+            data={"file": (source, "customer.xlsx"), "header_row": "1"},
+            content_type="multipart/form-data",
+        ).get_json()
+        self.assertTrue(first["success"], first.get("error"))
+        second = client.post(
+            "/api/plm/customer_hq_detect",
+            data={"uid": first["uid"], "header_row": "2", "sheet_name": first["current_sheet"]},
+            content_type="multipart/form-data",
+        ).get_json()
+        self.assertTrue(second["success"], second.get("error"))
+        self.assertEqual(second["uid"], first["uid"])
+        self.assertTrue(any("Brand" in header for header in second["headers"]))
+
+
     def test_feishu_match_deduplicates_identical_rows_and_merges_sources(self):
         key_a, _, _ = _write_cache("token-a", "sid-a", [
             ["PN", "HQ PN", "Model"],
@@ -460,6 +580,51 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(ws.max_row, 2)
         self.assertEqual([ws["A2"].value, ws["B2"].value, ws["C2"].value], ["A", "HQ-REL", "M-REL"])
         self.assertEqual(ws["D2"].value, "\u5ba2\u6237\u7269\u6599\u578b\u53f7\u4e0eHQ\u6599\u53f7\u5bf9\u5e94\u5173\u7cfb - \u5b57\u8282")
+        wb.close()
+
+
+    def test_feishu_match_requires_all_configured_keys_to_be_non_empty(self):
+        key, _, _ = _write_cache("token-two-key", "sid-two-key", [
+            ["PN", "Maker", "HQ PN"],
+            ["A", "", "HQ-EMPTY-MAKER"],
+            ["A", "MakerA", "HQ-A"],
+        ])
+        data = {
+            "file": (_xlsx_bytes(["PN", "Maker"], [["A", ""], ["A", "MakerA"]]), "local.xlsx"),
+            "config": json.dumps({
+                "sheet_name": "Sheet",
+                "header_row": 1,
+                "tables": [{
+                    "name": "LibTwoKey",
+                    "token": "token-two-key",
+                    "sheets": [{
+                        "enabled": True,
+                        "sheet_id": "sid-two-key",
+                        "sheet_name": "SheetTwoKey",
+                        "local_key_names": ["PN", "Maker"],
+                        "feishu_key_names": ["PN", "Maker"],
+                        "fetch_col_map": [{"output": "HQ PN", "alias": "HQ PN"}],
+                        "cache_key": key,
+                    }],
+                }],
+            }),
+        }
+        resp = app.test_client().post(
+            "/api/feishu/match",
+            data=data,
+            content_type="multipart/form-data",
+        )
+        payload = resp.get_json()
+        self.assertTrue(payload["success"], payload.get("error"))
+        self.assertEqual(payload["total"], 2)
+        self.assertEqual(payload["matched"], 1)
+        self.assertEqual(payload["unmatched"], 1)
+
+        filename = unquote(payload["download"].split("/download/", 1)[1])
+        wb = openpyxl.load_workbook(WEB_APP / "outputs" / filename, data_only=True)
+        ws = wb.active
+        self.assertEqual([ws["A2"].value, ws["B2"].value, ws["C2"].value, ws["D2"].value], ["A", None, None, "\u672a\u5339\u914d"])
+        self.assertEqual([ws["A3"].value, ws["B3"].value, ws["C3"].value], ["A", "MakerA", "HQ-A"])
         wb.close()
 
 

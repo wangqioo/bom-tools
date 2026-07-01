@@ -9,7 +9,7 @@ from shared import (
     get_column_letter, column_index_from_string,
     request, jsonify,
     UPLOAD_DIR, OUTPUT_DIR, _col_int, FEISHU_PRESET_TABLES,
-    _open_workbook, _request_int, _save_uploaded_excel,
+    _open_workbook, _request_int, _save_uploaded_excel, _save_or_reuse_uploaded_excel,
 )
 
 bom_bp = Blueprint('bom', __name__)
@@ -308,11 +308,8 @@ def _write_expanded_bom(ws_in, header_row, col_brand, col_model, col_qty, fmt, o
 @bom_bp.route('/api/bom/detect', methods=['POST'])
 def api_bom_detect():
     file = request.files.get('file')
-    if not file:
-        return jsonify({'success': False, 'error': '请上传文件'})
-    uid = str(uuid.uuid4())[:8]
     try:
-        in_path = _save_uploaded_excel(file, "bom_pre", uid)
+        uid, in_path = _save_or_reuse_uploaded_excel(file, "bom_pre", request.form.get('uid', ''))
         wb = _open_workbook(in_path, read_only=True, data_only=True)
     except ValueError as e:
         return jsonify({'success': False, 'error': str(e)})

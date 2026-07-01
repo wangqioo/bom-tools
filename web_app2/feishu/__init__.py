@@ -10,7 +10,7 @@ from shared import (
     get_column_letter,
     request, jsonify,
     UPLOAD_DIR, OUTPUT_DIR, CACHE_DIR, _cell_str,
-    _open_workbook, _resolve_feishu_base_url, _save_uploaded_excel, _to_int,
+    _open_workbook, _resolve_feishu_base_url, _save_uploaded_excel, _save_or_reuse_uploaded_excel, _to_int,
 )
 from manufacturer_alias import lookup_manufacturer
 
@@ -188,7 +188,7 @@ def _do_match_multi(local_ws, local_header_row, prepared_tables, all_fetch_cols,
                 )
                 for i, lc in enumerate(pt["local_key_cols"])
             )
-            if not any(k for k in key):
+            if not key or not all(k for k in key):
                 continue
             matches = pt["lookup"].get(key, [])
             if not matches:
@@ -457,6 +457,8 @@ def api_feishu_match():
             for row in rows[1:]:
                 padded = list(row) + [""] * max(0, len(fs_headers) - len(row))
                 key = tuple(_cell_str(padded[i]) if i < len(padded) else "" for i in feishu_key_indices)
+                if not key or not all(key):
+                    continue
                 row_dict = {fs_headers[i]: _cell_str(padded[i]) if i < len(padded) else ""
                             for i in range(len(fs_headers))}
                 lookup.setdefault(key, []).append(row_dict)
@@ -517,39 +519,38 @@ def api_feishu_match():
         return jsonify({'success': False, 'error': str(e), 'logs': logs})
 
 
+
 @feishu_bp.route('/api/feishu/local_sheets', methods=['POST'])
 def api_feishu_local_sheets():
-    """获取本地 Excel 的 Sheet 列表和列标题"""
+    """Return local Excel sheets and headers; reuse uploaded preview files by uid."""
     file = request.files.get('file')
-    if not file:
-        return jsonify({'success': False, 'error': '请上传文件'})
-    uid = str(uuid.uuid4())[:8]
     try:
-        path = _save_uploaded_excel(file, "fs_pre", uid)
-        wb = _open_workbook(path, read_only=True, data_only=True)
-        sheets = wb.sheetnames
-        wb.close()
+        uid, path = _save_or_reuse_uploaded_excel(file, "fs_pre", request.form.get('uid', ''))
     except ValueError as e:
         return jsonify({'success': False, 'error': str(e)})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
-    sheet_name = request.form.get('sheet_name', '')
-    if not sheet_name or sheet_name not in sheets:
-        sheet_name = sheets[0] if sheets else ''
     header_row = _to_int(request.form.get('header_row', 1), 1)
     if header_row is None:
-        return jsonify({'success': False, 'error': '表头行必须是大于等于 1 的数字'})
+        return jsonify({'success': False, 'error': 'Header row must be a number greater than or equal to 1'})
 
     try:
-        wb2 = _open_workbook(path, data_only=True)
+        wb = _open_workbook(path, read_only=True, data_only=True)
+        sheets = wb.sheetnames
+        sheet_name = request.form.get('sheet_name', '')
+        if not sheet_name or sheet_name not in sheets:
+            sheet_name = sheets[0] if sheets else ''
+        ws = wb[sheet_name] if sheet_name else wb[wb.sheetnames[0]]
+        row_iter = ws.iter_rows(min_row=header_row, max_row=header_row, values_only=True)
+        header_values = next(row_iter, [])
+        headers = [_cell_str(v) for v in header_values]
+        headers = [h for h in headers if h]
+        wb.close()
     except ValueError as e:
         return jsonify({'success': False, 'error': str(e)})
-    ws = wb2[sheet_name] if sheet_name else wb2[wb2.sheetnames[0]]
-    headers = [_cell_str(ws.cell(row=header_row, column=ci).value)
-               for ci in range(1, ws.max_column + 1)]
-    headers = [h for h in headers if h]
-    wb2.close()
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
 
     return jsonify({'success': True, 'sheets': sheets, 'current_sheet': sheet_name,
                     'headers': headers, 'uid': uid})

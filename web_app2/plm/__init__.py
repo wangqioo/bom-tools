@@ -10,7 +10,7 @@ from shared import (
     get_column_letter,
     request, jsonify,
     UPLOAD_DIR, OUTPUT_DIR, _col_int,
-    _cell_str, _open_workbook, _request_int, _save_uploaded_excel,
+    _cell_str, _open_workbook, _request_int, _save_uploaded_excel, _save_or_reuse_uploaded_excel,
 )
 
 plm_bp = Blueprint('plm', __name__)
@@ -22,7 +22,183 @@ _PLM_ATTACHMENT_WORKER_STARTED = False
 _PLM_ATTACHMENT_WORKER_LOCK = threading.Lock()
 _PLM_ATTACHMENT_BATCHES = {}
 _PLM_ATTACHMENT_BATCHES_LOCK = threading.Lock()
+_PLM_SPEC_REVERSE_JOBS = {}
+_PLM_SPEC_REVERSE_JOBS_LOCK = threading.Lock()
+_PLM_SPEC_REVERSE_QUEUE = queue.Queue()
+_PLM_SPEC_REVERSE_WORKER_STARTED = False
+_PLM_SPEC_REVERSE_WORKER_LOCK = threading.Lock()
 
+def _spec_reverse_progress_from_message(message, current):
+    text = str(message or '')
+    rules = [
+        ('启动浏览器', 8, '启动浏览器'),
+        ('打开 EIP', 18, '打开 EIP'),
+        ('进入 PLM', 30, '进入 PLM'),
+        ('打开功能地图', 42, '打开功能地图'),
+        ('打开功能：', 52, '打开规格型号反查物料'),
+        ('上传文件', 64, '上传查询文件'),
+        ('点击查询', 74, '提交查询'),
+        ('等待结果', 82, '等待 PLM 返回结果'),
+        ('点击结果导出', 90, '导出结果'),
+        ('导出完成', 98, '保存导出文件'),
+    ]
+    for needle, progress, stage in rules:
+        if needle in text:
+            return max(current, progress), stage
+    return min(max(current, 5) + 1, 90), text[:80] or '处理中'
+
+
+def _new_spec_reverse_job(source_label):
+    job_id = uuid.uuid4().hex
+    now = time.time()
+    job = {
+        'id': job_id,
+        'status': 'queued',
+        'stage': '任务已创建',
+        'progress': 3,
+        'source_label': source_label,
+        'logs': [],
+        'download': '',
+        'filename': '',
+        'source_path': '',
+        'error': '',
+        'created_at': now,
+        'updated_at': now,
+    }
+    with _PLM_SPEC_REVERSE_JOBS_LOCK:
+        _PLM_SPEC_REVERSE_JOBS[job_id] = job
+    return job_id
+
+
+def _update_spec_reverse_job(job_id, **updates):
+    with _PLM_SPEC_REVERSE_JOBS_LOCK:
+        job = _PLM_SPEC_REVERSE_JOBS.get(job_id)
+        if not job:
+            return
+        job.update(updates)
+        job['updated_at'] = time.time()
+
+
+def _append_spec_reverse_log(job_id, message):
+    message = str(message)
+    with _PLM_SPEC_REVERSE_JOBS_LOCK:
+        job = _PLM_SPEC_REVERSE_JOBS.get(job_id)
+        if not job:
+            return
+        job['logs'].append(message)
+        progress, stage = _spec_reverse_progress_from_message(message, int(job.get('progress') or 0))
+        job['progress'] = progress
+        job['stage'] = stage
+        job['updated_at'] = time.time()
+
+
+def _snapshot_spec_reverse_job(job_id):
+    with _PLM_SPEC_REVERSE_JOBS_LOCK:
+        job = _PLM_SPEC_REVERSE_JOBS.get(job_id)
+        if not job:
+            return None
+        return dict(job, logs=list(job.get('logs') or []))
+
+
+def _cleanup_spec_reverse_jobs():
+    cutoff = time.time() - 3600
+    with _PLM_SPEC_REVERSE_JOBS_LOCK:
+        for job_id, job in list(_PLM_SPEC_REVERSE_JOBS.items()):
+            if job.get('updated_at', 0) < cutoff:
+                _PLM_SPEC_REVERSE_JOBS.pop(job_id, None)
+
+
+def _ensure_spec_reverse_worker():
+    global _PLM_SPEC_REVERSE_WORKER_STARTED
+    with _PLM_SPEC_REVERSE_WORKER_LOCK:
+        if _PLM_SPEC_REVERSE_WORKER_STARTED:
+            return
+        threading.Thread(target=_spec_reverse_worker_loop, daemon=True).start()
+        _PLM_SPEC_REVERSE_WORKER_STARTED = True
+
+
+def _enqueue_spec_reverse_job(job_id, username, password, upload_path):
+    _PLM_SPEC_REVERSE_QUEUE.put({
+        'job_id': job_id,
+        'username': username,
+        'password': password,
+        'upload_path': upload_path,
+    })
+    _ensure_spec_reverse_worker()
+
+
+def _spec_reverse_worker_loop():
+    while True:
+        task = _PLM_SPEC_REVERSE_QUEUE.get()
+        job_id = task['job_id']
+        try:
+            from pathlib import Path as _Path
+            from playwright.sync_api import sync_playwright
+            from .automation import require_feature, run_plm_feature
+
+            _update_spec_reverse_job(job_id, status='running', stage='准备启动浏览器', progress=5)
+            feature = require_feature('spec_reverse_material')
+            with sync_playwright() as playwright:
+                output_path = run_plm_feature(
+                    playwright,
+                    username=task['username'],
+                    password=task['password'],
+                    feature=feature,
+                    upload_file=_Path(task['upload_path']),
+                    output_dir=_Path(OUTPUT_DIR),
+                    headless=False,
+                    log=lambda message: _append_spec_reverse_log(job_id, message),
+                )
+            output_path = str(output_path)
+            if not os.path.exists(output_path):
+                raise RuntimeError('自动化完成但未找到导出文件')
+            out_name = os.path.basename(output_path)
+            _update_spec_reverse_job(
+                job_id,
+                status='done',
+                stage='导出完成',
+                progress=100,
+                download=f'/download/{out_name}',
+                filename=out_name,
+                source_path=output_path,
+            )
+        except ImportError as exc:
+            _append_spec_reverse_log(job_id, str(exc))
+            _update_spec_reverse_job(
+                job_id,
+                status='error',
+                stage='缺少 Playwright 依赖',
+                progress=100,
+                error='缺少 Playwright 依赖，请在 BOM 工具环境安装 requirements.txt 并执行 playwright install chromium',
+            )
+        except Exception as exc:
+            _append_spec_reverse_log(job_id, str(exc))
+            _update_spec_reverse_job(job_id, status='error', stage='执行失败', progress=100, error=str(exc))
+        finally:
+            _PLM_SPEC_REVERSE_QUEUE.task_done()
+
+
+def _split_spec_reverse_single_values(value):
+    text = str(value or '').replace('\u3000', ' ').strip()
+    values = [part.strip() for part in re.split(r'[,，]', text) if part.strip()]
+    if not values:
+        raise ValueError('请输入规格型号或 HQ 料号')
+    return values
+
+
+def _create_spec_reverse_single_excel(value, uid):
+    values = _split_spec_reverse_single_values(value)
+    wb = Workbook()
+    ws = wb.active
+    ws.title = '规格型号'
+    ws.cell(row=1, column=1, value='规格型号').font = Font(bold=True)
+    for row_idx, text in enumerate(values, start=2):
+        ws.cell(row=row_idx, column=1, value=text)
+    ws.column_dimensions['A'].width = 40
+    in_path = os.path.join(UPLOAD_DIR, f'plm_auto_single_{uid}.xlsx')
+    wb.save(in_path)
+    source_label = values[0] if len(values) == 1 else f'{values[0]} 等 {len(values)} 项'
+    return in_path, source_label
 
 def _new_attachment_job(hqpn):
     job_id = uuid.uuid4().hex
@@ -276,8 +452,13 @@ def _attachment_worker_loop():
             session_password = ''
         finally:
             try:
-                if _batch_jobs_finished(batch_id):
+                should_close_session = False
+                if not batch_id:
+                    should_close_session = True
+                elif _batch_jobs_finished(batch_id):
                     _build_attachment_batch_status(batch_id)
+                    should_close_session = True
+                if should_close_session:
                     try:
                         if context:
                             context.close()
@@ -606,11 +787,8 @@ def _do_convert(in_file, sheet_name, header_row,
 @plm_bp.route('/api/plm/detect', methods=['POST'])
 def api_plm_detect():
     file = request.files.get('file')
-    if not file:
-        return jsonify({'success': False, 'error': '请上传文件'})
-    uid = str(uuid.uuid4())[:8]
     try:
-        in_path = _save_uploaded_excel(file, "plm_pre", uid)
+        uid, in_path = _save_or_reuse_uploaded_excel(file, "plm_pre", request.form.get('uid', ''))
         wb = _open_workbook(in_path, read_only=True, data_only=True)
     except ValueError as e:
         return jsonify({'success': False, 'error': str(e)})
@@ -855,14 +1033,21 @@ def api_spec_extract():
             exclude_col_idx = headers.index(exclude_col_name) + 1
 
         values = []
+        seen_values = set()
         skipped_excluded = 0
+        skipped_duplicates = 0
         for ri in range(header_row + 1, ws.max_row + 1):
             if exclude_col_idx is not None and _cell_str(ws.cell(row=ri, column=exclude_col_idx).value):
                 skipped_excluded += 1
                 continue
             v = _cell_str(ws.cell(row=ri, column=col_idx).value)
             if v:
-                values.append(v.replace(' ', '').replace('\u3000', ''))
+                cleaned = v.replace(' ', '').replace('\u3000', '')
+                if cleaned in seen_values:
+                    skipped_duplicates += 1
+                    continue
+                seen_values.add(cleaned)
+                values.append(cleaned)
         wb.close()
 
         # Write output
@@ -877,7 +1062,8 @@ def api_spec_extract():
         out_name = f'spec_{uid}.xlsx'
         wb_out.save(os.path.join(OUTPUT_DIR, out_name))
         return jsonify({'success': True, 'download': f'/download/{out_name}',
-                        'count': len(values), 'skipped_excluded': skipped_excluded})
+                        'count': len(values), 'skipped_excluded': skipped_excluded,
+                        'skipped_duplicates': skipped_duplicates})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
@@ -886,68 +1072,58 @@ def api_spec_extract():
 @plm_bp.route('/api/plm/auto_spec_reverse', methods=['POST'])
 @track_tool_activity('PLM规格反查')
 def api_auto_spec_reverse():
-    """Run an integrated Playwright PLM automation feature."""
+    """Start a background Playwright PLM spec reverse material job."""
     username = (request.form.get('username') or '').strip()
     password = request.form.get('password') or ''
     f = request.files.get('file')
+    single_value = (request.form.get('single_value') or request.form.get('hqpn') or '').strip()
     if not username:
         return jsonify({'success': False, 'error': '请输入账号'})
     if not password:
         return jsonify({'success': False, 'error': '请输入密码'})
-    if not f:
-        return jsonify({'success': False, 'error': '请选择需要上传的 Excel 文件'})
+    if not f and not single_value:
+        return jsonify({'success': False, 'error': '请选择需要上传的 Excel 文件，或输入单个规格型号 / HQ 料号'})
 
     uid = str(uuid.uuid4())[:8]
     try:
-        in_path = _save_uploaded_excel(f, 'plm_auto', uid)
+        if f:
+            in_path = _save_uploaded_excel(f, 'plm_auto', uid)
+            source_label = f.filename or os.path.basename(in_path)
+        else:
+            in_path, source_label = _create_spec_reverse_single_excel(single_value, uid)
     except ValueError as e:
         return jsonify({'success': False, 'error': str(e)})
 
-    logs = []
-
-    def add_log(message):
-        logs.append(str(message))
-
-    try:
-        from pathlib import Path as _Path
-        from playwright.sync_api import sync_playwright
-        from .automation import require_feature, run_plm_feature
-
-        feature = require_feature('spec_reverse_material')
-        with sync_playwright() as playwright:
-            output_path = run_plm_feature(
-                playwright,
-                username=username,
-                password=password,
-                feature=feature,
-                upload_file=_Path(in_path),
-                output_dir=_Path(OUTPUT_DIR),
-                headless=False,
-                log=add_log,
-            )
-    except ImportError as e:
-        return jsonify({
-            'success': False,
-            'error': '缺少 Playwright 依赖，请在 BOM 工具环境安装 requirements.txt 并执行 playwright install chromium',
-            'log': chr(10).join(logs + [str(e)]),
-        })
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e), 'log': chr(10).join(logs)})
-
-    output_path = str(output_path)
-    if not os.path.exists(output_path):
-        return jsonify({'success': False, 'error': '自动化完成但未找到导出文件', 'log': chr(10).join(logs)})
-
-    out_name = os.path.basename(output_path)
+    _cleanup_spec_reverse_jobs()
+    job_id = _new_spec_reverse_job(source_label)
+    _update_spec_reverse_job(job_id, status='queued', stage='已加入查询队列', progress=3)
+    _enqueue_spec_reverse_job(job_id, username, password, in_path)
     return jsonify({
         'success': True,
-        'download': f'/download/{out_name}',
-        'filename': out_name,
-        'source_path': output_path,
-        'log': chr(10).join(logs),
+        'job_id': job_id,
+        'status_url': f'/api/plm/auto_spec_reverse/status/{job_id}',
+        'source_label': source_label,
     })
 
 
+@plm_bp.route('/api/plm/auto_spec_reverse/status/<job_id>', methods=['GET'])
+def api_auto_spec_reverse_status(job_id):
+    job = _snapshot_spec_reverse_job(job_id)
+    if not job:
+        return jsonify({'success': False, 'error': '任务不存在或已过期'}), 404
+    return jsonify({
+        'success': True,
+        'job_id': job['id'],
+        'status': job.get('status'),
+        'stage': job.get('stage'),
+        'progress': job.get('progress'),
+        'source_label': job.get('source_label'),
+        'download': job.get('download'),
+        'filename': job.get('filename'),
+        'source_path': job.get('source_path'),
+        'error': job.get('error'),
+        'log': chr(10).join(job.get('logs') or []),
+    })
 
 def _normalize_hq_attachment_value(value):
     text = _cell_str(value).replace('\u3000', ' ')
@@ -974,6 +1150,15 @@ def _detect_hq_attachment_column(headers):
     return ''
 
 
+def _read_hq_attachment_excel_path(in_path, header_row, sheet_name=''):
+    wb = _open_workbook(in_path, data_only=True)
+    sheets = wb.sheetnames
+    sheet_name = sheet_name if sheet_name in sheets else sheets[0]
+    ws = wb[sheet_name]
+    headers = [_cell_str(ws.cell(row=header_row, column=ci).value) for ci in range(1, ws.max_column + 1)]
+    return wb, ws, sheets, sheet_name, headers
+
+
 def _read_hq_attachment_excel(file, prefix, uid, header_row, sheet_name=''):
     in_path = _save_uploaded_excel(file, prefix, uid)
     wb = _open_workbook(in_path, data_only=True)
@@ -988,15 +1173,13 @@ def _read_hq_attachment_excel(file, prefix, uid, header_row, sheet_name=''):
 @plm_bp.route('/api/plm/auto_hq_attachments/excel_detect', methods=['POST'])
 def api_auto_hq_attachments_excel_detect():
     f = request.files.get('file')
-    if not f:
-        return jsonify({'success': False, 'error': '\u8bf7\u9009\u62e9 Excel \u6587\u4ef6'})
     header_row = _request_int('header_row', 1)
     if header_row is None:
         return jsonify({'success': False, 'error': '\u8868\u5934\u884c\u5fc5\u987b\u662f\u5927\u4e8e\u7b49\u4e8e 1 \u7684\u6570\u5b57'})
-    uid = str(uuid.uuid4())[:8]
     try:
-        wb, ws, sheets, sheet_name, headers = _read_hq_attachment_excel(
-            f, 'plm_att_detect', uid, header_row, request.form.get('sheet_name', '')
+        uid, in_path = _save_or_reuse_uploaded_excel(f, 'plm_att_detect', request.form.get('uid', ''))
+        wb, ws, sheets, sheet_name, headers = _read_hq_attachment_excel_path(
+            in_path, header_row, request.form.get('sheet_name', '')
         )
         preview = []
         for ri in range(header_row + 1, min(header_row + 21, ws.max_row + 1)):
@@ -1007,6 +1190,7 @@ def api_auto_hq_attachments_excel_detect():
         wb.close()
         return jsonify({
             'success': True,
+            'uid': uid,
             'sheets': sheets,
             'current_sheet': sheet_name,
             'headers': headers,

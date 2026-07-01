@@ -16,18 +16,18 @@
 </div>
 
 <div id="bomcmp-tab-customer-hq" class="workflow-shell" style="display:none">
-  <div class="workflow-hero"><h4>客户BOM对比HQ BOM <span class="tool-version" data-tool-version="customer-hq-compare">v{{ tool_versions['customer-hq-compare'] }}</span></h4><p>映射客户列并选择匹配模式，生成客户 BOM 与 HQ BOM 的标准化预览和详细比对报告。</p></div>
+  <div class="workflow-hero"><h4>客户BOM对比HQ BOM <span class="tool-version" data-tool-version="customer-hq-compare">v{{ tool_versions['customer-hq-compare'] }}</span></h4><p>客户 BOM 不要求固定列名，但需要把客户文件里的实际列手动映射到规格型号、制造商、位号、数量等标准字段。</p></div>
   <div class="section"><h3>第一步：上传并读取文件</h3>
-    <div class="workflow-step-desc">客户 BOM 格式不固定；HQ BOM 按标准 HQ BOM 或 PLM 全量 BOM 自动识别。先确认 Sheet 和表头行，再加载字段。</div>
+    <div class="workflow-step-desc">客户 BOM 可以使用客户自己的列名；先确认 Sheet 和表头行，加载字段后再在第二步完成映射。HQ BOM 按标准 HQ BOM 或 PLM 全量 BOM 自动识别。</div>
     <div class="row"><label>客户 BOM：</label><input type="file" id="custLeftFile" accept=".xlsx,.xlsm,.xls" style="width:320px"></div>
     <div class="row"><label>HQ BOM：</label><input type="file" id="custRightFile" accept=".xlsx,.xlsm,.xls" style="width:320px"></div>
     <div class="row"><label>客户 Sheet：</label><select id="custLeftSheet" style="width:180px"><option>先选择文件</option></select><label>客户表头行：</label><input type="number" id="custLeftHdr" value="1" min="1" style="width:60px"><label>HQ Sheet：</label><select id="custRightSheet" style="width:180px"><option>先选择文件</option></select><button class="btn btn-sm btn-gray" id="custRefresh" type="button">加载字段</button></div>
     <div id="custLoadStatus" style="font-size:12px;color:#888"></div>
   </div>
   <div class="section"><h3>第二步：确认匹配规则和字段映射</h3>
-    <div class="workflow-step-desc">这里分成两个动作：先选择匹配规则定位同一个物料，再把客户 BOM 中不固定的列映射到标准字段。</div>
+    <div class="workflow-step-desc">这里分成两个动作：先选择匹配规则定位同一个物料，再把客户 BOM 中的实际列名映射到系统用于比较的标准字段。</div>
     <div class="bom-rule-panel"><h4>2.1 选择匹配规则</h4><p>没有可靠位号时使用型号+制造商；客户 BOM 和 HQ BOM 都有位号时可按位号匹配。</p><div class="row"><label>匹配模式：</label><select id="custMatchMode" style="width:240px"><option value="identity">按型号+制造商匹配</option><option value="refdes">按位号匹配</option></select></div></div>
-    <div class="bom-rule-panel"><h4>2.2 映射客户 BOM 字段</h4><p>规格型号和制造商必选；按位号匹配时位号必选。数量会参与差异判断，未映射则不比较客户数量。</p><div class="row" style="display:grid;grid-template-columns:repeat(4,minmax(170px,1fr));gap:10px;align-items:end">
+    <div class="bom-rule-panel"><h4>2.2 映射客户 BOM 字段</h4><p>请按含义选择客户 BOM 中对应的列，列名不需要叫“规格型号”“制造商”或“位号”。规格型号和制造商必选；按位号匹配时位号必选。数量会参与差异判断，未映射则不比较客户数量。</p><div class="row" style="display:grid;grid-template-columns:repeat(4,minmax(170px,1fr));gap:10px;align-items:end">
       <label style="display:flex;flex-direction:column;gap:6px;min-width:0">规格型号：<select id="custMapModel" style="width:100%"><option value="">先加载列</option></select></label>
       <label style="display:flex;flex-direction:column;gap:6px;min-width:0">制造商：<select id="custMapManufacturer" style="width:100%"><option value="">先加载列</option></select></label>
       <label style="display:flex;flex-direction:column;gap:6px;min-width:0">位号：<select id="custMapRefdes" style="width:100%"><option value="">不使用位号</option></select></label>

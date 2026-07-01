@@ -16,7 +16,7 @@ from shared import (
     get_column_letter,
     request, jsonify,
     UPLOAD_DIR, OUTPUT_DIR, _cell_str,
-    _open_workbook, _save_uploaded_excel, _to_int,
+    _open_workbook, _save_uploaded_excel, _save_or_reuse_uploaded_excel, _to_int,
 )
 from manufacturer_alias import lookup_manufacturer
 from .customer_hq import preview as customer_hq_preview
@@ -1285,19 +1285,24 @@ def api_generic_preview():
 def api_generic_sheets():
     left_file = request.files.get('left_file') or request.files.get('file')
     right_file = request.files.get('right_file')
-    if not left_file:
-        return jsonify({'success': False, 'error': '\u8bf7\u4e0a\u4f20\u5de6\u4fa7 BOM \u6587\u4ef6'})
+    left_uid_in = request.form.get('left_uid', '') or request.form.get('uid', '')
+    right_uid_in = request.form.get('right_uid', '')
+    if not left_file and not left_uid_in:
+        return jsonify({'success': False, 'error': 'Please upload the left BOM file'})
 
     header_row = _to_int(request.form.get('header_row', 1), 1)
     left_header_row = _to_int(request.form.get('left_header_row', header_row), 1)
     right_header_row = _to_int(request.form.get('right_header_row', header_row), 1)
     compare_type = str(request.form.get('compare_type') or 'cadence_hq')
     if header_row is None or left_header_row is None or right_header_row is None:
-        return jsonify({'success': False, 'error': '\u8868\u5934\u884c\u5fc5\u987b\u662f\u5927\u4e8e\u7b49\u4e8e 1 \u7684\u6570\u5b57'})
+        return jsonify({'success': False, 'error': 'Header row must be a number greater than or equal to 1'})
 
-    uid = str(uuid.uuid4())[:8]
     try:
-        left_path = _save_uploaded_hq_excel(left_file, 'bomcmp_generic_left', uid) if compare_type == 'cadence_hq' else _save_uploaded_excel(left_file, 'bomcmp_generic_left', uid)
+        if compare_type == 'cadence_hq' and left_file:
+            left_uid = str(uuid.uuid4())[:8]
+            left_path = _save_uploaded_hq_excel(left_file, 'bomcmp_generic_left', left_uid)
+        else:
+            left_uid, left_path = _save_or_reuse_uploaded_excel(left_file, 'bomcmp_generic_left', left_uid_in)
         if compare_type == 'cadence_hq':
             left_sheet, left_headers, left_fmt, left_sheets = _read_cadence_side_headers(left_path, request.form.get('left_sheet', '') or request.form.get('sheet_name', ''), left_header_row)
             ignored_left_headers = [h for h in left_fmt.get('all_headers', left_headers) if h not in left_headers]
@@ -1310,31 +1315,16 @@ def api_generic_sheets():
             left_fmt = {'kind': 'generic', 'header_row': left_header_row}
             ignored_left_headers = []
 
-        result = {
-            'success': True,
-            'left_sheets': left_sheets,
-            'left_current_sheet': left_sheet,
-            'left_headers': left_headers,
-            'left_detected_key': _detect_key(left_headers),
-            'left_format': left_fmt['kind'],
-            'left_header_row': left_fmt['header_row'],
-            'left_ignored_headers': ignored_left_headers,
-        }
-        if right_file:
-            right_path = _save_uploaded_hq_excel(right_file, 'bomcmp_generic_right', uid)
+        result = {'success': True, 'left_uid': left_uid, 'left_sheets': left_sheets, 'left_current_sheet': left_sheet, 'left_headers': left_headers, 'left_detected_key': _detect_key(left_headers), 'left_format': left_fmt['kind'], 'left_header_row': left_fmt['header_row'], 'left_ignored_headers': ignored_left_headers}
+        if right_file or right_uid_in:
+            if right_file:
+                right_uid = str(uuid.uuid4())[:8]
+                right_path = _save_uploaded_hq_excel(right_file, 'bomcmp_generic_right', right_uid)
+            else:
+                right_uid, right_path = _save_or_reuse_uploaded_excel(None, 'bomcmp_generic_right', right_uid_in)
             right_sheet, right_headers, right_fmt, right_sheets, right_bom_sheets = _read_hq_side_headers(right_path, request.form.get('right_sheet', ''))
             left_key, right_key = _detect_common_key(left_headers, right_headers, prefer_part_no=(compare_type == 'cadence_hq'), ignored_left_headers=ignored_left_headers)
-            result.update({
-                'right_sheets': right_sheets,
-                'right_current_sheet': right_sheet,
-                'right_headers': right_headers,
-                'right_detected_key': _detect_key(right_headers),
-                'detected_left_key': left_key,
-                'detected_right_key': right_key,
-                'right_format': right_fmt['kind'],
-                'right_header_row': right_fmt['header_row'],
-                'right_bom_sheets': right_bom_sheets,
-            })
+            result.update({'right_uid': right_uid, 'right_sheets': right_sheets, 'right_current_sheet': right_sheet, 'right_headers': right_headers, 'right_detected_key': _detect_key(right_headers), 'detected_left_key': left_key, 'detected_right_key': right_key, 'right_format': right_fmt['kind'], 'right_header_row': right_fmt['header_row'], 'right_bom_sheets': right_bom_sheets})
         return jsonify(result)
     except ValueError as e:
         return jsonify({'success': False, 'error': str(e)})
@@ -1445,17 +1435,18 @@ def api_generic_compare():
 @bom_compare_bp.route('/api/bom_compare/local_sheets', methods=['POST'])
 def api_local_sheets():
     file = request.files.get('file')
-    if not file:
-        return jsonify({'success': False, 'error': '请上传文件'})
-    uid = str(uuid.uuid4())[:8]
-    try:
-        path = _save_uploaded_hq_excel(file, "bomcmp_pre", uid)
-    except ValueError as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-    header_row = _to_int(request.form.get('header_row', 1), 1)
-    if header_row is None:
-        return jsonify({'success': False, 'error': '表头行必须是大于等于 1 的数字'})
+    uid_in = request.form.get('uid', '')
+    if file:
+        uid = str(uuid.uuid4())[:8]
+        try:
+            path = _save_uploaded_hq_excel(file, "bomcmp_pre", uid)
+        except ValueError as e:
+            return jsonify({'success': False, 'error': str(e)})
+    else:
+        try:
+            uid, path = _save_or_reuse_uploaded_excel(None, "bomcmp_pre", uid_in)
+        except ValueError as e:
+            return jsonify({'success': False, 'error': str(e)})
 
     try:
         wb, sheet_name, ws, fmt = _open_hq_workbook_info(path, request.form.get('sheet_name', ''))
@@ -1463,16 +1454,7 @@ def api_local_sheets():
         headers = _comparable_headers(ws, fmt)
         bom_sheets = _plm_full_target_sheets(wb, ['DBG业务BOM']) if fmt['kind'] == 'plm_full' else [sheet_name]
         wb.close()
-        return jsonify({
-            'success': True,
-            'sheets': sheets,
-            'current_sheet': sheet_name,
-            'headers': headers,
-            'detected_key': _detect_key(headers),
-            'format': fmt['kind'],
-            'header_row': fmt['header_row'],
-            'bom_sheets': bom_sheets,
-        })
+        return jsonify({'success': True, 'uid': uid, 'sheets': sheets, 'current_sheet': sheet_name, 'headers': headers, 'detected_key': _detect_key(headers), 'format': fmt['kind'], 'header_row': fmt['header_row'], 'bom_sheets': bom_sheets})
     except ValueError as e:
         return jsonify({'success': False, 'error': str(e)})
     except Exception as e:
@@ -1482,13 +1464,18 @@ def api_local_sheets():
 @bom_compare_bp.route('/api/bom_compare/machine_local_sheets', methods=['POST'])
 def api_machine_local_sheets():
     file = request.files.get('file')
-    if not file:
-        return jsonify({'success': False, 'error': '\u8bf7\u4e0a\u4f20\u6587\u4ef6'})
-    uid = str(uuid.uuid4())[:8]
-    try:
-        path = _save_uploaded_hq_excel(file, "bomcmp_machine_pre", uid)
-    except ValueError as e:
-        return jsonify({'success': False, 'error': str(e)})
+    uid_in = request.form.get('uid', '')
+    if file:
+        uid = str(uuid.uuid4())[:8]
+        try:
+            path = _save_uploaded_hq_excel(file, "bomcmp_machine_pre", uid)
+        except ValueError as e:
+            return jsonify({'success': False, 'error': str(e)})
+    else:
+        try:
+            uid, path = _save_or_reuse_uploaded_excel(None, "bomcmp_machine_pre", uid_in)
+        except ValueError as e:
+            return jsonify({'success': False, 'error': str(e)})
 
     try:
         wb, sheet_name, ws, fmt = _open_hq_workbook_info(path, request.form.get('sheet_name', ''))
@@ -1496,16 +1483,7 @@ def api_machine_local_sheets():
         headers = _comparable_headers(ws, fmt)
         bom_sheets = _plm_full_target_sheets(wb, ['BOM']) if fmt['kind'] == 'plm_full' else [sheet_name]
         wb.close()
-        return jsonify({
-            'success': True,
-            'sheets': sheets,
-            'current_sheet': sheet_name,
-            'headers': headers,
-            'detected_key': _detect_key(headers),
-            'format': fmt['kind'],
-            'header_row': fmt['header_row'],
-            'bom_sheets': bom_sheets,
-        })
+        return jsonify({'success': True, 'uid': uid, 'sheets': sheets, 'current_sheet': sheet_name, 'headers': headers, 'detected_key': _detect_key(headers), 'format': fmt['kind'], 'header_row': fmt['header_row'], 'bom_sheets': bom_sheets})
     except ValueError as e:
         return jsonify({'success': False, 'error': str(e)})
     except Exception as e:

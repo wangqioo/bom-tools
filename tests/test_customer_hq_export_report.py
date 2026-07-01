@@ -88,10 +88,10 @@ class CustomerHqExportReportTests(unittest.TestCase):
             for row in range(1, ws.max_row + 1)
         }
         self.assertEqual(ws["A1"].value, "BOM Tools 导出报告")
-        self.assertEqual(summary_values["导出来源"], "BOM Tools 平台 v2.2.1")
-        self.assertEqual(summary_values["平台版本"], "v2.2.1")
+        self.assertEqual(summary_values["导出来源"], "BOM Tools 平台 v2.2.2")
+        self.assertEqual(summary_values["平台版本"], "v2.2.2")
         self.assertEqual(summary_values["工具名称"], "客户 BOM 对比 HQ BOM")
-        self.assertEqual(summary_values["工具版本"], "v1.1.0")
+        self.assertEqual(summary_values["工具版本"], "v1.1.1")
         self.assertEqual(summary_values["客户 BOM 文件"], "customer.xlsx")
         self.assertEqual(summary_values["HQ BOM 文件"], "hq.xlsx")
         self.assertEqual(summary_values["客户 Sheet / 表头行"], "自动选择 / 1")

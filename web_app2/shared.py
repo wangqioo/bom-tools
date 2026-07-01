@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """BOM Tools Web v2 — 公共模块"""
 
-import os, sys, time, re, subprocess
+import os, sys, time, re, subprocess, uuid
 from zipfile import BadZipFile
 
 _parent = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -19,18 +19,18 @@ from flask import request, jsonify, send_file
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads")
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "outputs")
 CACHE_DIR  = os.path.join(os.path.dirname(__file__), "cache")
-PLATFORM_VERSION = "2.2.1"
+PLATFORM_VERSION = "2.2.2"
 TOOL_VERSIONS = {
     "bom": "5.10.0",
     "bom-checklist": "0.1.4",
-    "feishu": "3.0.0",
+    "feishu": "3.0.4",
     "manufacturer-alias": "1.0.0",
     "pref-rate": "1.0.0",
-    "plm": "1.7.0",
-    "plm-auto": "1.0.0",
-    "bom-compare": "0.3.1",
-    "free-bom-compare": "1.1.3",
-    "customer-hq-compare": "1.1.0",
+    "plm": "1.7.1",
+    "plm-auto": "1.2.0",
+    "bom-compare": "0.3.2",
+    "free-bom-compare": "1.1.4",
+    "customer-hq-compare": "1.1.1",
     "hq-version-compare": "1.0.1",
     "machine-hq-version-compare": "1.0.1",
     "cadence-hq-compare": "1.0.1",
@@ -155,6 +155,32 @@ def _save_uploaded_excel(file, prefix, uid):
     file.save(path)
     return path
 
+
+
+
+def _valid_upload_uid(uid):
+    uid = str(uid or '').strip()
+    return bool(uid) and len(uid) <= 32 and all(c.isalnum() or c in '_-' for c in uid)
+
+
+def _uploaded_excel_path(prefix, uid):
+    if not _valid_upload_uid(uid):
+        return None
+    for name in (f"{prefix}_{uid}.xlsx", f"{prefix}_converted_{uid}.xlsx"):
+        path = os.path.join(UPLOAD_DIR, name)
+        if os.path.exists(path):
+            return path
+    return None
+
+
+def _save_or_reuse_uploaded_excel(file, prefix, uid=None):
+    if file:
+        uid = str(uuid.uuid4())[:8] if 'uuid' in globals() else str(int(time.time() * 1000))[-8:]
+        return uid, _save_uploaded_excel(file, prefix, uid)
+    path = _uploaded_excel_path(prefix, uid)
+    if not path:
+        raise ValueError('Local file cache expired; please upload the file again')
+    return str(uid).strip(), path
 
 def _open_workbook(path, **kwargs):
     try:

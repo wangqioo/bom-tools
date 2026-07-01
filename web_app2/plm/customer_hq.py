@@ -22,6 +22,7 @@ from shared import (
     _col_int,
     _open_workbook,
     _request_int,
+    _save_or_reuse_uploaded_excel,
     _save_uploaded_excel,
 )
 
@@ -177,11 +178,8 @@ def _write_hq_single_board_bom(rows, out_path, meta):
 @plm_bp.route("/api/plm/customer_hq_detect", methods=["POST"])
 def api_customer_hq_detect():
     file = request.files.get("file")
-    if not file:
-        return jsonify({"success": False, "error": "请上传客户 BOM 文件"})
-    uid = str(uuid.uuid4())[:8]
     try:
-        path = _save_uploaded_excel(file, "plm_customer_hq_pre", uid)
+        uid, path = _save_or_reuse_uploaded_excel(file, "plm_customer_hq_pre", request.form.get("uid", ""))
         wb = _open_workbook(path, read_only=True, data_only=True)
         sheets = wb.sheetnames
         wb.close()
