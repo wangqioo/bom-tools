@@ -141,11 +141,18 @@ bom-tools/
 - Python 3.10+
 - Flask
 - openpyxl
+- xlrd（读取并转换标准 `.xls` 旧格式文件）
 - requests
 - waitress
 - Playwright
 
 PLM 自动化依赖 Chromium 运行时。离线环境应随包提供 `ms-playwright/`，或设置 `PLAYWRIGHT_BROWSERS_PATH` 指向已有浏览器目录。
+
+## Excel 导入开发约定
+
+Web 新功能的 Excel 上传必须复用 [`web_app2/shared.py`](web_app2/shared.py) 的统一上传入口，不能直接保存后用 `openpyxl` 打开。该入口会将标准 `.xls` 自动转换为 `.xlsx`，保证新功能与既有 Web 工具的格式兼容行为一致。
+
+实现方式、前端限制、测试要求和加密文件边界见 [doc/10_Excel导入开发规范.md](doc/10_Excel导入开发规范.md)。
 
 ## 运维注意事项
 

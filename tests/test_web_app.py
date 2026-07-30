@@ -23,7 +23,7 @@ if str(WEB_APP) not in sys.path:
 from app import app  # noqa: E402
 from bom_checklist import _run_checks as _run_bom_checklist_checks  # noqa: E402
 from bom_compare import _save_uploaded_hq_excel  # noqa: E402
-from feishu import _is_preferred_level, _write_cache  # noqa: E402
+from feishu import _hq_read_sheet, _is_preferred_level, _write_cache  # noqa: E402
 from manufacturer_alias import normalize_manufacturer_name  # noqa: E402
 from shared import _save_uploaded_excel  # noqa: E402
 
@@ -108,10 +108,10 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         html = resp.get_data(as_text=True)
         self.assertIn("BOM Tools", html)
-        self.assertIn("\u786c\u4ef6\u8bbe\u8ba1\u8f85\u52a9\u5e73\u53f0 v2.2.2", html)
-        self.assertIn("css/app.css?v=2.2.2", html)
-        self.assertIn("js/app.js?v=2.2.2", html)
-        self.assertIn("version: \"2.2.2\"", html)
+        self.assertIn("\u786c\u4ef6\u8bbe\u8ba1\u8f85\u52a9\u5e73\u53f0 v2.2.6", html)
+        self.assertIn("css/app.css?v=2.2.6", html)
+        self.assertIn("js/app.js?v=2.2.6", html)
+        self.assertIn("version: \"2.2.6\"", html)
         self.assertIn("toolVersions", html)
         self.assertIn("currentUser", html)
         self.assertIn("free-bom-compare", html)
@@ -462,23 +462,156 @@ class WebAppTests(unittest.TestCase):
         self.assertTrue(any("Brand" in header for header in second["headers"]))
 
 
+
+    def test_feishu_sheet_read_uses_header_width_and_pads_sparse_rows(self):
+        calls = []
+
+        class FakeResponse:
+            def __init__(self, values):
+                self.values = values
+
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return {"code": 0, "data": {"valueRange": {"values": self.values}}}
+
+        def fake_get(url, params=None, timeout=None):
+            range_name = (params or {}).get("range", "")
+            calls.append(range_name)
+            if range_name == "sheet!A1:Z1":
+                return FakeResponse([["PN", "Desc", "HQ PN", ""]])
+            if range_name == "sheet!A1:C3":
+                return FakeResponse([["PN", "Desc", "HQ PN"], ["A", "D1"], ["B", "D2", "HQ-B"]])
+            return FakeResponse([])
+
+        with patch("feishu._requests.get", side_effect=fake_get):
+            rows = _hq_read_sheet("https://example.test", "origin", "user", "token", "sheet", row_count=3, col_count=26)
+
+        self.assertEqual(rows, [["PN", "Desc", "HQ PN"], ["A", "D1", ""], ["B", "D2", "HQ-B"]])
+        self.assertNotIn("sheet!A1:Z3", calls)
+
+
+    def test_feishu_sheet_read_falls_back_to_column_ranges_when_block_read_fails(self):
+        class FakeResponse:
+            def __init__(self, values):
+                self.values = values
+
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return {"code": 0, "data": {"valueRange": {"values": self.values}}}
+
+        def fake_get(url, params=None, timeout=None):
+            range_name = (params or {}).get("range", "")
+            if range_name == "sheet!A1:Z1":
+                return FakeResponse([["PN", "Desc"]])
+            if range_name == "sheet!A1:B2":
+                raise RuntimeError("range failed")
+            if range_name == "sheet!A1:A2":
+                return FakeResponse([["PN"], ["A"]])
+            if range_name == "sheet!B1:B2":
+                return FakeResponse([["Desc"], ["fallback"]])
+            return FakeResponse([])
+
+        with patch("feishu._requests.get", side_effect=fake_get):
+            rows = _hq_read_sheet("https://example.test", "origin", "user", "token", "sheet", row_count=2, col_count=26)
+
+        self.assertEqual(rows, [["PN", "Desc"], ["A", "fallback"]])
+
+
+    def test_feishu_clear_cache_deletes_server_cache_file(self):
+        suffix = uuid.uuid4().hex[:8]
+        token = f"token-clear-{suffix}"
+        sheet_id = f"sid-clear-{suffix}"
+        key, _, _ = _write_cache(token, sheet_id, [["PN"], ["A"]])
+        cache_path = WEB_APP / "cache" / f"feishu_{key}.json"
+        self.assertTrue(cache_path.exists())
+
+        payload = app.test_client().post("/api/feishu/cache/clear", json={
+            "token": token,
+            "sheet_id": sheet_id,
+        }).get_json()
+
+        self.assertTrue(payload["success"], payload.get("error"))
+        self.assertTrue(payload["deleted"])
+        self.assertFalse(cache_path.exists())
+
+        invalid = app.test_client().post("/api/feishu/cache/clear", json={"token": None})
+        self.assertEqual(invalid.status_code, 200)
+        self.assertFalse(invalid.get_json()["success"])
+        self.assertEqual(invalid.get_json()["error"], "\u8bf7\u63d0\u4f9b Token \u548c Sheet ID")
+
+
+
+    def test_feishu_match_reports_missing_model_local_mapping(self):
+        data = {
+            "file": (_xlsx_bytes(["Model", "Maker"], [["A", "M"]]), "local.xlsx"),
+            "config": json.dumps({
+                "sheet_name": "Sheet",
+                "header_row": 1,
+                "tables": [{
+                    "name": "MLCC",
+                    "token": "token-missing-model",
+                    "sheets": [{
+                        "enabled": True,
+                        "sheet_id": "sid-missing-model",
+                        "sheet_name": "Preferred",
+                        "local_key_names": ["", "Maker"],
+                        "feishu_key_names": ["PN", "Maker"],
+                    }],
+                }],
+            }),
+        }
+        payload = app.test_client().post("/api/feishu/match", data=data, content_type="multipart/form-data").get_json()
+        self.assertFalse(payload["success"])
+        self.assertIn("\u672a\u9009\u62e9\u578b\u53f7", payload["error"])
+        self.assertNotIn("\u6ca1\u6709\u53ef\u7528", payload["error"])
+
+
+    def test_feishu_match_reports_missing_maker_local_mapping(self):
+        data = {
+            "file": (_xlsx_bytes(["Model", "Maker"], [["A", "M"]]), "local.xlsx"),
+            "config": json.dumps({
+                "sheet_name": "Sheet",
+                "header_row": 1,
+                "tables": [{
+                    "name": "MLCC",
+                    "token": "token-missing-maker",
+                    "sheets": [{
+                        "enabled": True,
+                        "sheet_id": "sid-missing-maker",
+                        "sheet_name": "Preferred",
+                        "local_key_names": ["Model", ""],
+                        "feishu_key_names": ["PN", "Maker"],
+                    }],
+                }],
+            }),
+        }
+        payload = app.test_client().post("/api/feishu/match", data=data, content_type="multipart/form-data").get_json()
+        self.assertFalse(payload["success"])
+        self.assertIn("\u672a\u9009\u62e9\u5382\u5546", payload["error"])
+        self.assertNotIn("\u6ca1\u6709\u53ef\u7528", payload["error"])
+
+
     def test_feishu_match_deduplicates_identical_rows_and_merges_sources(self):
         key_a, _, _ = _write_cache("token-a", "sid-a", [
-            ["PN", "HQ PN", "Model"],
-            ["A", "HQ-1", "M1"],
-            ["A", "HQ-1", "M1"],
-            ["A", "HQ-2", "M2"],
+            ["PN", "Maker", "HQ PN", "Model"],
+            ["A", "MakerA", "HQ-1", "M1"],
+            ["A", "MakerA", "HQ-1", "M1"],
+            ["A", "MakerA", "HQ-2", "M2"],
         ])
         key_b, _, _ = _write_cache("token-b", "sid-b", [
-            ["PN", "HQ PN", "Model"],
-            ["A", "HQ-1", "M1"],
+            ["PN", "Maker", "HQ PN", "Model"],
+            ["A", "MakerA", "HQ-1", "M1"],
         ])
         fetch_map = [
             {"output": "HQ PN", "alias": "HQ PN"},
             {"output": "Model", "alias": "Model"},
         ]
         data = {
-            "file": (_xlsx_bytes(["PN"], [["A"], ["B"]]), "local.xlsx"),
+            "file": (_xlsx_bytes(["PN", "Maker"], [["A", "MakerA"], ["B", "MakerB"]]), "local.xlsx"),
             "config": json.dumps({
                 "sheet_name": "Sheet",
                 "header_row": 1,
@@ -487,8 +620,8 @@ class WebAppTests(unittest.TestCase):
                         "enabled": True,
                         "sheet_id": "sid-a",
                         "sheet_name": "SheetA",
-                        "local_key_names": ["PN"],
-                        "feishu_key_names": ["PN"],
+                        "local_key_names": ["PN", "Maker"],
+                        "feishu_key_names": ["PN", "Maker"],
                         "fetch_col_map": fetch_map,
                         "cache_key": key_a,
                     }]},
@@ -496,8 +629,8 @@ class WebAppTests(unittest.TestCase):
                         "enabled": True,
                         "sheet_id": "sid-b",
                         "sheet_name": "SheetB",
-                        "local_key_names": ["PN"],
-                        "feishu_key_names": ["PN"],
+                        "local_key_names": ["PN", "Maker"],
+                        "feishu_key_names": ["PN", "Maker"],
                         "fetch_col_map": fetch_map,
                         "cache_key": key_b,
                     }]},
@@ -518,39 +651,39 @@ class WebAppTests(unittest.TestCase):
         filename = unquote(payload["download"].split("/download/", 1)[1])
         wb = openpyxl.load_workbook(WEB_APP / "outputs" / filename, data_only=True)
         ws = wb.active
-        self.assertEqual([cell.value for cell in ws[1]], ["PN", "HQ PN", "Model", "来源表格"])
-        self.assertEqual([ws["A2"].value, ws["B2"].value, ws["C2"].value], ["A", "HQ-1", "M1"])
-        self.assertEqual(ws["D2"].value, "LibA - SheetA；LibB - SheetB")
-        self.assertEqual([ws["A3"].value, ws["B3"].value, ws["C3"].value, ws["D3"].value], [None, "HQ-2", "M2", "LibA - SheetA"])
-        self.assertEqual([ws["A4"].value, ws["B4"].value, ws["C4"].value, ws["D4"].value], ["B", None, None, "未匹配"])
+        self.assertEqual([cell.value for cell in ws[1]], ["PN", "Maker", "HQ PN", "Model", "\u6765\u6e90\u8868\u683c"])
+        self.assertEqual([ws["A2"].value, ws["B2"].value, ws["C2"].value, ws["D2"].value], ["A", "MakerA", "HQ-1", "M1"])
+        self.assertEqual(ws["E2"].value, "LibA - SheetA\uff1bLibB - SheetB")
+        self.assertEqual([ws["A3"].value, ws["B3"].value, ws["C3"].value, ws["D3"].value, ws["E3"].value], [None, None, "HQ-2", "M2", "LibA - SheetA"])
+        self.assertEqual([ws["A4"].value, ws["B4"].value, ws["C4"].value, ws["D4"].value, ws["E4"].value], ["B", "MakerB", None, None, "\u672a\u5339\u914d"])
         wb.close()
 
 
     def test_feishu_match_prefers_relation_table_over_preferred_library(self):
         key_pref, _, _ = _write_cache("token-pref", "sid-pref", [
-            ["PN", "HQ PN", "Model"],
-            ["A", "HQ-PREF", "M-PREF"],
+            ["PN", "Maker", "HQ PN", "Model"],
+            ["A", "MakerA", "HQ-PREF", "M-PREF"],
         ])
         key_rel, _, _ = _write_cache("token-rel", "sid-rel", [
-            ["PN", "HQ PN", "Model"],
-            ["A", "HQ-REL", "M-REL"],
+            ["PN", "Maker", "HQ PN", "Model"],
+            ["A", "MakerA", "HQ-REL", "M-REL"],
         ])
         fetch_map = [
             {"output": "HQ PN", "alias": "HQ PN"},
             {"output": "Model", "alias": "Model"},
         ]
         data = {
-            "file": (_xlsx_bytes(["PN"], [["A"]]), "local.xlsx"),
+            "file": (_xlsx_bytes(["PN", "Maker"], [["A", "MakerA"]]), "local.xlsx"),
             "config": json.dumps({
                 "sheet_name": "Sheet",
                 "header_row": 1,
                 "tables": [
-                    {"name": "?????", "token": "token-pref", "sheets": [{
+                    {"name": "MLCC Preferred Library", "token": "token-pref", "sheets": [{
                         "enabled": True,
                         "sheet_id": "sid-pref",
-                        "sheet_name": "???",
-                        "local_key_names": ["PN"],
-                        "feishu_key_names": ["PN"],
+                        "sheet_name": "Preferred",
+                        "local_key_names": ["PN", "Maker"],
+                        "feishu_key_names": ["PN", "Maker"],
                         "fetch_col_map": fetch_map,
                         "cache_key": key_pref,
                     }]},
@@ -558,8 +691,8 @@ class WebAppTests(unittest.TestCase):
                         "enabled": True,
                         "sheet_id": "sid-rel",
                         "sheet_name": "\u5b57\u8282",
-                        "local_key_names": ["PN"],
-                        "feishu_key_names": ["PN"],
+                        "local_key_names": ["PN", "Maker"],
+                        "feishu_key_names": ["PN", "Maker"],
                         "fetch_col_map": fetch_map,
                         "cache_key": key_rel,
                     }]},
@@ -578,8 +711,145 @@ class WebAppTests(unittest.TestCase):
         wb = openpyxl.load_workbook(WEB_APP / "outputs" / filename, data_only=True)
         ws = wb.active
         self.assertEqual(ws.max_row, 2)
-        self.assertEqual([ws["A2"].value, ws["B2"].value, ws["C2"].value], ["A", "HQ-REL", "M-REL"])
-        self.assertEqual(ws["D2"].value, "\u5ba2\u6237\u7269\u6599\u578b\u53f7\u4e0eHQ\u6599\u53f7\u5bf9\u5e94\u5173\u7cfb - \u5b57\u8282")
+        self.assertEqual([ws["A2"].value, ws["B2"].value, ws["C2"].value, ws["D2"].value], ["A", "MakerA", "HQ-REL", "M-REL"])
+        self.assertEqual(ws["E2"].value, "\u5ba2\u6237\u7269\u6599\u578b\u53f7\u4e0eHQ\u6599\u53f7\u5bf9\u5e94\u5173\u7cfb - \u5b57\u8282")
+        wb.close()
+
+
+    def test_feishu_match_can_include_preferred_hits_with_relation_hits(self):
+        key_pref, _, _ = _write_cache("token-pref-with-rel", "sid-pref-with-rel", [
+            ["PN", "Maker", "HQ PN"],
+            ["A", "MakerA", "HQ-PREF"],
+        ])
+        key_rel, _, _ = _write_cache("token-rel-with-pref", "sid-rel-with-pref", [
+            ["PN", "Maker", "HQ PN"],
+            ["A", "MakerA", "HQ-REL"],
+        ])
+        fetch_map = [{"output": "HQ PN", "alias": "HQ PN"}]
+        data = {
+            "file": (_xlsx_bytes(["PN", "Maker"], [["A", "MakerA"]]), "local.xlsx"),
+            "config": json.dumps({
+                "sheet_name": "Sheet",
+                "header_row": 1,
+                "include_preferred_with_relation": True,
+                "tables": [
+                    {"name": "MLCC", "token": "token-pref-with-rel", "sheets": [{
+                        "enabled": True,
+                        "sheet_id": "sid-pref-with-rel",
+                        "sheet_name": "Preferred",
+                        "local_key_names": ["PN", "Maker"],
+                        "feishu_key_names": ["PN", "Maker"],
+                        "fetch_col_map": fetch_map,
+                        "enable_recommendations": False,
+                        "cache_key": key_pref,
+                    }]},
+                    {"name": "\u5ba2\u6237\u7269\u6599\u578b\u53f7\u4e0eHQ\u6599\u53f7\u5bf9\u5e94\u5173\u7cfb", "token": "token-rel-with-pref", "sheets": [{
+                        "enabled": True,
+                        "sheet_id": "sid-rel-with-pref",
+                        "sheet_name": "\u5173\u7cfb",
+                        "local_key_names": ["PN", "Maker"],
+                        "feishu_key_names": ["PN", "Maker"],
+                        "fetch_col_map": fetch_map,
+                        "cache_key": key_rel,
+                    }]},
+                ],
+            }),
+        }
+        resp = app.test_client().post("/api/feishu/match", data=data, content_type="multipart/form-data")
+        payload = resp.get_json()
+        self.assertTrue(payload["success"], payload.get("error"))
+        filename = unquote(payload["download"].split("/download/", 1)[1])
+        wb = openpyxl.load_workbook(WEB_APP / "outputs" / filename, data_only=True)
+        ws = wb.active
+        self.assertEqual(ws.max_row, 3)
+        self.assertEqual([ws["C2"].value, ws["C3"].value], ["HQ-PREF", "HQ-REL"])
+        wb.close()
+
+
+    def test_feishu_match_expands_recommendations_by_hq_description_when_enabled(self):
+        key, _, _ = _write_cache("token-mlcc-rec", "sid-mlcc-rec", [
+            ["Model", "Maker", "Desc", "HQ PN", "PI"],
+            ["CAP-A", "MakerA", "D1", "HQ-STRICT", "1"],
+            ["CAP-B", "MakerB", "D1", "HQ-REC-HIGH", "9"],
+            ["CAP-C", "MakerC", "D1", "HQ-REC-MID", "5"],
+            ["CAP-D", "MakerD", "D2", "HQ-OTHER", "9"],
+        ])
+        fetch_map = [
+            {"output": "HQ PN", "alias": "HQ PN"},
+            {"output": "HQ\u63cf\u8ff0", "alias": "Desc"},
+            {"output": "\u4f18\u9009\u7b49\u7ea7", "alias": "PI"},
+        ]
+        data = {
+            "file": (_xlsx_bytes(["Model", "Maker"], [["CAP-A", "MakerA"]]), "local.xlsx"),
+            "config": json.dumps({
+                "sheet_name": "Sheet",
+                "header_row": 1,
+                "tables": [{
+                    "name": "MLCC",
+                    "token": "token-mlcc-rec",
+                    "sheets": [{
+                        "enabled": True,
+                        "sheet_id": "sid-mlcc-rec",
+                        "sheet_name": "Preferred",
+                        "local_key_names": ["Model", "Maker"],
+                        "feishu_key_names": ["Model", "Maker"],
+                        "fetch_col_map": fetch_map,
+                        "enable_recommendations": True,
+                        "cache_key": key,
+                    }],
+                }],
+            }),
+        }
+        resp = app.test_client().post("/api/feishu/match", data=data, content_type="multipart/form-data")
+        payload = resp.get_json()
+        self.assertTrue(payload["success"], payload.get("error"))
+        filename = unquote(payload["download"].split("/download/", 1)[1])
+        wb = openpyxl.load_workbook(WEB_APP / "outputs" / filename, data_only=True)
+        ws = wb.active
+        self.assertEqual(ws.max_row, 4)
+        self.assertEqual([ws["C2"].value, ws["C3"].value, ws["C4"].value], ["HQ-STRICT", "HQ-REC-HIGH", "HQ-REC-MID"])
+        self.assertIn("\u4f18\u9009\u53ef\u66ff\u4ee3\u63a8\u8350", ws["F3"].value)
+        wb.close()
+
+
+    def test_feishu_match_can_disable_recommendations_per_sheet(self):
+        key, _, _ = _write_cache("token-mlcc-rec-off", "sid-mlcc-rec-off", [
+            ["Model", "Maker", "Desc", "HQ PN", "PI"],
+            ["CAP-A", "MakerA", "D1", "HQ-STRICT", "1"],
+            ["CAP-B", "MakerB", "D1", "HQ-REC", "9"],
+        ])
+        fetch_map = [
+            {"output": "HQ PN", "alias": "HQ PN"},
+            {"output": "HQ\u63cf\u8ff0", "alias": "Desc"},
+            {"output": "\u4f18\u9009\u7b49\u7ea7", "alias": "PI"},
+        ]
+        data = {
+            "file": (_xlsx_bytes(["Model", "Maker"], [["CAP-A", "MakerA"]]), "local.xlsx"),
+            "config": json.dumps({
+                "sheet_name": "Sheet",
+                "header_row": 1,
+                "tables": [{
+                    "name": "MLCC",
+                    "token": "token-mlcc-rec-off",
+                    "sheets": [{
+                        "enabled": True,
+                        "sheet_id": "sid-mlcc-rec-off",
+                        "sheet_name": "Preferred",
+                        "local_key_names": ["Model", "Maker"],
+                        "feishu_key_names": ["Model", "Maker"],
+                        "fetch_col_map": fetch_map,
+                        "enable_recommendations": False,
+                        "cache_key": key,
+                    }],
+                }],
+            }),
+        }
+        resp = app.test_client().post("/api/feishu/match", data=data, content_type="multipart/form-data")
+        payload = resp.get_json()
+        self.assertTrue(payload["success"], payload.get("error"))
+        filename = unquote(payload["download"].split("/download/", 1)[1])
+        wb = openpyxl.load_workbook(WEB_APP / "outputs" / filename, data_only=True)
+        self.assertEqual(wb.active.max_row, 2)
         wb.close()
 
 
@@ -868,9 +1138,10 @@ class WebAppTests(unittest.TestCase):
             converted.append((Path(src_path).name, out_path.name))
             return str(out_path)
 
-        with patch("bom_compare._convert_xls_with_excel", side_effect=fake_convert):
-            old_path = _save_uploaded_hq_excel(DummyUpload(), "bomcmp_old", "sameuid")
-            new_path = _save_uploaded_hq_excel(DummyUpload(), "bomcmp_new", "sameuid")
+        with patch("shared._convert_xls_with_xlrd", side_effect=RuntimeError("not a real xls")):
+            with patch("shared._convert_xls_with_excel", side_effect=fake_convert):
+                old_path = _save_uploaded_hq_excel(DummyUpload(), "bomcmp_old", "sameuid")
+                new_path = _save_uploaded_hq_excel(DummyUpload(), "bomcmp_new", "sameuid")
 
         self.assertNotEqual(old_path, new_path)
         self.assertEqual(
@@ -902,6 +1173,26 @@ class WebAppTests(unittest.TestCase):
             [name for _, name in converted],
             ["bomcmp_customer_left_converted_sameuid.xlsx", "bomcmp_free_right_converted_sameuid.xlsx"],
         )
+
+    def test_plain_excel_upload_uses_headless_xls_converter_first(self):
+        class DummyUpload:
+            filename = "customer.xls"
+
+            def save(self, path):
+                Path(path).write_bytes(b"xls")
+
+        def fake_convert(src_path, uid, prefix="converted"):
+            out_path = WEB_APP / "uploads" / f"{prefix}_converted_{uid}.xlsx"
+            out_path.write_bytes(b"xlsx")
+            return str(out_path)
+
+        with patch("shared._convert_xls_with_xlrd", side_effect=fake_convert) as native_convert:
+            with patch("shared._convert_xls_with_excel", side_effect=AssertionError("Excel fallback should not run")):
+                path = _save_uploaded_excel(DummyUpload(), "bom_native", "sameuid")
+
+        self.assertEqual(Path(path).name, "bom_native_converted_sameuid.xlsx")
+        native_convert.assert_called_once()
+
 
     def test_hq_bom_version_exports_single_detail_sheet_with_full_attrs(self):
         headers = ["序号", "料号", "型号", "物料描述", "单耗", "替代关系", "位号", "生产厂家", "制程", "是否量产标识"]

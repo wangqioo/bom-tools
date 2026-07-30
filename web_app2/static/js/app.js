@@ -93,7 +93,7 @@ function applyToolVersions(root){
 const TOOLS = {
   bom:    {title:'BOM 格式转换',        badge:toolVersion('bom','5.10.0'), tpl:'tpl-bom',
            desc:'将客户提供的多种格式 BOM 表自动识别列映射，支持品牌型号合并列/分开列（格式A/B/C），展开为多供应商独立行。'},
-  feishu: {title:'飞书优选库+关系库匹配', badge:toolVersion('feishu','3.0.4'),  tpl:'tpl-feishu',
+  feishu: {title:'飞书优选库+关系库匹配', badge:toolVersion('feishu','3.0.8'),  tpl:'tpl-feishu',
            desc:'连接飞书内部 API 网关，支持 15 个预置库（优选库 + 对应关系库），多键 AND 匹配（最多 3 对），批量提取字段，输出含来源表格的匹配结果。'},
   'manufacturer-alias': {title:'\u5382\u5546\u547d\u540d\u6620\u5c04\u8868', badge:toolVersion('manufacturer-alias','1.0.0'), tpl:'tpl-manufacturer-alias',
            desc:'\u7ef4\u62a4\u5ba2\u6237\u5382\u5546\u522b\u540d\u3001\u5927\u5c0f\u5199\u53d8\u4f53\u3001\u4e2d\u6587\u540d\u548c\u97f3\u8bd1\u540d\u5230 HQ \u89c4\u8303\u5382\u5546\u540d\u7684\u7cbe\u786e\u6620\u5c04\uff0c\u4f9b\u540e\u7eed\u5339\u914d\u6d41\u7a0b\u590d\u7528\u3002'},
@@ -2418,10 +2418,15 @@ const FS_TABLES = (window.BOM_TOOLS_BOOTSTRAP && window.BOM_TOOLS_BOOTSTRAP.pres
 const FS_DEFAULT_CONFIG = (window.BOM_TOOLS_BOOTSTRAP && window.BOM_TOOLS_BOOTSTRAP.defaultConfig) || {};
 
 // ── SheetConfig 默认值工厂 ──────────────────────────────────
+function _fsDefaultRecommendationsForTableName(name){
+  return /MLCC|电阻/i.test(name||'');
+}
+
 function _mkSheetCfg(){
   const fkInit=_fsGlobalLocalKeys.map(()=>'');
   return {enabled:false, local_key_names:_fsGlobalLocalKeys.slice(), feishu_key_names:fkInit,
-          fetch_col_names:[], fetch_col_aliases:{}, _headers:[], _expanded:false,
+          fetch_col_names:[], fetch_col_aliases:{}, enable_recommendations:false,
+          _recommendations_touched:false, _headers:[], _expanded:false,
           cache_key:'', cache_row_count:0, cache_fetched_at:0,
           row_count_at_cache:0, _cache_stale:false};
 }
@@ -2438,28 +2443,40 @@ let _fsGlobalFetchMap = [  // [{std_name, default_alias}]  pre-populated default
   {std_name:'优选等级',  default_alias:'优选等级'},
   {std_name:'HQ描述',    default_alias:'HQ描述'},
 ];
-let _fsGlobalLocalKeys = [''];  // dynamic local-side match keys
-let _fsGlobalLocalKeyTransforms = [''];  // '' | 'manufacturer_alias'
+let _fsGlobalLocalKeys = ['', ''];  // first slot model, second slot maker
+let _fsGlobalLocalKeyTransforms = ['', 'manufacturer_alias'];  // '' | 'manufacturer_alias'
+let _fsIncludePreferredWithRelation = false;
+
+function fsEnsureBaseLocalKeySlots(){
+  while(_fsGlobalLocalKeys.length<2) _fsGlobalLocalKeys.push('');
+  while(_fsGlobalLocalKeyTransforms.length<_fsGlobalLocalKeys.length) _fsGlobalLocalKeyTransforms.push('');
+  if(!_fsGlobalLocalKeyTransforms[1]) _fsGlobalLocalKeyTransforms[1]='manufacturer_alias';
+}
+
+function fsReadGLKFromDom(){
+  fsEnsureBaseLocalKeySlots();
+  _fsGlobalLocalKeys=_fsGlobalLocalKeys.map((_,i)=>($(`fsGlk_${i}`)||{value:_fsGlobalLocalKeys[i]||''}).value.trim());
+  _fsGlobalLocalKeyTransforms=_fsGlobalLocalKeys.map((_,i)=>i===1 ? 'manufacturer_alias' : '');
+  fsEnsureBaseLocalKeySlots();
+}
 
 function fsRenderGLKSection(){
   const cont=$('fsGLkContainer'); if(!cont) return;
   const hdrs=window._fsLocalHeaders||[];
-  while(_fsGlobalLocalKeyTransforms.length<_fsGlobalLocalKeys.length) _fsGlobalLocalKeyTransforms.push('');
+  fsEnsureBaseLocalKeySlots();
   if(_fsGlobalLocalKeyTransforms.length>_fsGlobalLocalKeys.length) _fsGlobalLocalKeyTransforms.splice(_fsGlobalLocalKeys.length);
   let h='';
   _fsGlobalLocalKeys.forEach((val,i)=>{
-    const req=i===0;
-    let opts=`<option value="">${req?'— 选择列 —':'（不使用）'}</option>`;
+    const fixed=i<2;
+    const req=i<2;
+    const role=i===0?'\u578b\u53f7':(i===1?'\u5382\u5546':`\u952e${i+1}`);
+    let opts=`<option value=\"\">${req?`\u2014 \u9009\u62e9${role}\u5217 \u2014`:'\uff08\u4e0d\u4f7f\u7528\uff09'}</option>`;
     hdrs.forEach(h2=>{if(h2) opts+=`<option value="${_escH(h2)}"${h2===val?' selected':''}>${_escH(h2)}</option>`;});
-    const mfgChecked=_fsGlobalLocalKeyTransforms[i]==='manufacturer_alias'?' checked':'';
     const showMfgMap=/厂商|厂家|制造商|供应商|brand|manufacturer/i.test(val||'');
     h+=`<div style="display:flex;align-items:center;gap:4px">
-      <span style="min-width:16px;font-size:12px;${req?'color:#c00000':'color:#888'}">${i+1}</span>
+      <span style="min-width:42px;font-size:12px;${req?'color:#c00000':'color:#888'}">${role}</span>
       <select id="fsGlk_${i}" style="width:180px;font-size:12px" onchange="fsGLKChange()">${opts}</select>
-      <label title="勾选后，本地该列会先通过厂商命名映射表转换为 HQ 规范厂商名，再参与匹配" style="font-size:12px;color:#555;display:${showMfgMap?'flex':'none'};align-items:center;gap:2px;white-space:nowrap">
-        <input type="checkbox" id="fsGlkMfg_${i}" onchange="fsGLKChange()"${mfgChecked}>厂商映射
-      </label>
-      ${_fsGlobalLocalKeys.length>1?`<button class="btn btn-sm btn-gray" style="padding:0 6px;font-size:12px;line-height:20px" onclick="fsRemoveGLK(${i})">×</button>`:''}
+      ${!fixed?`<button class=\"btn btn-sm btn-gray\" style=\"padding:0 6px;font-size:12px;line-height:20px\" onclick=\"fsRemoveGLK(${i})\">x</button>`:''}
     </div>`;
   });
   h+=`<button class="btn btn-sm btn-gray" style="padding:0 8px;font-size:12px;line-height:20px;margin-top:2px" onclick="fsAddGLK()">+</button>`;
@@ -2467,21 +2484,13 @@ function fsRenderGLKSection(){
 }
 
 function fsGLKChange(){
-  _fsGlobalLocalKeys=_fsGlobalLocalKeys.map((_,i)=>($(`fsGlk_${i}`)||{value:''}).value.trim());
-  _fsGlobalLocalKeyTransforms=_fsGlobalLocalKeys.map((k,i)=>
-    (/厂商|厂家|制造商|供应商|brand|manufacturer/i.test(k||'') && ($(`fsGlkMfg_${i}`)||{checked:false}).checked)
-      ? 'manufacturer_alias' : ''
-  );
+  fsReadGLKFromDom();
   fsSaveConfig();
   if(fsCurIdx!==null) fsSelectTable(fsCurIdx);
 }
 
 function fsAddGLK(){
-  _fsGlobalLocalKeys=_fsGlobalLocalKeys.map((_,i)=>($(`fsGlk_${i}`)||{value:''}).value.trim());
-  _fsGlobalLocalKeyTransforms=_fsGlobalLocalKeys.map((k,i)=>
-    (/厂商|厂家|制造商|供应商|brand|manufacturer/i.test(k||'') && ($(`fsGlkMfg_${i}`)||{checked:false}).checked)
-      ? 'manufacturer_alias' : ''
-  );
+  fsReadGLKFromDom();
   _fsGlobalLocalKeys.push('');
   _fsGlobalLocalKeyTransforms.push('');
   fsTables.forEach(t=>Object.values(t.sheet_configs).forEach(sc=>sc.feishu_key_names.push('')));
@@ -2490,18 +2499,14 @@ function fsAddGLK(){
 }
 
 function fsRemoveGLK(i){
-  _fsGlobalLocalKeys=_fsGlobalLocalKeys.map((_,j)=>($(`fsGlk_${j}`)||{value:''}).value.trim());
-  _fsGlobalLocalKeyTransforms=_fsGlobalLocalKeys.map((k,j)=>
-    (/厂商|厂家|制造商|供应商|brand|manufacturer/i.test(k||'') && ($(`fsGlkMfg_${j}`)||{checked:false}).checked)
-      ? 'manufacturer_alias' : ''
-  );
+  if(i<2) return;
+  fsReadGLKFromDom();
   _fsGlobalLocalKeys.splice(i,1);
   _fsGlobalLocalKeyTransforms.splice(i,1);
-  if(!_fsGlobalLocalKeys.length) _fsGlobalLocalKeys=[''];
-  if(!_fsGlobalLocalKeyTransforms.length) _fsGlobalLocalKeyTransforms=[''];
+  fsEnsureBaseLocalKeySlots();
   fsTables.forEach(t=>Object.values(t.sheet_configs).forEach(sc=>{
     if(sc.feishu_key_names.length>i) sc.feishu_key_names.splice(i,1);
-    if(!sc.feishu_key_names.length) sc.feishu_key_names=[''];
+    while(sc.feishu_key_names.length<2) sc.feishu_key_names.push('');
   }));
   fsRenderGLKSection(); fsSaveConfig();
   if(fsCurIdx!==null) fsSelectTable(fsCurIdx);
@@ -2520,6 +2525,7 @@ function fsSaveConfig(){
     global_local_keys: _fsGlobalLocalKeys.slice(),
     global_local_key_transforms: _fsGlobalLocalKeyTransforms.slice(),
     global_fetch_map: _fsGlobalFetchMap.map(r=>({std_name:r.std_name||'',default_alias:r.default_alias||''})),
+    include_preferred_with_relation: !!_fsIncludePreferredWithRelation,
     tables: fsTables.map(t=>({
       idx: t.idx, token: t.token||'',
       _sheets: t._sheets||[], _connected: !!t._connected,
@@ -2530,6 +2536,8 @@ function fsSaveConfig(){
           feishu_key_names: sc.feishu_key_names||[''],
           fetch_col_names: sc.fetch_col_names||[],
           fetch_col_aliases: sc.fetch_col_aliases||{},
+          enable_recommendations: !!sc.enabled && !!sc.enable_recommendations,
+          _recommendations_touched: !!sc._recommendations_touched,
           _headers: sc._headers||[],
           cache_key: sc.cache_key||'',
           cache_row_count: sc.cache_row_count||0,
@@ -2587,8 +2595,11 @@ function fsClearConfig(){
   try{ localStorage.removeItem(_FS_KEY); }catch(e){}
   window._fsSavedCfg = null;
   _fsGlobalFetchMap = [];
-  _fsGlobalLocalKeys = [''];
-  _fsGlobalLocalKeyTransforms = [''];
+  _fsGlobalLocalKeys = ['', ''];
+  _fsGlobalLocalKeyTransforms = ['', 'manufacturer_alias'];
+  _fsIncludePreferredWithRelation = false;
+  const clearRelOpt=$('fsIncludePreferredWithRelation');
+  if(clearRelOpt) clearRelOpt.checked=false;
   fsTables = FS_TABLES.map((t,i)=>({...t, idx:i, _sheets:[], _connected:false, sheet_configs:{}}));
   renderFsTrees();
   fsRenderGFMSection();
@@ -2601,9 +2612,12 @@ function fsRestoreDefault(){
   if(!confirm('将用内置默认配置覆盖当前所有设置（本地键、提取列、所有 Sheet 映射），确定？')) return;
   // 恢复全局本地键
   _fsGlobalLocalKeys = (FS_DEFAULT_CONFIG.global_local_keys||[]).length
-    ? FS_DEFAULT_CONFIG.global_local_keys.slice() : [''];
+    ? FS_DEFAULT_CONFIG.global_local_keys.slice() : ['', ''];
   _fsGlobalLocalKeyTransforms = (FS_DEFAULT_CONFIG.global_local_key_transforms||[]).slice(0, _fsGlobalLocalKeys.length);
-  while(_fsGlobalLocalKeyTransforms.length<_fsGlobalLocalKeys.length) _fsGlobalLocalKeyTransforms.push('');
+  fsEnsureBaseLocalKeySlots();
+  _fsIncludePreferredWithRelation = false;
+  const relOpt=$('fsIncludePreferredWithRelation');
+  if(relOpt) relOpt.checked=false;
   // 恢复全局提取列
   _fsGlobalFetchMap = (FS_DEFAULT_CONFIG.global_fetch_map||[]).map(n=>({std_name:n,default_alias:n}));
   if(!_fsGlobalFetchMap.length) _fsGlobalFetchMap=[{std_name:'HQ料号',default_alias:'HQ料号'},{std_name:'HQ规格型号',default_alias:'HQ规格型号'},{std_name:'HQ制造商',default_alias:'HQ制造商'},{std_name:'优选等级',default_alias:'优选等级'},{std_name:'HQ描述',default_alias:'HQ描述'}];
@@ -2618,6 +2632,12 @@ function fsRestoreDefault(){
         enabled: !!ds.enabled,
         feishu_key_names: ds.feishu_key_names||[],
         fetch_col_aliases: ds.fetch_col_aliases||{},
+        enable_recommendations: !!ds.enabled && (
+          Object.prototype.hasOwnProperty.call(ds,'enable_recommendations')
+            ? !!ds.enable_recommendations
+            : _fsDefaultRecommendationsForTableName(t.name)
+        ),
+        _recommendations_touched: Object.prototype.hasOwnProperty.call(ds,'enable_recommendations'),
         fetch_col_names: [],
         _headers: [], _expanded: false,
         cache_key:'', cache_row_count:0, cache_fetched_at:0,
@@ -2652,7 +2672,9 @@ function fsRestoreDefault(){
         t._connected = !!st._connected;
         const saved_sc = st.sheet_configs || {};
         Object.entries(saved_sc).forEach(([sid, sc])=>{
-          t.sheet_configs[sid] = Object.assign(_mkSheetCfg(), sc, {_expanded:false, _cache_stale:false});
+          const merged = Object.assign(_mkSheetCfg(), sc, {_expanded:false, _cache_stale:false});
+          merged.enable_recommendations = !!merged.enabled && !!merged.enable_recommendations;
+          t.sheet_configs[sid] = merged;
         });
       });
     }
@@ -2706,14 +2728,15 @@ function initFeishu(){
     if(saved.user_id)  $('fsUserId').value  = saved.user_id;
     if(saved.global_local_keys && saved.global_local_keys.length){
       _fsGlobalLocalKeys=saved.global_local_keys.slice();
-      if(!_fsGlobalLocalKeys.length) _fsGlobalLocalKeys=[''];
+      if(!_fsGlobalLocalKeys.length) _fsGlobalLocalKeys=['', ''];
     }
     if(saved.global_local_key_transforms && saved.global_local_key_transforms.length){
       _fsGlobalLocalKeyTransforms=saved.global_local_key_transforms.slice(0,_fsGlobalLocalKeys.length);
     }else{
       _fsGlobalLocalKeyTransforms=_fsGlobalLocalKeys.map(()=>'');
     }
-    while(_fsGlobalLocalKeyTransforms.length<_fsGlobalLocalKeys.length) _fsGlobalLocalKeyTransforms.push('');
+    fsEnsureBaseLocalKeySlots();
+    _fsIncludePreferredWithRelation = !!saved.include_preferred_with_relation;
     if(_fsGlobalLocalKeys.length===1 && !_fsGlobalLocalKeys.includes('厂商')){
       _fsGlobalLocalKeys.push('厂商');
       _fsGlobalLocalKeyTransforms.push('manufacturer_alias');
@@ -2731,6 +2754,11 @@ function initFeishu(){
   });
   fsRenderGFMSection();
   fsRenderGLKSection();
+  const relOpt=$('fsIncludePreferredWithRelation');
+  if(relOpt){
+    relOpt.checked=!!_fsIncludePreferredWithRelation;
+    relOpt.onchange=function(){_fsIncludePreferredWithRelation=this.checked;fsSaveConfig();};
+  }
   // 上传文件后更新本地键 selects
   const _updateLkList=()=>{ fsRenderGLKSection(); };
   window._updateLkList=_updateLkList;
@@ -2870,7 +2898,11 @@ function fsSelectTable(idx){
         let lkOpts='';(window._fsLocalHeaders||[]).forEach(h2=>lkOpts+=`<option value="${_escH(h2)}">`);
         let fkOpts='';headers.forEach(h2=>fkOpts+=`<option value="${_escH(h2)}">`);
         h+=`<datalist id="${lkDl}">${lkOpts}</datalist><datalist id="${fkDl}">${fkOpts}</datalist>`;
-        h+=`<div style="padding:8px 12px;border-top:1px solid #eee;display:flex;gap:24px;align-items:flex-start">`;
+        h+=`<div style="padding:8px 12px;border-top:1px solid #eee;display:flex;flex-direction:column;gap:8px">`;
+        h+=`<label style="font-size:12px;color:${sc.enabled?'#444':'#999'};display:flex;align-items:center;gap:4px">
+          <input type="checkbox" ${sc.enabled&&sc.enable_recommendations?'checked':''} ${sc.enabled?'':'disabled'} onchange="fsToggleSheetRecommendations(${idx},'${sid}',this.checked)"> 优选可替代推荐
+        </label>`;
+        h+=`<div style="display:flex;gap:24px;align-items:flex-start">`;
         // ── 左列：匹配键 ──
         h+=`<div style="flex:0 0 auto;min-width:260px">`;
         h+=`<div style="font-size:12px;font-weight:600;margin-bottom:6px;color:#333">匹配键（飞书侧）</div>`;
@@ -2911,6 +2943,7 @@ function fsSelectTable(idx){
         }
         h+=`</div>`;
         h+=`</div>`;  // end flex row
+        h+=`</div>`;  // end expanded config
       }
       h+=`</div>`;
     });
@@ -2923,10 +2956,27 @@ function fsSelectTable(idx){
   $('fsDetail').innerHTML=h;
 }
 
+function fsToggleSheetRecommendations(tIdx, sid, val){
+  const t=fsTables[tIdx];
+  if(!t.sheet_configs[sid]) t.sheet_configs[sid]=_mkSheetCfg();
+  const sc=t.sheet_configs[sid];
+  sc.enable_recommendations=!!sc.enabled && !!val;
+  sc._recommendations_touched=true;
+  fsSaveConfig();
+}
+
 function fsToggleSheetEnable(tIdx, sid, val){
   const t=fsTables[tIdx];
   if(!t.sheet_configs[sid]) t.sheet_configs[sid]=_mkSheetCfg();
-  t.sheet_configs[sid].enabled=val;
+  const sc=t.sheet_configs[sid];
+  sc.enabled=!!val;
+  if(sc.enabled){
+    if(!sc._recommendations_touched){
+      sc.enable_recommendations=_fsDefaultRecommendationsForTableName(t.name);
+    }
+  }else{
+    sc.enable_recommendations=false;
+  }
   renderFsTrees();fsSaveConfig();
   // re-render without collapsing current expand state
   fsSelectTable(tIdx);
@@ -3071,8 +3121,21 @@ async function fsBatchUpdate(){
       if(!t._sheets) continue; // 连接失败则跳过此库
       for(const sid of enabledSids){
         const sheetTitle=(t._sheets||[]).find(s=>s.sheetId===sid)?.title||sid;
-        _bh.textContent=`缓存 ${t.name}/${sheetTitle}`;
+        _bh.textContent=`\u6e05\u7406\u65e7\u7f13\u5b58 ${t.name}/${sheetTitle}`;
         try{
+          try{
+            await fetch('/api/feishu/cache/clear',{method:'POST',headers:{'Content-Type':'application/json'},
+              body:JSON.stringify({token:t.token,sheet_id:sid})});
+          }catch(clearErr){console.error('\u6e05\u7406\u65e7\u7f13\u5b58\u5931\u8d25:',t.name,sid,clearErr);}
+          if(t.sheet_configs[sid]){
+            const oldSc=t.sheet_configs[sid];
+            oldSc.cache_key='';oldSc.cache_row_count=0;oldSc.cache_fetched_at=0;
+            oldSc.row_count_at_cache=0;oldSc._cache_stale=false;
+          }
+          renderFsTrees();
+          if(fsCurIdx===i) fsSelectTable(i);
+          fsSaveConfig();
+          _bh.textContent=`\u7f13\u5b58 ${t.name}/${sheetTitle}`;
           const r=await fetch('/api/feishu/load',{method:'POST',headers:{'Content-Type':'application/json'},
             body:JSON.stringify({base_url:$('fsBaseUrl').value,origin:$('fsOrigin').value,user_id:$('fsUserId').value,token:t.token,sheet_id:sid})});
           const d=await r.json();
@@ -3099,14 +3162,18 @@ async function fsBatchUpdate(){
 async function fsRunMatch(){
   const f=$('fsFile').files[0];if(!f){showInlineError('fsError','请先上传 BOM 文件','fsRunStatus2');return;}
 
-  // 全局本地键
+  // \u5168\u5c40\u672c\u5730\u952e
+  fsReadGLKFromDom();
+  const modelLocalKey=(_fsGlobalLocalKeys[0]||'').trim();
+  const makerLocalKey=(_fsGlobalLocalKeys[1]||'').trim();
+  if(!modelLocalKey){showInlineError('fsError','\u672a\u9009\u62e9\u578b\u53f7\uff0c\u8bf7\u5148\u9009\u62e9\u672c\u5730 Sheet \u7684\u578b\u53f7\u6620\u5c04','fsRunStatus2');return;}
+  if(!makerLocalKey){showInlineError('fsError','\u672a\u9009\u62e9\u5382\u5546\uff0c\u8bf7\u5148\u9009\u62e9\u672c\u5730 Sheet \u7684\u5382\u5546\u6620\u5c04','fsRunStatus2');return;}
   const gLocalKeyPairs=_fsGlobalLocalKeys.map((k,i)=>({
     name:(k||'').trim(),
     transform:_fsGlobalLocalKeyTransforms[i]||'',
   })).filter(k=>k.name);
   const gLocalKeys=gLocalKeyPairs.map(k=>k.name);
   const gLocalKeyTransforms=gLocalKeyPairs.map(k=>k.transform);
-  if(!gLocalKeys.length){showInlineError('fsError','请先填写本地匹配键（本地 BOM 文件区域）','fsRunStatus2');return;}
 
   // 构建 per-sheet 配置
   const tables=[];
@@ -3135,6 +3202,7 @@ async function fsRunMatch(){
         local_key_transforms:lkt,
         fetch_col_names:sc.fetch_col_names||[],
         fetch_col_map: fetch_col_map,
+        enable_recommendations: !!sc.enable_recommendations,
         cache_key:sc.cache_key||'',
       });
     });
@@ -3154,6 +3222,7 @@ async function fsRunMatch(){
   const config={
     base_url:$('fsBaseUrl').value, origin:$('fsOrigin').value, user_id:$('fsUserId').value,
     sheet_name:$('fsSheet').value, header_row:parseInt($('fsHdr').value)||1,
+    include_preferred_with_relation: !!_fsIncludePreferredWithRelation,
     tables,
   };
   const fd=new FormData();fd.append('file',f);fd.append('config',JSON.stringify(config));

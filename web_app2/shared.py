@@ -19,16 +19,16 @@ from flask import request, jsonify, send_file
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads")
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "outputs")
 CACHE_DIR  = os.path.join(os.path.dirname(__file__), "cache")
-PLATFORM_VERSION = "2.2.2"
+PLATFORM_VERSION = "2.2.6"
 TOOL_VERSIONS = {
     "bom": "5.10.0",
     "bom-checklist": "0.1.4",
-    "feishu": "3.0.4",
+    "feishu": "3.0.8",
     "manufacturer-alias": "1.0.0",
     "pref-rate": "1.0.0",
     "plm": "1.7.1",
     "plm-auto": "1.2.0",
-    "bom-compare": "0.3.2",
+    "bom-compare": "0.3.3",
     "free-bom-compare": "1.1.4",
     "customer-hq-compare": "1.1.1",
     "hq-version-compare": "1.0.1",
@@ -39,7 +39,7 @@ TOOL_VERSIONS = {
 }
 
 BAD_EXCEL_ERROR = "\u65e0\u6cd5\u8bfb\u53d6\u6587\u4ef6\uff0c\u53ef\u80fd\u539f\u56e0\uff1a\u2460 \u6587\u4ef6\u662f .xls \u65e7\u683c\u5f0f\uff08\u8bf7\u53e6\u5b58\u4e3a .xlsx\uff09\uff1b\u2461 \u516c\u53f8\u52a0\u89e3\u5bc6\u8f6f\u4ef6\u672a\u542f\u52a8\u5bfc\u81f4\u6587\u4ef6\u88ab\u52a0\u5bc6\uff0c\u8bf7\u68c0\u67e5\u540e\u91cd\u8bd5"
-XLS_CONVERT_ERROR = "\u65e0\u6cd5\u76f4\u63a5\u8bfb\u53d6\u8be5 .xls \u6587\u4ef6\u3002\u8bf7\u786e\u8ba4\u670d\u52a1\u5668\u4e3a Windows \u4e14\u5df2\u5b89\u88c5\u53ef\u89e3\u5bc6\u6b64\u6587\u4ef6\u7684 Excel\uff0c\u6216\u5148\u5728 Excel \u4e2d\u53e6\u5b58\u4e3a .xlsx \u540e\u518d\u4e0a\u4f20\u3002"
+XLS_CONVERT_ERROR = "\u65e0\u6cd5\u8bfb\u53d6\u8be5 .xls \u6587\u4ef6\u3002\u7cfb\u7edf\u5df2\u5c1d\u8bd5\u672c\u5730\u517c\u5bb9\u8f6c\u6362\u548c Excel \u81ea\u52a8\u8f6c\u6362\uff1b\u8bf7\u786e\u8ba4\u6587\u4ef6\u672a\u635f\u574f\u3001\u672a\u88ab\u5bc6\u7801\u6216\u4f01\u4e1a\u52a0\u5bc6\u4fdd\u62a4\u3002\u82e5\u6587\u4ef6\u53d7\u4fdd\u62a4\uff0c\u8bf7\u5728\u5177\u6709\u6388\u6743\u7684 Excel \u4e2d\u6253\u5f00\u5e76\u53e6\u5b58\u4e3a .xlsx \u540e\u518d\u4e0a\u4f20\u3002"
 
 FEISHU_BASE_URLS = {
     "huaqin": "https://mcenter.huaqin.com",
@@ -133,13 +133,71 @@ def _convert_xls_with_excel(src_path, uid, prefix="converted"):
     try:
         subprocess.run(
             ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script],
-            check=True, capture_output=True, text=True, timeout=90,
+            check=True, capture_output=True, timeout=90,
         )
     except Exception as exc:
         raise ValueError(XLS_CONVERT_ERROR) from exc
     if not os.path.exists(out_path):
         raise ValueError(XLS_CONVERT_ERROR)
     return out_path
+
+def _convert_xls_with_xlrd(src_path, uid, prefix="converted"):
+    """Convert a standard legacy XLS workbook without requiring Office."""
+    try:
+        import xlrd
+    except ImportError as exc:
+        raise RuntimeError("xlrd is not installed") from exc
+
+    out_path = os.path.join(UPLOAD_DIR, f"{prefix}_converted_{uid}.xlsx")
+    source_book = None
+    try:
+        source_book = xlrd.open_workbook(src_path)
+        if source_book.nsheets < 1:
+            raise ValueError("XLS workbook has no sheets")
+
+        target_book = Workbook()
+        for sheet_index in range(source_book.nsheets):
+            source_sheet = source_book.sheet_by_index(sheet_index)
+            target_sheet = target_book.active if sheet_index == 0 else target_book.create_sheet()
+            target_sheet.title = source_sheet.name or f"Sheet{sheet_index + 1}"
+
+            for row_index in range(source_sheet.nrows):
+                for col_index in range(source_sheet.ncols):
+                    source_cell = source_sheet.cell(row_index, col_index)
+                    value = source_cell.value
+                    if source_cell.ctype == xlrd.XL_CELL_DATE:
+                        value = xlrd.xldate_as_datetime(value, source_book.datemode)
+                    elif source_cell.ctype == xlrd.XL_CELL_BOOLEAN:
+                        value = bool(value)
+                    elif source_cell.ctype == xlrd.XL_CELL_ERROR:
+                        value = xlrd.error_text_from_code.get(int(value), "#ERROR!")
+                    target_sheet.cell(row=row_index + 1, column=col_index + 1, value=value)
+
+        target_book.save(out_path)
+        return out_path
+    except Exception:
+        try:
+            if os.path.exists(out_path):
+                os.remove(out_path)
+        except OSError:
+            pass
+        raise
+    finally:
+        if source_book is not None:
+            source_book.release_resources()
+
+
+def _convert_xls(src_path, uid, prefix="converted"):
+    """Prefer a headless reader; retain Excel as the protected-file fallback."""
+    try:
+        return _convert_xls_with_xlrd(src_path, uid, prefix)
+    except Exception:
+        try:
+            return _convert_xls_with_excel(src_path, uid, prefix)
+        except Exception as exc:
+            raise ValueError(XLS_CONVERT_ERROR) from exc
+
+
 
 
 def _save_uploaded_excel(file, prefix, uid):
@@ -150,7 +208,7 @@ def _save_uploaded_excel(file, prefix, uid):
     if lower.endswith(".xls") and not lower.endswith(".xlsx"):
         raw_path = os.path.join(UPLOAD_DIR, f"{prefix}_{uid}.xls")
         file.save(raw_path)
-        return _convert_xls_with_excel(raw_path, uid, prefix)
+        return _convert_xls(raw_path, uid, prefix)
     path = os.path.join(UPLOAD_DIR, f"{prefix}_{uid}.xlsx")
     file.save(path)
     return path

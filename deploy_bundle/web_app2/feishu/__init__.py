@@ -1,7 +1,7 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """飞书多表格匹配 — Blueprint"""
 
-import os, uuid, json, hashlib, time
+import os, uuid, json, hashlib, time, re
 from flask import Blueprint
 from activity import track_tool_activity
 from shared import (
@@ -10,7 +10,7 @@ from shared import (
     get_column_letter,
     request, jsonify,
     UPLOAD_DIR, OUTPUT_DIR, CACHE_DIR, _cell_str,
-    _open_workbook, _resolve_feishu_base_url, _save_uploaded_excel, _to_int,
+    _open_workbook, _resolve_feishu_base_url, _save_uploaded_excel, _save_or_reuse_uploaded_excel, _to_int,
 )
 from manufacturer_alias import lookup_manufacturer
 
@@ -54,6 +54,16 @@ def _read_cache(key):
         return None
 
 
+
+def _delete_cache(token, sheet_id):
+    key = _mk_cache_key(token, sheet_id)
+    path = _cache_path(key)
+    existed = os.path.exists(path)
+    if existed:
+        os.remove(path)
+    return key, existed
+
+
 def _is_preferred_level(value):
     """判断优选等级是否为优选料。"""
     text = str(value).strip() if value is not None else ''
@@ -89,42 +99,128 @@ def _hq_get_sheets(base_url, origin, user_id, token):
     return [s for s in d["data"]["sheets"] if s.get("title")]
 
 
+
+def _hq_get_values_range(base_url, origin, user_id, token, range_name, timeout=60):
+    params = {
+        "origin": origin,
+        "userId": user_id,
+        "spreadsheetToken": token,
+        "range": range_name,
+        "valueRenderOption": "FormattedValue",
+        "dateTimeRenderOption": "FormattedString",
+    }
+    r = _requests.get(
+        f"{base_url.rstrip('/')}/fs/sheet/v1/getSheetsValue",
+        params=params,
+        timeout=timeout,
+    )
+    r.raise_for_status()
+    d = r.json()
+    if d.get("code") not in (0, 200):
+        raise RuntimeError(f"\u8bfb\u53d6\u5931\u8d25\uff1a{d.get('msg')}")
+    return d["data"]["valueRange"].get("values") or []
+
+
+def _normalize_dense_rows(rows, width, header=None):
+    dense = []
+    for row in rows or []:
+        values = list(row) if isinstance(row, list) else [row]
+        dense.append(values[:width] + [""] * max(0, width - len(values)))
+    if header is not None and dense:
+        dense[0] = list(header)[:width] + [""] * max(0, width - len(header))
+    while dense and not any(_cell_str(v) for v in dense[-1]):
+        dense.pop()
+    return dense
+
+
+def _hq_read_sheet_by_columns(base_url, origin, user_id, token,
+                              sheet_id, row_count, last_header_col, header,
+                              batch_size=3000, progress_cb=None):
+    column_batch_size = max(batch_size, 10000)
+    column_values = []
+    for col_idx in range(1, last_header_col + 1):
+        col_letter = get_column_letter(col_idx)
+        values = []
+        start = 1
+        while start <= row_count:
+            end = min(start + column_batch_size - 1, row_count)
+            expected = end - start + 1
+            batch = _hq_get_values_range(
+                base_url, origin, user_id, token,
+                f"{sheet_id}!{col_letter}{start}:{col_letter}{end}",
+            )
+            if not batch:
+                break
+            for item in batch:
+                values.append(item[0] if isinstance(item, list) and item else item)
+            if len(batch) < expected:
+                break
+            start = end + 1
+        column_values.append(values)
+        if progress_cb:
+            progress_cb(col_idx)
+
+    all_rows = []
+    for row_idx in range(row_count):
+        all_rows.append([
+            col[row_idx] if row_idx < len(col) else ""
+            for col in column_values
+        ])
+    return _normalize_dense_rows(all_rows, last_header_col, header)
+
+
 def _hq_read_sheet(base_url, origin, user_id, token,
                    sheet_id, row_count=200000, col_count=100,
                    batch_size=3000, progress_cb=None):
-    end_col = get_column_letter(max(col_count, 26))
-    all_rows, start = [], 1
-    while start <= max(row_count, 1):
-        end = min(start + batch_size - 1, row_count)
-        params = {
-            "origin": origin, "userId": user_id,
-            "spreadsheetToken": token,
-            "range": f"{sheet_id}!A{start}:{end_col}{end}",
-        }
-        r = _requests.get(
-            f"{base_url.rstrip('/')}/fs/sheet/v1/getSheetsValue",
-            params=params, timeout=60,
-        )
-        r.raise_for_status()
-        d = r.json()
-        if d.get("code") not in (0, 200):
-            raise RuntimeError(f"读取失败：{d.get('msg')}")
-        batch = d["data"]["valueRange"].get("values") or []
-        if all_rows and batch:
-            batch = batch[1:]
-        if not batch:
-            break
-        all_rows.extend(batch)
-        if progress_cb:
-            progress_cb(len(all_rows))
-        expected = end - start + 1
-        skip = 1 if start > 1 else 0
-        if len(batch) < expected - skip:
-            break
-        start = end + 1
-    while all_rows and not any(_cell_str(v) for v in all_rows[-1]):
-        all_rows.pop()
-    return all_rows
+    """Read a sheet using fast range blocks, with dense rows and column fallback."""
+    row_count = max(int(row_count or 1), 1)
+    header_end_col = get_column_letter(max(int(col_count or 26), 26))
+    header_rows = _hq_get_values_range(
+        base_url, origin, user_id, token,
+        f"{sheet_id}!A1:{header_end_col}1",
+        timeout=30,
+    )
+    header = list(header_rows[0]) if header_rows else []
+    last_header_col = 0
+    for idx, value in enumerate(header, 1):
+        if _cell_str(value):
+            last_header_col = idx
+    if not last_header_col:
+        return []
+    header = header[:last_header_col]
+    end_col = get_column_letter(last_header_col)
+
+    try:
+        all_rows, start = [], 1
+        while start <= row_count:
+            end = min(start + batch_size - 1, row_count)
+            expected = end - start + 1
+            batch = _hq_get_values_range(
+                base_url, origin, user_id, token,
+                f"{sheet_id}!A{start}:{end_col}{end}",
+                timeout=90,
+            )
+            if all_rows and batch:
+                batch = batch[1:]
+            if not batch:
+                break
+            all_rows.extend(batch)
+            if progress_cb:
+                progress_cb(len(all_rows))
+            skip = 1 if start > 1 else 0
+            if len(batch) < expected - skip:
+                break
+            start = end + 1
+        if all_rows:
+            return _normalize_dense_rows(all_rows, last_header_col, header)
+    except Exception:
+        pass
+
+    return _hq_read_sheet_by_columns(
+        base_url, origin, user_id, token, sheet_id,
+        row_count, last_header_col, header,
+        batch_size=batch_size, progress_cb=progress_cb,
+    )
 
 
 def _map_local_key_value(value, transform=''):
@@ -136,9 +232,124 @@ def _map_local_key_value(value, transform=''):
     return text
 
 
+
 def _match_source_priority(name):
     text = str(name or '')
-    return 1 if ('对应关系' in text or '关系库' in text) else 0
+    return 1 if ('\u5bf9\u5e94\u5173\u7cfb' in text or '\u5173\u7cfb\u5e93' in text) else 0
+
+
+def _is_passive_recommendation_source(name):
+    text = str(name or '').lower()
+    return 'mlcc' in text or '\u7535\u963b' in text
+
+
+_HQ_NUMBER_OUTPUT = "HQ\u6599\u53f7"
+_HQ_NUMBER_ALIASES = (
+    "HQ\u6599\u53f7",
+    "HQ\u7f16\u7801",
+    "\u7269\u6599\u7f16\u7801",
+    "\u534e\u52e4\u6599\u53f7",
+    "\u534e\u52e4\u7269\u6599\u53f7",
+    "\u6599\u53f7",
+    "HQ PN",
+    "HQPN",
+)
+
+
+def _find_hq_number_col(headers, col_lookup):
+    candidates = [col_lookup.get(_HQ_NUMBER_OUTPUT), _HQ_NUMBER_OUTPUT, *_HQ_NUMBER_ALIASES]
+    for name in candidates:
+        name = _cell_str(name)
+        if name and name in headers:
+            return name
+    lowered = {_cell_str(h).lower(): h for h in headers}
+    for name in candidates:
+        key = _cell_str(name).lower()
+        if key and key in lowered:
+            return lowered[key]
+    return ''
+
+
+def _extract_hq_number(row_dict, values, all_fetch_cols, col_lookup):
+    hq_index = all_fetch_cols.index(_HQ_NUMBER_OUTPUT) if _HQ_NUMBER_OUTPUT in all_fetch_cols else -1
+    if 0 <= hq_index < len(values):
+        value = _cell_str(values[hq_index])
+        if value:
+            return value
+    for name in [col_lookup.get(_HQ_NUMBER_OUTPUT), *_HQ_NUMBER_ALIASES]:
+        value = _cell_str(row_dict.get(_cell_str(name), ''))
+        if value:
+            return value
+    return ''
+
+
+def _build_hq_lookup(rows, headers, col_lookup):
+    hq_col = _find_hq_number_col(headers, col_lookup)
+    lookup = {}
+    if not hq_col:
+        return lookup, ''
+    for row in rows:
+        hq_no = _cell_str(row.get(hq_col, ''))
+        if hq_no:
+            lookup.setdefault(hq_no, []).append(row)
+    return lookup, hq_col
+
+
+def _fetch_values_for_row(row_dict, all_fetch_cols, col_lookup):
+    return [row_dict.get(col_lookup.get(col_name, col_name), '') for col_name in all_fetch_cols]
+
+
+def _preferred_sort_score(value):
+    text = _cell_str(value)
+    if not text:
+        return (0, '')
+    lowered = text.lower()
+    negative_markers = ('\u975e\u4f18\u9009', '\u4e0d\u4f18\u9009', '\u975e\u63a8\u8350', 'not preferred', '\u6dd8\u6c70')
+    if any(marker in lowered for marker in negative_markers):
+        return (-1, text)
+    try:
+        return (float(text), text)
+    except ValueError:
+        pass
+    number_match = re.search(r'\d+(?:\.\d+)?', text)
+    if number_match:
+        try:
+            return (float(number_match.group(0)), text)
+        except ValueError:
+            pass
+    if '\u4f18\u9009' in text or 'preferred' in lowered:
+        return (9, text)
+    if text.upper() in ('PI', 'P'):
+        return (8, text)
+    if '\u9650\u9009' in text:
+        return (2, text)
+    return (1, text)
+
+
+def _source_label(item):
+    source = item.get('source', '')
+    match_type = item.get('match_type', '')
+    if match_type == '\u4f18\u9009\u53ef\u66ff\u4ee3\u63a8\u8350':
+        return f"{source}\uff08{match_type}\uff09"
+    return source
+
+
+def _merge_match_groups(items):
+    grouped = {}
+    for item in items:
+        group_key = tuple(item['values'])
+        grouped_item = grouped.setdefault(group_key, {
+            'values': item['values'],
+            'sources': [],
+            'rows': [],
+            'tables': [],
+        })
+        source = _source_label(item)
+        if source not in grouped_item['sources']:
+            grouped_item['sources'].append(source)
+        grouped_item['rows'].append(item.get('row') or {})
+        grouped_item['tables'].append(item.get('table') or {})
+    return list(grouped.values())
 
 
 def _do_match_multi(local_ws, local_header_row, prepared_tables, all_fetch_cols, out_file):
@@ -148,14 +359,14 @@ def _do_match_multi(local_ws, local_header_row, prepared_tables, all_fetch_cols,
 
     wb_out = Workbook()
     ws_out = wb_out.active
-    ws_out.title = "匹配结果"
+    ws_out.title = "\u5339\u914d\u7ed3\u679c"
     thin = Side(style="thin")
     bdr = Border(left=thin, right=thin, top=thin, bottom=thin)
     hdr_fill = PatternFill("solid", fgColor="D9D9D9")
     hq_fill = PatternFill("solid", fgColor="FFFF00")
     src_fill = PatternFill("solid", fgColor="BDD7EE")
 
-    out_hdrs = list(local_header) + all_fetch_cols + ["来源表格"]
+    out_hdrs = list(local_header) + all_fetch_cols + ["\u6765\u6e90\u8868\u683c"]
     for ci, h in enumerate(out_hdrs, 1):
         c = ws_out.cell(row=1, column=ci, value=h or "")
         c.font = Font(bold=True)
@@ -188,39 +399,108 @@ def _do_match_multi(local_ws, local_header_row, prepared_tables, all_fetch_cols,
                 )
                 for i, lc in enumerate(pt["local_key_cols"])
             )
-            if not any(k for k in key):
+            if not key or not all(k for k in key):
                 continue
             matches = pt["lookup"].get(key, [])
             if not matches:
                 continue
             for mdict in matches:
-                fetch_values = []
-                for col_name in all_fetch_cols:
-                    lookup_name = pt.get("col_lookup", {}).get(col_name, col_name)
-                    fetch_values.append(mdict.get(lookup_name, ""))
                 candidate_matches.append({
-                    "values": fetch_values,
+                    "values": _fetch_values_for_row(mdict, all_fetch_cols, pt.get("col_lookup", {})),
                     "source": pt["name"],
                     "priority": pt.get("source_priority", 0),
+                    "match_type": "\u4e25\u683c\u5339\u914d",
+                    "include_with_relation": pt.get("include_with_relation", False),
+                    "table": pt,
+                    "row": mdict,
                 })
 
-        grouped_matches = {}
+        if candidate_matches:
+            include_all_strict_sources = any(item.get("include_with_relation") for item in candidate_matches)
+            if include_all_strict_sources:
+                seen_direct = {(id(item.get("table")), id(item.get("row"))) for item in candidate_matches}
+                relation_hq_numbers = []
+                for item in candidate_matches:
+                    if item.get("priority", 0) <= 0:
+                        continue
+                    hq_no = _extract_hq_number(
+                        item.get("row") or {},
+                        item.get("values") or [],
+                        all_fetch_cols,
+                        (item.get("table") or {}).get("col_lookup", {}),
+                    )
+                    if hq_no:
+                        relation_hq_numbers.append(hq_no)
+                for hq_no in relation_hq_numbers:
+                    for pt in prepared_tables:
+                        if pt.get("source_priority", 0) > 0:
+                            continue
+                        for mdict in (pt.get("hq_lookup") or {}).get(hq_no, []):
+                            direct_key = (id(pt), id(mdict))
+                            if direct_key in seen_direct:
+                                continue
+                            seen_direct.add(direct_key)
+                            candidate_matches.append({
+                                "values": _fetch_values_for_row(mdict, all_fetch_cols, pt.get("col_lookup", {})),
+                                "source": pt["name"],
+                                "priority": pt.get("source_priority", 0),
+                                "match_type": "\u4e25\u683c\u5339\u914d",
+                                "include_with_relation": True,
+                                "table": pt,
+                                "row": mdict,
+                            })
+
+        output_groups = []
         if candidate_matches:
             max_priority = max(item["priority"] for item in candidate_matches)
-            for item in candidate_matches:
-                if item["priority"] != max_priority:
-                    continue
-                group_key = tuple(item["values"])
-                grouped = grouped_matches.setdefault(group_key, {
-                    "values": item["values"],
-                    "sources": [],
-                })
-                if item["source"] not in grouped["sources"]:
-                    grouped["sources"].append(item["source"])
+            include_all_strict_sources = any(item.get("include_with_relation") for item in candidate_matches)
+            selected_matches = candidate_matches if include_all_strict_sources else [
+                item for item in candidate_matches if item["priority"] == max_priority
+            ]
+            strict_groups = _merge_match_groups(selected_matches)
+            output_groups.extend(strict_groups)
 
-        if grouped_matches:
+            seen_values = {tuple(group["values"]) for group in output_groups}
+            recommendation_items = []
+            for group in strict_groups:
+                for pt, strict_row in zip(group.get("tables") or [], group.get("rows") or []):
+                    if not pt.get("passive_recommendation"):
+                        continue
+                    desc_col = pt.get("description_col")
+                    pref_col = pt.get("preferred_col")
+                    if not desc_col or not pref_col:
+                        continue
+                    desc_value = _cell_str(strict_row.get(desc_col, ""))
+                    if not desc_value:
+                        continue
+                    for mdict in pt.get("rows", []):
+                        if _cell_str(mdict.get(desc_col, "")) != desc_value:
+                            continue
+                        values = _fetch_values_for_row(mdict, all_fetch_cols, pt.get("col_lookup", {}))
+                        if tuple(values) in seen_values:
+                            continue
+                        seen_values.add(tuple(values))
+                        recommendation_items.append({
+                            "values": values,
+                            "source": pt["name"],
+                            "priority": pt.get("source_priority", 0),
+                            "match_type": "\u4f18\u9009\u53ef\u66ff\u4ee3\u63a8\u8350",
+                            "sort_score": _preferred_sort_score(mdict.get(pref_col, "")),
+                            "row": mdict,
+                            "table": pt,
+                        })
+            recommendation_items.sort(
+                key=lambda item: (
+                    item.get("sort_score", (0, ""))[0],
+                    item.get("sort_score", (0, ""))[1],
+                ),
+                reverse=True,
+            )
+            output_groups.extend(_merge_match_groups(recommendation_items))
+
+        if output_groups:
             first = True
-            for grouped in grouped_matches.values():
+            for grouped in output_groups:
                 for ci, val in enumerate(row_vals, 1):
                     c = ws_out.cell(row=dr, column=ci, value=val if first else None)
                     c.alignment = Alignment(horizontal="left", vertical="center")
@@ -231,7 +511,7 @@ def _do_match_multi(local_ws, local_header_row, prepared_tables, all_fetch_cols,
                     c.alignment = Alignment(horizontal="left", vertical="center")
                     c.border = bdr
                 src_col = max_local_col + len(all_fetch_cols) + 1
-                c = ws_out.cell(row=dr, column=src_col, value="；".join(grouped["sources"]))
+                c = ws_out.cell(row=dr, column=src_col, value="\uff1b".join(grouped["sources"]))
                 c.fill = src_fill
                 c.alignment = Alignment(horizontal="center", vertical="center")
                 c.border = bdr
@@ -245,7 +525,7 @@ def _do_match_multi(local_ws, local_header_row, prepared_tables, all_fetch_cols,
                 c.border = bdr
             for j in range(len(all_fetch_cols)):
                 ws_out.cell(row=dr, column=max_local_col + j + 1).border = bdr
-            c = ws_out.cell(row=dr, column=max_local_col + len(all_fetch_cols) + 1, value="未匹配")
+            c = ws_out.cell(row=dr, column=max_local_col + len(all_fetch_cols) + 1, value="\u672a\u5339\u914d")
             c.border = bdr
             unmatched += 1
             dr += 1
@@ -292,6 +572,20 @@ def api_feishu_load():
             'fetched_at': time.time(),
             'row_count_at_cache': row_count_at_cache,
         })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@feishu_bp.route('/api/feishu/cache/clear', methods=['POST'])
+def api_feishu_cache_clear():
+    data = request.get_json(silent=True) or {}
+    token = str(data.get('token') or '').strip()
+    sheet_id = str(data.get('sheet_id') or '').strip()
+    if not token or not sheet_id:
+        return jsonify({'success': False, 'error': '\u8bf7\u63d0\u4f9b Token \u548c Sheet ID'})
+    try:
+        key, existed = _delete_cache(token, sheet_id)
+        return jsonify({'success': True, 'cache_key': key, 'deleted': existed})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
@@ -351,6 +645,7 @@ def api_feishu_match():
     if header_row is None:
         return jsonify({'success': False, 'error': '表头行必须是大于等于 1 的数字'})
     tables_cfg = config.get('tables', [])
+    include_preferred_with_relation = bool(config.get('include_preferred_with_relation', False))
 
     uid = str(uuid.uuid4())[:8]
     try:
@@ -365,6 +660,24 @@ def api_feishu_match():
     local_header = [ws_local.cell(row=header_row, column=ci).value
                     for ci in range(1, ws_local.max_column + 1)]
     local_header_strs = [_cell_str(h) for h in local_header]
+
+    for tcfg in tables_cfg:
+        for scfg in tcfg.get('sheets', []):
+            if not scfg.get('enabled', False):
+                continue
+            local_key_names = [_cell_str(k) for k in scfg.get('local_key_names', [])]
+            if len(local_key_names) < 1 or not local_key_names[0]:
+                wb_local.close()
+                return jsonify({'success': False, 'error': '\u672a\u9009\u62e9\u578b\u53f7\uff0c\u8bf7\u5148\u9009\u62e9\u672c\u5730 Sheet \u7684\u578b\u53f7\u6620\u5c04'})
+            if len(local_key_names) < 2 or not local_key_names[1]:
+                wb_local.close()
+                return jsonify({'success': False, 'error': '\u672a\u9009\u62e9\u5382\u5546\uff0c\u8bf7\u5148\u9009\u62e9\u672c\u5730 Sheet \u7684\u5382\u5546\u6620\u5c04'})
+            if local_key_names[0] not in local_header_strs:
+                wb_local.close()
+                return jsonify({'success': False, 'error': f'\u672c\u5730\u578b\u53f7\u6620\u5c04\u5217\u300c{local_key_names[0]}\u300d\u4e0d\u5b58\u5728\uff0c\u8bf7\u91cd\u65b0\u9009\u62e9'})
+            if local_key_names[1] not in local_header_strs:
+                wb_local.close()
+                return jsonify({'success': False, 'error': f'\u672c\u5730\u5382\u5546\u6620\u5c04\u5217\u300c{local_key_names[1]}\u300d\u4e0d\u5b58\u5728\uff0c\u8bf7\u91cd\u65b0\u9009\u62e9'})
 
     logs = []
     prepared_tables = []
@@ -457,6 +770,8 @@ def api_feishu_match():
             for row in rows[1:]:
                 padded = list(row) + [""] * max(0, len(fs_headers) - len(row))
                 key = tuple(_cell_str(padded[i]) if i < len(padded) else "" for i in feishu_key_indices)
+                if not key or not all(key):
+                    continue
                 row_dict = {fs_headers[i]: _cell_str(padded[i]) if i < len(padded) else ""
                             for i in range(len(fs_headers))}
                 lookup.setdefault(key, []).append(row_dict)
@@ -481,12 +796,29 @@ def api_feishu_match():
                         all_fetch_cols_ordered.append(cn)
                         seen_fetch_cols.add(cn)
 
+            table_rows = []
+            for row in rows[1:]:
+                padded = list(row) + [""] * max(0, len(fs_headers) - len(row))
+                table_rows.append({
+                    fs_headers[i]: _cell_str(padded[i]) if i < len(padded) else ""
+                    for i in range(len(fs_headers))
+                })
+            hq_lookup, hq_lookup_col = _build_hq_lookup(table_rows, fs_headers, col_lookup)
+            enable_recommendations = bool(scfg.get('enable_recommendations', False))
+
             prepared_tables.append({
                 "name": full_name,
                 "local_key_cols": local_key_cols,
                 "local_key_transforms": local_key_transforms,
                 "source_priority": _match_source_priority(full_name),
+                "include_with_relation": include_preferred_with_relation,
+                "passive_recommendation": enable_recommendations,
+                "description_col": col_lookup.get("HQ\u63cf\u8ff0"),
+                "preferred_col": col_lookup.get("\u4f18\u9009\u7b49\u7ea7"),
                 "lookup": lookup,
+                "hq_lookup": hq_lookup,
+                "hq_lookup_col": hq_lookup_col,
+                "rows": table_rows,
                 "col_lookup": col_lookup,
             })
             logs.append(f"[{full_name}] 就绪，{len(lookup)} 个唯一键")
@@ -517,39 +849,38 @@ def api_feishu_match():
         return jsonify({'success': False, 'error': str(e), 'logs': logs})
 
 
+
 @feishu_bp.route('/api/feishu/local_sheets', methods=['POST'])
 def api_feishu_local_sheets():
-    """获取本地 Excel 的 Sheet 列表和列标题"""
+    """Return local Excel sheets and headers; reuse uploaded preview files by uid."""
     file = request.files.get('file')
-    if not file:
-        return jsonify({'success': False, 'error': '请上传文件'})
-    uid = str(uuid.uuid4())[:8]
     try:
-        path = _save_uploaded_excel(file, "fs_pre", uid)
-        wb = _open_workbook(path, read_only=True, data_only=True)
-        sheets = wb.sheetnames
-        wb.close()
+        uid, path = _save_or_reuse_uploaded_excel(file, "fs_pre", request.form.get('uid', ''))
     except ValueError as e:
         return jsonify({'success': False, 'error': str(e)})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
-    sheet_name = request.form.get('sheet_name', '')
-    if not sheet_name or sheet_name not in sheets:
-        sheet_name = sheets[0] if sheets else ''
     header_row = _to_int(request.form.get('header_row', 1), 1)
     if header_row is None:
-        return jsonify({'success': False, 'error': '表头行必须是大于等于 1 的数字'})
+        return jsonify({'success': False, 'error': 'Header row must be a number greater than or equal to 1'})
 
     try:
-        wb2 = _open_workbook(path, data_only=True)
+        wb = _open_workbook(path, read_only=True, data_only=True)
+        sheets = wb.sheetnames
+        sheet_name = request.form.get('sheet_name', '')
+        if not sheet_name or sheet_name not in sheets:
+            sheet_name = sheets[0] if sheets else ''
+        ws = wb[sheet_name] if sheet_name else wb[wb.sheetnames[0]]
+        row_iter = ws.iter_rows(min_row=header_row, max_row=header_row, values_only=True)
+        header_values = next(row_iter, [])
+        headers = [_cell_str(v) for v in header_values]
+        headers = [h for h in headers if h]
+        wb.close()
     except ValueError as e:
         return jsonify({'success': False, 'error': str(e)})
-    ws = wb2[sheet_name] if sheet_name else wb2[wb2.sheetnames[0]]
-    headers = [_cell_str(ws.cell(row=header_row, column=ci).value)
-               for ci in range(1, ws.max_column + 1)]
-    headers = [h for h in headers if h]
-    wb2.close()
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
 
     return jsonify({'success': True, 'sheets': sheets, 'current_sheet': sheet_name,
                     'headers': headers, 'uid': uid})

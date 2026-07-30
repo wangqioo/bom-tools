@@ -5,7 +5,6 @@ import os
 import uuid
 import json
 import re
-import subprocess
 from decimal import Decimal, InvalidOperation
 
 from flask import Blueprint
@@ -34,7 +33,6 @@ PLM_FULL_MERGE_SHEETS = ['BOM', 'DBG\u4e1a\u52a1BOM']
 CADENCE_STANDARD_HEADER_ROW = 3
 CADENCE_REQUIRED_HEADERS = ['\u5e8f\u53f7', '\u6599\u53f7', '\u578b\u53f7', '\u5355\u8017', '\u4f4d\u53f7']
 HQ_FORMAT_ERROR = '\u4e0d\u652f\u6301\u5f53\u524d\u6587\u4ef6\u683c\u5f0f\u3002\u8bf7\u4e0a\u4f20\u7cfb\u7edf\u5bfc\u51fa\u7684\u6807\u51c6 HQ BOM\uff0c\u6216 PLM \u5168\u91cf BOM\uff1a\u4e24\u7c7b\u683c\u5f0f\u90fd\u5fc5\u987b\u5305\u542b\u5e8f\u53f7\u3001\u6599\u53f7\u3001\u578b\u53f7\u3001\u7269\u6599\u63cf\u8ff0\u3001\u5355\u8017\u3001\u66ff\u4ee3\u5173\u7cfb\u3001\u4f4d\u53f7\u3001\u751f\u4ea7\u5382\u5bb6\u7b49\u5217\u3002'
-HQ_XLS_CONVERT_ERROR = '\u65e0\u6cd5\u76f4\u63a5\u8bfb\u53d6\u8be5 .xls \u6587\u4ef6\u3002\u8bf7\u786e\u8ba4\u670d\u52a1\u5668\u4e3a Windows \u4e14\u5df2\u5b89\u88c5\u53ef\u89e3\u5bc6\u6b64\u6587\u4ef6\u7684 Excel\uff0c\u6216\u5148\u5728 Excel \u4e2d\u53e6\u5b58\u4e3a .xlsx \u540e\u518d\u4e0a\u4f20\u3002'
 
 GENERIC_COMPARE_TYPES = {
     'cadence_hq': {
@@ -54,43 +52,7 @@ def _headers(ws, header_row):
 
 
 
-def _ps_single_quote(value):
-    return "'" + str(value).replace("'", "''") + "'"
-
-def _convert_xls_with_excel(src_path, uid, prefix='bomcmp_converted'):
-    if os.name != 'nt':
-        raise ValueError(HQ_XLS_CONVERT_ERROR)
-    out_path = os.path.join(UPLOAD_DIR, f'{prefix}_converted_{uid}.xlsx')
-    script = (
-        "$ErrorActionPreference='Stop';"
-        f"$src={_ps_single_quote(src_path)};"
-        f"$dst={_ps_single_quote(out_path)};"
-        "$excel=New-Object -ComObject Excel.Application;"
-        "$excel.Visible=$false;$excel.DisplayAlerts=$false;"
-        "try{$wb=$excel.Workbooks.Open($src);$wb.SaveAs($dst,51);$wb.Close($false)}"
-        "finally{$excel.Quit();[System.Runtime.InteropServices.Marshal]::ReleaseComObject($excel)|Out-Null}"
-    )
-    try:
-        subprocess.run(
-            ['powershell', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script],
-            check=True, capture_output=True, text=True, timeout=90,
-        )
-    except Exception as exc:
-        raise ValueError(HQ_XLS_CONVERT_ERROR) from exc
-    if not os.path.exists(out_path):
-        raise ValueError(HQ_XLS_CONVERT_ERROR)
-    return out_path
-
-
 def _save_uploaded_hq_excel(file, prefix, uid):
-    if not file:
-        raise ValueError('\u8bf7\u4e0a\u4f20\u6587\u4ef6')
-    filename = file.filename or ''
-    lower = filename.lower()
-    if lower.endswith('.xls') and not lower.endswith('.xlsx'):
-        raw_path = os.path.join(UPLOAD_DIR, f'{prefix}_{uid}.xls')
-        file.save(raw_path)
-        return _convert_xls_with_excel(raw_path, uid, prefix)
     return _save_uploaded_excel(file, prefix, uid)
 
 

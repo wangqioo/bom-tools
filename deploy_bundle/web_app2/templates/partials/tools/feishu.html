@@ -20,6 +20,7 @@
     <label>Sheet：</label><select id="fsSheet" style="width:180px"><option>先选择文件</option></select>
     <span class="hint">（一次只能匹配一个 Sheet）</span>
     <label>表头行：</label><input type="number" id="fsHdr" value="1" min="1" style="width:60px">
+    <span id="fsLocalLoadStatus" class="fs-local-load-status" aria-live="polite"></span>
   </div>
   <div class="row" style="margin-top:6px;align-items:flex-start;gap:32px">
     <div>
@@ -54,6 +55,9 @@
 <div class="section"><h3>运行匹配</h3>
   <div class="workflow-step-desc">确认上面的本地 BOM 和表格库配置后开始匹配，结果会导出为 Excel。</div>
   <div id="fsRunStatus" style="font-size:12px;color:#888;margin-bottom:8px"></div>
+  <label style="font-size:12px;color:#444;display:flex;align-items:center;gap:6px;margin-bottom:8px">
+    <input type="checkbox" id="fsIncludePreferredWithRelation"> 命中关系库后仍带出优选库命中
+  </label>
   <button class="btn btn-primary" id="fsRun">⚡ 开始匹配</button>
   <span id="fsRunStatus2" style="font-size:13px;color:#888;margin-left:8px"></span>
   <div class="fs-match-wait" id="fsMatchWait" aria-live="polite">
