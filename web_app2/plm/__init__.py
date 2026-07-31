@@ -11,22 +11,37 @@ from shared import (
     request, jsonify,
     UPLOAD_DIR, OUTPUT_DIR, _col_int,
     _cell_str, _open_workbook, _request_int, _save_uploaded_excel, _save_or_reuse_uploaded_excel,
+    _current_storage_owner, _register_output_file,
 )
 
 plm_bp = Blueprint('plm', __name__)
 
+MAX_PLM_PENDING_JOBS = 500
 _PLM_ATTACHMENT_JOBS = {}
 _PLM_ATTACHMENT_JOBS_LOCK = threading.Lock()
-_PLM_ATTACHMENT_QUEUE = queue.Queue()
+_PLM_ATTACHMENT_QUEUE = queue.Queue(maxsize=MAX_PLM_PENDING_JOBS)
 _PLM_ATTACHMENT_WORKER_STARTED = False
 _PLM_ATTACHMENT_WORKER_LOCK = threading.Lock()
 _PLM_ATTACHMENT_BATCHES = {}
 _PLM_ATTACHMENT_BATCHES_LOCK = threading.Lock()
 _PLM_SPEC_REVERSE_JOBS = {}
 _PLM_SPEC_REVERSE_JOBS_LOCK = threading.Lock()
-_PLM_SPEC_REVERSE_QUEUE = queue.Queue()
+_PLM_SPEC_REVERSE_QUEUE = queue.Queue(maxsize=MAX_PLM_PENDING_JOBS)
 _PLM_SPEC_REVERSE_WORKER_STARTED = False
 _PLM_SPEC_REVERSE_WORKER_LOCK = threading.Lock()
+
+
+def _queue_has_capacity(work_queue, count=1):
+    return work_queue.qsize() + max(int(count or 1), 1) <= MAX_PLM_PENDING_JOBS
+
+
+def _plm_headless():
+    return os.environ.get('BOM_TOOLS_PLM_HEADLESS', '1').strip().lower() not in ('0', 'false', 'no')
+
+
+def _job_belongs_to_current_user(job):
+    # Jobs created before this version have no owner and remain test-admin only.
+    return bool(job) and str(job.get('owner_id') or 'test-admin') == _current_storage_owner()
 
 def _spec_reverse_progress_from_message(message, current):
     text = str(message or '')
@@ -48,7 +63,7 @@ def _spec_reverse_progress_from_message(message, current):
     return min(max(current, 5) + 1, 90), text[:80] or '处理中'
 
 
-def _new_spec_reverse_job(source_label):
+def _new_spec_reverse_job(source_label, owner_id=None):
     job_id = uuid.uuid4().hex
     now = time.time()
     job = {
@@ -57,6 +72,7 @@ def _new_spec_reverse_job(source_label):
         'stage': '任务已创建',
         'progress': 3,
         'source_label': source_label,
+        'owner_id': str(owner_id or _current_storage_owner()),
         'logs': [],
         'download': '',
         'filename': '',
@@ -118,12 +134,15 @@ def _ensure_spec_reverse_worker():
 
 
 def _enqueue_spec_reverse_job(job_id, username, password, upload_path):
-    _PLM_SPEC_REVERSE_QUEUE.put({
-        'job_id': job_id,
-        'username': username,
-        'password': password,
-        'upload_path': upload_path,
-    })
+    try:
+        _PLM_SPEC_REVERSE_QUEUE.put_nowait({
+            'job_id': job_id,
+            'username': username,
+            'password': password,
+            'upload_path': upload_path,
+        })
+    except queue.Full as exc:
+        raise RuntimeError('PLM task queue is full; please retry later') from exc
     _ensure_spec_reverse_worker()
 
 
@@ -131,6 +150,8 @@ def _spec_reverse_worker_loop():
     while True:
         task = _PLM_SPEC_REVERSE_QUEUE.get()
         job_id = task['job_id']
+        username = task.pop('username', '')
+        password = task.pop('password', '')
         try:
             from pathlib import Path as _Path
             from playwright.sync_api import sync_playwright
@@ -141,18 +162,19 @@ def _spec_reverse_worker_loop():
             with sync_playwright() as playwright:
                 output_path = run_plm_feature(
                     playwright,
-                    username=task['username'],
-                    password=task['password'],
+                    username=username,
+                    password=password,
                     feature=feature,
                     upload_file=_Path(task['upload_path']),
                     output_dir=_Path(OUTPUT_DIR),
-                    headless=False,
+                    headless=_plm_headless(),
                     log=lambda message: _append_spec_reverse_log(job_id, message),
                 )
             output_path = str(output_path)
             if not os.path.exists(output_path):
                 raise RuntimeError('自动化完成但未找到导出文件')
             out_name = os.path.basename(output_path)
+            _register_output_file(output_path, (_snapshot_spec_reverse_job(job_id) or {}).get('owner_id'))
             _update_spec_reverse_job(
                 job_id,
                 status='done',
@@ -175,6 +197,9 @@ def _spec_reverse_worker_loop():
             _append_spec_reverse_log(job_id, str(exc))
             _update_spec_reverse_job(job_id, status='error', stage='执行失败', progress=100, error=str(exc))
         finally:
+            username = ''
+            password = ''
+            task.clear()
             _PLM_SPEC_REVERSE_QUEUE.task_done()
 
 
@@ -200,7 +225,7 @@ def _create_spec_reverse_single_excel(value, uid):
     source_label = values[0] if len(values) == 1 else f'{values[0]} 等 {len(values)} 项'
     return in_path, source_label
 
-def _new_attachment_job(hqpn):
+def _new_attachment_job(hqpn, owner_id=None):
     job_id = uuid.uuid4().hex
     now = time.time()
     job = {
@@ -209,6 +234,7 @@ def _new_attachment_job(hqpn):
         'stage': '\u4efb\u52a1\u5df2\u521b\u5efa',
         'progress': 3,
         'hqpn': hqpn,
+        'owner_id': str(owner_id or _current_storage_owner()),
         'logs': [],
         'download': '',
         'filename': '',
@@ -290,13 +316,16 @@ def _ensure_attachment_worker():
 
 
 def _enqueue_attachment_job(job_id, username, password, hqpn, batch_id=''):
-    _PLM_ATTACHMENT_QUEUE.put({
-        'job_id': job_id,
-        'username': username,
-        'password': password,
-        'hqpn': hqpn,
-        'batch_id': batch_id,
-    })
+    try:
+        _PLM_ATTACHMENT_QUEUE.put_nowait({
+            'job_id': job_id,
+            'username': username,
+            'password': password,
+            'hqpn': hqpn,
+            'batch_id': batch_id,
+        })
+    except queue.Full as exc:
+        raise RuntimeError('PLM task queue is full; please retry later') from exc
     _ensure_attachment_worker()
 
 
@@ -311,12 +340,15 @@ def _attachment_worker_loop():
     while True:
         task = _PLM_ATTACHMENT_QUEUE.get()
         job_id = task['job_id']
-        username = task['username']
-        password = task['password']
-        hqpn = task['hqpn']
+        username = task.pop('username', '')
+        password = task.pop('password', '')
+        hqpn = task.get('hqpn', '')
         batch_id = task.get('batch_id') or ''
         if batch_id and _batch_cancelled(batch_id):
             _update_attachment_job(job_id, status='cancelled', stage='\\u5df2\\u53d6\\u6d88', progress=100, error='\\u7528\\u6237\\u53d6\\u6d88')
+            username = ''
+            password = ''
+            task.clear()
             _PLM_ATTACHMENT_QUEUE.task_done()
             continue
         try:
@@ -355,7 +387,7 @@ def _attachment_worker_loop():
                         pass
                 _update_attachment_job(job_id, status='running', stage='\u51c6\u5907\u542f\u52a8\u6d4f\u89c8\u5668', progress=5)
                 _append_attachment_log(job_id, '\u542f\u52a8\u6d4f\u89c8\u5668')
-                browser = playwright.chromium.launch(headless=False)
+                browser = playwright.chromium.launch(headless=_plm_headless())
                 context = browser.new_context(accept_downloads=True)
                 page = context.new_page()
 
@@ -423,6 +455,7 @@ def _attachment_worker_loop():
             if not os.path.exists(output_path):
                 raise RuntimeError('\u81ea\u52a8\u5316\u5b8c\u6210\u4f46\u672a\u627e\u5230\u4e0b\u8f7d\u6587\u4ef6')
             out_name = os.path.basename(output_path)
+            _register_output_file(output_path, (_snapshot_attachment_job(job_id) or {}).get('owner_id'))
             _update_attachment_job(
                 job_id,
                 status='done',
@@ -475,6 +508,9 @@ def _attachment_worker_loop():
                     session_user = ''
                     session_password = ''
             finally:
+                username = ''
+                password = ''
+                task.clear()
                 _PLM_ATTACHMENT_QUEUE.task_done()
 
 
@@ -540,6 +576,7 @@ def _build_attachment_batch_status(batch_id):
                     if job.get('status') == 'done' and source_path and os.path.exists(source_path):
                         member_name = _safe_zip_member_name(job.get('filename') or os.path.basename(source_path), used_names)
                         zf.write(source_path, arcname=member_name)
+            _register_output_file(zip_path, batch.get('owner_id'))
             with _PLM_ATTACHMENT_BATCHES_LOCK:
                 current = _PLM_ATTACHMENT_BATCHES.get(batch_id)
                 if current is not None:
@@ -1095,7 +1132,10 @@ def api_auto_spec_reverse():
         return jsonify({'success': False, 'error': str(e)})
 
     _cleanup_spec_reverse_jobs()
-    job_id = _new_spec_reverse_job(source_label)
+    if not _queue_has_capacity(_PLM_SPEC_REVERSE_QUEUE):
+        return jsonify({'success': False, 'error': 'PLM task queue is full; please retry later'}), 429
+    owner_id = _current_storage_owner()
+    job_id = _new_spec_reverse_job(source_label, owner_id=owner_id)
     _update_spec_reverse_job(job_id, status='queued', stage='已加入查询队列', progress=3)
     _enqueue_spec_reverse_job(job_id, username, password, in_path)
     return jsonify({
@@ -1109,7 +1149,7 @@ def api_auto_spec_reverse():
 @plm_bp.route('/api/plm/auto_spec_reverse/status/<job_id>', methods=['GET'])
 def api_auto_spec_reverse_status(job_id):
     job = _snapshot_spec_reverse_job(job_id)
-    if not job:
+    if not _job_belongs_to_current_user(job):
         return jsonify({'success': False, 'error': '任务不存在或已过期'}), 404
     return jsonify({
         'success': True,
@@ -1120,7 +1160,6 @@ def api_auto_spec_reverse_status(job_id):
         'source_label': job.get('source_label'),
         'download': job.get('download'),
         'filename': job.get('filename'),
-        'source_path': job.get('source_path'),
         'error': job.get('error'),
         'log': chr(10).join(job.get('logs') or []),
     })
@@ -1247,11 +1286,14 @@ def api_auto_hq_attachments_batch():
 
     _cleanup_attachment_jobs()
     _cleanup_attachment_batches()
+    if not _queue_has_capacity(_PLM_ATTACHMENT_QUEUE, len(hqpns)):
+        return jsonify({'success': False, 'error': 'PLM task queue is busy; please retry after current tasks finish'}), 429
+    owner_id = _current_storage_owner()
     batch_id = uuid.uuid4().hex
     jobs = []
     job_ids = []
     for hqpn in hqpns:
-        job_id = _new_attachment_job(hqpn)
+        job_id = _new_attachment_job(hqpn, owner_id=owner_id)
         job_ids.append(job_id)
         _update_attachment_job(job_id, status='queued', stage='\u5df2\u52a0\u5165\u4e0b\u8f7d\u961f\u5217', progress=3)
         _enqueue_attachment_job(job_id, username, password, hqpn, batch_id=batch_id)
@@ -1264,6 +1306,7 @@ def api_auto_hq_attachments_batch():
     with _PLM_ATTACHMENT_BATCHES_LOCK:
         _PLM_ATTACHMENT_BATCHES[batch_id] = {
             'id': batch_id,
+            'owner_id': owner_id,
             'job_ids': job_ids,
             'download': '',
             'filename': '',
@@ -1282,6 +1325,9 @@ def api_auto_hq_attachments_batch():
 
 @plm_bp.route('/api/plm/auto_hq_attachments/batch/status/<batch_id>', methods=['GET'])
 def api_auto_hq_attachments_batch_status(batch_id):
+    batch = _snapshot_attachment_batch(batch_id)
+    if not _job_belongs_to_current_user(batch):
+        return jsonify({'success': False, 'error': '批量任务不存在或已过期'}), 404
     status = _build_attachment_batch_status(batch_id)
     if not status:
         return jsonify({'success': False, 'error': '\u6279\u91cf\u4efb\u52a1\u4e0d\u5b58\u5728\u6216\u5df2\u8fc7\u671f'}), 404
@@ -1292,6 +1338,9 @@ def api_auto_hq_attachments_batch_status(batch_id):
 
 @plm_bp.route('/api/plm/auto_hq_attachments/batch/cancel/<batch_id>', methods=['POST'])
 def api_auto_hq_attachments_batch_cancel(batch_id):
+    batch = _snapshot_attachment_batch(batch_id)
+    if not _job_belongs_to_current_user(batch):
+        return jsonify({'success': False, 'error': '批量任务不存在或已过期'}), 404
     status = _cancel_attachment_batch(batch_id)
     if not status:
         return jsonify({'success': False, 'error': '\u6279\u91cf\u4efb\u52a1\u4e0d\u5b58\u5728\u6216\u5df2\u8fc7\u671f'}), 404
@@ -1313,7 +1362,10 @@ def api_auto_hq_attachments():
         return jsonify({'success': False, 'error': '\u8bf7\u8f93\u5165 HQ \u6599\u53f7'})
 
     _cleanup_attachment_jobs()
-    job_id = _new_attachment_job(hqpn)
+    if not _queue_has_capacity(_PLM_ATTACHMENT_QUEUE):
+        return jsonify({'success': False, 'error': 'PLM task queue is full; please retry later'}), 429
+    owner_id = _current_storage_owner()
+    job_id = _new_attachment_job(hqpn, owner_id=owner_id)
 
     _update_attachment_job(job_id, status='queued', stage='\u5df2\u52a0\u5165\u4e0b\u8f7d\u961f\u5217', progress=3)
     _enqueue_attachment_job(job_id, username, password, hqpn)
@@ -1323,7 +1375,7 @@ def api_auto_hq_attachments():
 @plm_bp.route('/api/plm/auto_hq_attachments/status/<job_id>', methods=['GET'])
 def api_auto_hq_attachments_status(job_id):
     job = _snapshot_attachment_job(job_id)
-    if not job:
+    if not _job_belongs_to_current_user(job):
         return jsonify({'success': False, 'error': '\u4efb\u52a1\u4e0d\u5b58\u5728\u6216\u5df2\u8fc7\u671f'}), 404
     return jsonify({
         'success': True,
@@ -1334,7 +1386,6 @@ def api_auto_hq_attachments_status(job_id):
         'hqpn': job.get('hqpn'),
         'download': job.get('download'),
         'filename': job.get('filename'),
-        'source_path': job.get('source_path'),
         'error': job.get('error'),
         'log': chr(10).join(job.get('logs') or []),
     })

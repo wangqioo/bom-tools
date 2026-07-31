@@ -24,6 +24,7 @@ for _pkg in ["openpyxl", "requests"]:
 import os, json, threading
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, scrolledtext
+from excel_compat import open_workbook_compat
 import openpyxl
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
@@ -1591,7 +1592,7 @@ class FeishuMatchApp(tk.Tk):
 
     def _load_wb_bg(self, path):
         try:
-            wb = openpyxl.load_workbook(path, data_only=True)
+            wb = open_workbook_compat(path, data_only=True)
             self.wb = wb
             self.after(0, self._on_wb_loaded)
         except Exception as e:

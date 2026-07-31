@@ -22,34 +22,55 @@ from shared import (
     _col_int,
     _open_workbook,
     _request_int,
+    _save_or_reuse_uploaded_excel,
     _save_uploaded_excel,
 )
 
-from . import plm_bp
+from . import PLM_HEADERS, plm_bp
 
 
-HQ_SINGLE_BOARD_HEADERS = [
-    "序号", "料号", "型号", "物料描述", "单耗", "替代关系", "位号", "生产厂家", "是否环保", "湿敏属性",
-    "备注", "主辅BOM标记", "MBG优选属性", "CBG优选属性", "DBG优选属性", "主制控", "子制控", "子制控数量", "ABG优选属性",
+HQ_SINGLE_BOARD_HEADERS = PLM_HEADERS
+HQ_SINGLE_BOARD_FIELDS = [
+    "seq", "hqpn", "model", "description", "qty", "alternate", "refdes", "manufacturer",
+    "environmental", "thermal_sensitive", "note", "main_aux", "mbg_preferred", "cbg_preferred",
+    "dbg_preferred", "first_process", "second_process", "second_process_qty", "mass_orderable",
+    "second_process_refdes", "abg_preferred", "ifm_part", "pcd_part", "ear_control", "eccn",
 ]
 
+# Accept both historical customer-BOM labels and current HQ/PLM standard labels.
 OPTIONAL_HEADER_TO_FIELD = {
-    "是否环保": "environmental",
-    "湿敏属性": "msl",
-    "备注": "note",
-    "主辅BOM标记": "main_aux",
-    "MBG优选属性": "mbg_preferred",
-    "CBG优选属性": "cbg_preferred",
-    "DBG优选属性": "dbg_preferred",
-    "主制控": "main_control",
-    "子制控": "sub_control",
-    "子制控数量": "sub_control_qty",
-    "ABG优选属性": "abg_preferred",
+    "\u66ff\u4ee3\u5173\u7cfb": "alternate",
+    "\u662f\u5426\u73af\u4fdd": "environmental",
+    "\u6e7f\u654f\u5c5e\u6027": "thermal_sensitive",
+    "\u6e29\u654f\u5c5e\u6027": "thermal_sensitive",
+    "\u5907\u6ce8": "note",
+    "\u4e3b\u8f85BOM\u6807\u8bb0": "main_aux",
+    "MBG\u4f18\u9009\u5c5e\u6027": "mbg_preferred",
+    "CBG\u4f18\u9009\u5c5e\u6027": "cbg_preferred",
+    "DBG\u4f18\u9009\u5c5e\u6027": "dbg_preferred",
+    "\u4e3b\u5236\u63a7": "first_process",
+    "\u4e3b\u5236\u7a0b": "first_process",
+    "\u9996\u5236\u7a0b": "first_process",
+    "\u5b50\u5236\u63a7": "second_process",
+    "\u6b21\u5236\u7a0b": "second_process",
+    "\u5b50\u5236\u63a7\u6570\u91cf": "second_process_qty",
+    "\u6b21\u5236\u7a0b\u5355\u8017": "second_process_qty",
+    "\u662f\u5426\u53ef\u91cf\u4ea7\u4e0b\u5355": "mass_orderable",
+    "\u6b21\u5236\u7a0b\u4f4d\u53f7": "second_process_refdes",
+    "ABG\u4f18\u9009\u5c5e\u6027": "abg_preferred",
+    "IFM_PART": "ifm_part",
+    "PCD_PART": "pcd_part",
+    "\u662f\u5426\u53d7EAR\u7ba1\u63a7": "ear_control",
+    "ECCN": "eccn",
+}
+OPTIONAL_HEADER_TO_FIELD = {
+    "".join(key.replace("\uFF08", "(").replace("\uFF09", ")").split()).lower(): value
+    for key, value in OPTIONAL_HEADER_TO_FIELD.items()
 }
 
 SAMPLE_COLUMN_WIDTHS = [
     5.88671875, 21.44140625, 31.21875, 43.0, 13.6640625, 13.0, 31.21875, 11.6640625, 21.44140625,
-    11.6640625, 13.0, 19.5546875, 13.0, 13.0, 13.0, 13.0, 13.0, 13.0, 13.0,
+    11.6640625, 13.0, 19.5546875, 13.0, 13.0, 13.0, 13.0, 13.0, 13.0, 13.0, 13.0, 13.0, 13.0, 13.0, 13.0, 13.0,
 ]
 
 
@@ -64,7 +85,11 @@ def _detect_seq_column(ws, header_row):
 def _detect_exact_header_columns(ws, header_row):
     result = {}
     for ci in range(1, ws.max_column + 1):
-        field = OPTIONAL_HEADER_TO_FIELD.get(_cell_str(ws.cell(row=header_row, column=ci).value))
+        header = _cell_str(ws.cell(row=header_row, column=ci).value)
+        normalized_header = "".join(header.replace("\uFF08", "(").replace("\uFF09", ")").split()).lower()
+        field = OPTIONAL_HEADER_TO_FIELD.get(normalized_header)
+        if not field and normalized_header.startswith("\u4e3b\u8f85bom\u6807\u8bb0"):
+            field = "main_aux"
         if field:
             result[field] = ci
     return result
@@ -154,13 +179,8 @@ def _write_hq_single_board_bom(rows, out_path, meta):
         cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
     for ri, row in enumerate(rows, 4):
-        values = [
-            row["seq"], row["hqpn"], row["model"], row["description"], row["qty"], row["alternate"], row["refdes"],
-            row["manufacturer"], row["environmental"], row["msl"], row["note"], row["main_aux"], row["mbg_preferred"],
-            row["cbg_preferred"], row["dbg_preferred"], row["main_control"], row["sub_control"], row["sub_control_qty"],
-            row["abg_preferred"],
-        ]
-        for ci, value in enumerate(values, 1):
+        for ci, field in enumerate(HQ_SINGLE_BOARD_FIELDS, 1):
+            value = row.get(field, "")
             cell = ws.cell(row=ri, column=ci, value=value)
             cell.font = body_font
             cell.border = border
@@ -177,11 +197,8 @@ def _write_hq_single_board_bom(rows, out_path, meta):
 @plm_bp.route("/api/plm/customer_hq_detect", methods=["POST"])
 def api_customer_hq_detect():
     file = request.files.get("file")
-    if not file:
-        return jsonify({"success": False, "error": "请上传客户 BOM 文件"})
-    uid = str(uuid.uuid4())[:8]
     try:
-        path = _save_uploaded_excel(file, "plm_customer_hq_pre", uid)
+        uid, path = _save_or_reuse_uploaded_excel(file, "plm_customer_hq_pre", request.form.get("uid", ""))
         wb = _open_workbook(path, read_only=True, data_only=True)
         sheets = wb.sheetnames
         wb.close()
@@ -280,6 +297,7 @@ def api_customer_hq_convert():
         optional_cols = _detect_exact_header_columns(ws, header_row)
         rows = []
         skipped = 0
+        invalid_seq_rows = []
         seen_seq = set()
         for ri in range(header_row + 1, ws.max_row + 1):
             row_vals = {ci: ws.cell(row=ri, column=ci).value for ci in range(1, ws.max_column + 1)}
@@ -290,6 +308,9 @@ def api_customer_hq_convert():
             if not seq and not any([manufacturer, model, description]):
                 skipped += 1
                 continue
+            if not seq:
+                invalid_seq_rows.append(ri)
+                continue
             is_main = seq not in seen_seq
             seen_seq.add(seq)
             optional_values = {field: _cell_str(row_vals.get(col_idx)) for field, col_idx in optional_cols.items()}
@@ -299,23 +320,37 @@ def api_customer_hq_convert():
                 "model": model,
                 "description": description,
                 "qty": _safe_qty(row_vals.get(col_qty)) if is_main else "",
-                "alternate": "",
+                "alternate": optional_values.get("alternate", ""),
                 "refdes": _cell_str(row_vals.get(col_refdes)) if (is_main and col_refdes) else "",
                 "manufacturer": manufacturer,
                 "environmental": optional_values.get("environmental", ""),
-                "msl": optional_values.get("msl", ""),
+                "thermal_sensitive": optional_values.get("thermal_sensitive", ""),
                 "note": optional_values.get("note", ""),
                 "main_aux": optional_values.get("main_aux", ""),
                 "mbg_preferred": optional_values.get("mbg_preferred", ""),
                 "cbg_preferred": optional_values.get("cbg_preferred", ""),
                 "dbg_preferred": optional_values.get("dbg_preferred", ""),
-                "main_control": optional_values.get("main_control", ""),
-                "sub_control": optional_values.get("sub_control", ""),
-                "sub_control_qty": optional_values.get("sub_control_qty", ""),
+                "first_process": optional_values.get("first_process", ""),
+                "second_process": optional_values.get("second_process", ""),
+                "second_process_qty": optional_values.get("second_process_qty", ""),
                 "abg_preferred": optional_values.get("abg_preferred", ""),
+                "mass_orderable": optional_values.get("mass_orderable", ""),
+                "second_process_refdes": optional_values.get("second_process_refdes", ""),
+                "ifm_part": optional_values.get("ifm_part", ""),
+                "pcd_part": optional_values.get("pcd_part", ""),
+                "ear_control": optional_values.get("ear_control", ""),
+                "eccn": optional_values.get("eccn", ""),
             })
     finally:
         wb.close()
+
+    if invalid_seq_rows:
+        preview_rows = ', '.join(str(row) for row in invalid_seq_rows[:10])
+        suffix = ' ...' if len(invalid_seq_rows) > 10 else ''
+        return jsonify({
+            "success": False,
+            "error": f"序号列存在空值（Excel 行 {preview_rows}{suffix}）。请补齐序号后再转换，避免错误识别主料和替代料。",
+        })
 
     out_name = f"客户BOM_HQ单板BOM_{uid}.xlsx"
     out_path = os.path.join(OUTPUT_DIR, out_name)

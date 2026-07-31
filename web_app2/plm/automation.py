@@ -1,5 +1,7 @@
 import json
+import os
 import re
+from urllib.parse import urlparse
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -12,6 +14,19 @@ from playwright.sync_api import Page, Playwright, TimeoutError as PlaywrightTime
 
 START_URL = "https://eip.evex-tech.com/"
 PLM_SEARCH_URL = "http://plm.evex-tech.com/Windchill/app/#ptc1/ext/huaqin/homePage/searchFunction"
+_ALLOWED_DOWNLOAD_HOSTS = {
+    urlparse(START_URL).hostname,
+    urlparse(PLM_SEARCH_URL).hostname,
+}
+
+
+def _plm_debug_enabled() -> bool:
+    return os.environ.get("BOM_TOOLS_PLM_DEBUG", "").strip().lower() in ("1", "true", "yes")
+
+
+def _is_allowed_plm_download_url(url: str) -> bool:
+    parsed = urlparse(str(url or ""))
+    return parsed.scheme in ("http", "https") and parsed.hostname in _ALLOWED_DOWNLOAD_HOSTS
 
 
 @dataclass(frozen=True)
@@ -768,6 +783,8 @@ def _click_detail_content(page: Page, output_dir: Path | None = None) -> None:
     raise RuntimeError(f"Detail content tab not found: {last_error}")
 
 def _dump_page_debug(page: Page, output_dir: Path, label: str) -> None:
+    if not _plm_debug_enabled():
+        return
     debug_dir = output_dir / "plm_hq_search_debug"
     debug_dir.mkdir(parents=True, exist_ok=True)
     stamp = time.strftime("%Y%m%d_%H%M%S")
@@ -798,6 +815,13 @@ def _dump_page_debug(page: Page, output_dir: Path, label: str) -> None:
             })
         except PlaywrightError as exc:
             payload.append({"index": index, "url": frame.url, "error": str(exc)})
+    for frame_data in payload:
+        for input_data in frame_data.get("inputs", []):
+            identity = f"{input_data.get('id', '')} {input_data.get('name', '')} {input_data.get('type', '')}".lower()
+            if any(marker in identity for marker in ("pass", "pwd", "token", "secret")):
+                input_data["value"] = "<redacted>"
+            else:
+                input_data["value"] = str(input_data.get("value") or "")[:500]
     try:
         import json as _json
         (debug_dir / f"{stamp}_{label}.json").write_text(_json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -881,10 +905,10 @@ def _download_selected_attachments(page: Page, hqpn: str, output_dir: Path, log:
         return deduped
 
     def direct_download(url: str, name: str, index: int) -> Path | None:
-        if not url.lower().startswith(("http://", "https://")):
+        if not _is_allowed_plm_download_url(url):
             return None
         try:
-            response = page.context.request.get(url, timeout=60000)
+            response = page.context.request.get(url, timeout=60000, max_redirects=0)
             if not response.ok:
                 return None
             body = response.body()
@@ -1008,7 +1032,7 @@ def _download_selected_attachments(page: Page, hqpn: str, output_dir: Path, log:
             except PlaywrightError:
                 pass
             for index, url in enumerate(dict.fromkeys(urls), start=1):
-                if not url.lower().startswith(("http://", "https://")):
+                if not _is_allowed_plm_download_url(url):
                     continue
                 downloaded = direct_download(url, f"{hqpn}_附件_{index}.pdf", index)
                 if downloaded:

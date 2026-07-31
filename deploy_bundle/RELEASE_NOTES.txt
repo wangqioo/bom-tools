@@ -1,0 +1,22 @@
+BOM Tools Offline Release
+=========================
+
+Release: platform v2.2.9 / PLM v1.7.2
+Date: 2026-07-31
+
+Highlights
+- Customer BOM to HQ single-board BOM exports the HQ/PLM standard 25-column schema.
+- Historical customer input headers Main Control, Sub Control, and Sub Control Quantity
+  are accepted and written to First Process, Second Process, and Second Process Unit
+  Consumption respectively.
+- Legacy .xls files are supported through the shared Excel compatibility layer.
+- Output/download ownership, Feishu cache isolation, and PLM task handling are hardened.
+
+Fresh installation
+1. Extract the release archive.
+2. Open the extracted folder.
+3. Run install_and_run.bat.
+
+Upgrading an existing deployment
+- Preserve web_app2/auth_data, manufacturer_aliases, bug_reports, and feature_requests.
+- Use scripts/install_offline_release.ps1 when installing from an archive.

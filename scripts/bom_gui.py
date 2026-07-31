@@ -23,6 +23,8 @@ except ImportError:
     print("安装完成！正在启动程序...")
     import openpyxl
 
+from excel_compat import open_workbook_compat
+
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, scrolledtext
 import openpyxl
@@ -490,7 +492,7 @@ class BomApp(tk.Tk):
 
     def _load_workbook_bg(self, path):
         try:
-            wb = openpyxl.load_workbook(path, data_only=True)
+            wb = open_workbook_compat(path, data_only=True)
             self.wb = wb
             self.after(0, self._on_wb_loaded)
         except Exception as e:

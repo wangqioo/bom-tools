@@ -19,6 +19,8 @@ from shared import (
     PLATFORM_VERSION,
     TOOL_VERSIONS,
     _cleanup_old_files,
+    _file_belongs_to_current_user,
+    _register_output_file,
 )
 from auth import auth_bp, current_user, init_auth_storage, require_login
 
@@ -107,9 +109,36 @@ def index():
 @app.route('/download/<filename>')
 def download(filename):
     path = safe_join(OUTPUT_DIR, filename)
-    if not path or not os.path.exists(path):
+    if not path or not os.path.exists(path) or not _file_belongs_to_current_user(path):
         abort(404)
     return send_file(path, as_attachment=True, download_name=filename)
+
+
+@app.after_request
+def _record_response_download_owners(response):
+    """Assign ownership to synchronous exports returned by existing tool APIs."""
+    if not response.is_json:
+        return response
+    try:
+        payload = response.get_json(silent=True) or {}
+    except Exception:
+        return response
+
+    def visit(value):
+        if isinstance(value, dict):
+            for child in value.values():
+                visit(child)
+        elif isinstance(value, list):
+            for child in value:
+                visit(child)
+        elif isinstance(value, str) and value.startswith('/download/'):
+            filename = value[len('/download/'):]
+            path = safe_join(OUTPUT_DIR, filename)
+            if path:
+                _register_output_file(path)
+
+    visit(payload)
+    return response
 
 
 def _cleanup_job():
@@ -117,7 +146,7 @@ def _cleanup_job():
         time.sleep(600)
         _cleanup_old_files(UPLOAD_DIR, 30)
         _cleanup_old_files(OUTPUT_DIR, 30)
-        # Feishu cache files are refreshed manually by users.
+        _cleanup_old_files(CACHE_DIR, 8 * 60)
 
 
 threading.Thread(target=_cleanup_job, daemon=True).start()

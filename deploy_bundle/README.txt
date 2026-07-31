@@ -1,6 +1,11 @@
 BOM Tools - Offline LAN Deployment for Windows
 ===============================================
 
+Release: platform v2.2.9 / PLM v1.7.2
+This release standardizes the Customer BOM to HQ single-board BOM export on
+the HQ/PLM 25-column schema, including First Process, Second Process, and
+Second Process Unit Consumption.
+
 This folder is the offline deployment bundle for the BOM Tools web app.
 Copy the whole deploy_bundle folder to the target LAN server and run it there.
 No internet connection is required if Python is already installed.

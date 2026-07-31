@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """Feature request work order blueprint."""
 
 import json
@@ -11,7 +11,7 @@ from flask import Blueprint, abort, send_file
 from werkzeug.utils import safe_join, secure_filename
 
 from shared import jsonify, request
-from auth import record_activity, require_admin_json
+from auth import auth_enabled, current_user, record_activity, require_admin_json
 
 
 feature_request_bp = Blueprint('feature_request', __name__)
@@ -262,8 +262,12 @@ def api_feature_requests():
 
 @feature_request_bp.route('/api/feature_requests', methods=['POST'])
 def api_submit_feature_request():
-    requester = _clean_text('requester', 80)
-    employee_id = _clean_text('employee_id', 40)
+    user = current_user() or {}
+    requester = str(user.get('display_name') or '').strip()
+    employee_id = str(user.get('employee_id') or '').strip()
+    if not auth_enabled():
+        requester = _clean_text('requester', 80)
+        employee_id = _clean_text('employee_id', 40)
     title = _clean_text('title', 120)
     requirement = _clean_text('requirement', 5000)
     if not requester or not employee_id or not title or not requirement:
@@ -298,13 +302,17 @@ def api_submit_feature_request():
 
 @feature_request_bp.route('/api/feature_requests/<request_id>/like', methods=['POST'])
 def api_like_feature_request(request_id):
-    data = request.get_json(silent=True) or {}
-    employee_id = str(data.get('employee_id') or request.form.get('employee_id') or request.args.get('employee_id') or '').strip()
+    user = current_user() or {}
+    employee_id = str(user.get('employee_id') or user.get('id') or '').strip()
+    if not auth_enabled():
+        data = request.get_json(silent=True) or {}
+        employee_id = str(data.get('employee_id') or request.form.get('employee_id') or request.args.get('employee_id') or '').strip()
     item, liked = _like_request(request_id, employee_id)
     if not item:
         return jsonify({'success': False, 'error': '\u9700\u6c42\u4e0d\u5b58\u5728'})
     if employee_id and not liked:
         return jsonify({'success': True, 'request': item, 'already_liked': True, 'message': '\u4f60\u5df2\u7ecf\u70b9\u8d5e\u8fc7\u8be5\u9700\u6c42'})
+    record_activity('like_feature_request', 'feature_request', request_id)
     return jsonify({'success': True, 'request': item, 'liked': liked})
 
 

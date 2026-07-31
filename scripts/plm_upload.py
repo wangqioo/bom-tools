@@ -33,6 +33,8 @@ except ImportError:
     print("安装完成！正在启动程序...")
     import openpyxl
 
+from excel_compat import open_workbook_compat
+
 import os, threading
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
@@ -160,7 +162,7 @@ def do_convert(in_file, sheet_name, header_row,
     读取源 BOM，写入 PLM 格式 Excel。
     返回 (total_written, skipped_empty_qty)。
     """
-    wb_in = openpyxl.load_workbook(in_file, data_only=True)
+    wb_in = open_workbook_compat(in_file, data_only=True)
     ws_in = wb_in[sheet_name]
     max_col = ws_in.max_column
 
@@ -374,7 +376,7 @@ class App(tk.Tk):
             messagebox.showwarning("提示", "请先选择有效的 Excel 文件")
             return
         try:
-            wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+            wb = open_workbook_compat(path, read_only=True, data_only=True)
             sheets = wb.sheetnames
             wb.close()
         except Exception as e:
@@ -400,7 +402,7 @@ class App(tk.Tk):
         except ValueError:
             hdr_row = 4
         try:
-            wb   = openpyxl.load_workbook(path, read_only=True, data_only=True)
+            wb   = open_workbook_compat(path, read_only=True, data_only=True)
             ws   = wb[sheet]
             found, raw_headers = _detect_columns(ws, hdr_row)
             wb.close()

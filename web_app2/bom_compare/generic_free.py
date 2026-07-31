@@ -535,6 +535,15 @@ def free_compare():
         right_compare_cols = [r for _, r in field_pairs]
         left_rows, left_dups, left_blank = _load_rows(left_path, config.get("left_sheet", ""), left_header_row, left_key_col, left_compare_cols)
         right_rows, right_dups, right_blank = _load_rows(right_path, config.get("right_sheet", ""), right_header_row, right_key_col, right_compare_cols)
+        if left_dups or right_dups:
+            details = []
+            if left_dups:
+                details.append("基准 BOM 重复键：" + "；".join(f"{key}（行 {', '.join(map(str, rows))}）" for key, rows in list(left_dups.items())[:5]))
+            if right_dups:
+                details.append("对比 BOM 重复键：" + "；".join(f"{key}（行 {', '.join(map(str, rows))}）" for key, rows in list(right_dups.items())[:5]))
+            raise ValueError("匹配键必须唯一；请修正重复数据或选择其他匹配键。" + " ".join(details))
+        if left_blank or right_blank:
+            raise ValueError(f"匹配键不能为空（基准 BOM 空键 {left_blank} 行，对比 BOM 空键 {right_blank} 行）。请修正后再比对。")
         common = sorted(set(left_rows) & set(right_rows))
         changed = [
             key for key in common

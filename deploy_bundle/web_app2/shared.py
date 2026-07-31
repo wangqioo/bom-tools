@@ -2,7 +2,7 @@
 """BOM Tools Web v2 — 公共模块"""
 
 import os, sys, time, re, subprocess, uuid
-from zipfile import BadZipFile
+from zipfile import BadZipFile, ZipFile
 
 _parent = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _parent not in sys.path:
@@ -14,22 +14,24 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter, column_index_from_string
 
-from flask import request, jsonify, send_file
+from flask import request, jsonify, send_file, has_request_context
 
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads")
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "outputs")
 CACHE_DIR  = os.path.join(os.path.dirname(__file__), "cache")
-PLATFORM_VERSION = "2.2.6"
+MAX_EXCEL_UNCOMPRESSED_BYTES = 200 * 1024 * 1024
+MAX_EXCEL_COMPRESSION_RATIO = 100
+PLATFORM_VERSION = "2.2.9"
 TOOL_VERSIONS = {
     "bom": "5.10.0",
     "bom-checklist": "0.1.4",
     "feishu": "3.0.8",
     "manufacturer-alias": "1.0.0",
     "pref-rate": "1.0.0",
-    "plm": "1.7.1",
+    "plm": "1.7.2",
     "plm-auto": "1.2.0",
     "bom-compare": "0.3.3",
-    "free-bom-compare": "1.1.4",
+    "free-bom-compare": "1.1.5",
     "customer-hq-compare": "1.1.1",
     "hq-version-compare": "1.0.1",
     "machine-hq-version-compare": "1.0.1",
@@ -80,14 +82,91 @@ def _cell_str(val):
 
 
 def _cleanup_old_files(directory, minutes=30):
+    """Remove expired files, including nested PLM diagnostics and owner metadata."""
     now = time.time()
-    for f in os.listdir(directory):
-        fp = os.path.join(directory, f)
+    if not os.path.isdir(directory):
+        return
+    for root, dirs, files in os.walk(directory, topdown=False):
+        for filename in files:
+            path = os.path.join(root, filename)
+            try:
+                if now - os.path.getmtime(path) > minutes * 60:
+                    os.remove(path)
+            except OSError:
+                pass
+        for name in dirs:
+            path = os.path.join(root, name)
+            try:
+                if not os.listdir(path):
+                    os.rmdir(path)
+            except OSError:
+                pass
+
+
+def _current_storage_owner():
+    """Return a stable, server-derived owner id for transient files and jobs."""
+    if not has_request_context():
+        return "test-admin"
+    try:
+        from auth import current_user
+        user = current_user() or {}
+        owner = str(user.get("id") or "").strip()
+        if owner:
+            return owner
+    except Exception:
+        pass
+    return "anonymous"
+
+
+def _is_current_storage_admin():
+    if not has_request_context():
+        return False
+    try:
+        from auth import is_admin
+        return bool(is_admin())
+    except Exception:
+        return False
+
+
+def _owner_path(path):
+    return f"{path}.owner"
+
+
+def _record_file_owner(path, owner=None):
+    """Persist a short-lived owner marker beside a generated or uploaded file."""
+    if not path:
+        return
+    owner = str(owner or _current_storage_owner()).strip()
+    if not owner:
+        return
+    marker = _owner_path(path)
+    tmp_marker = f"{marker}.{uuid.uuid4().hex}.tmp"
+    try:
+        with open(tmp_marker, "w", encoding="utf-8") as handle:
+            handle.write(owner)
+        os.replace(tmp_marker, marker)
+    except OSError:
         try:
-            if os.path.isfile(fp) and now - os.path.getmtime(fp) > minutes * 60:
-                os.remove(fp)
-        except Exception:
+            if os.path.exists(tmp_marker):
+                os.remove(tmp_marker)
+        except OSError:
             pass
+
+
+def _file_belongs_to_current_user(path):
+    """Ownerless legacy files are visible to administrators only."""
+    try:
+        with open(_owner_path(path), "r", encoding="utf-8") as handle:
+            owner = handle.read().strip()
+    except OSError:
+        return _is_current_storage_admin()
+    return bool(owner) and owner == _current_storage_owner()
+
+
+def _register_output_file(path, owner=None):
+    if path and os.path.isfile(path):
+        _record_file_owner(path, owner)
+    return path
 
 
 def _col_int(s):
@@ -127,6 +206,7 @@ def _convert_xls_with_excel(src_path, uid, prefix="converted"):
         f"$dst={_ps_single_quote(out_path)};"
         "$excel=New-Object -ComObject Excel.Application;"
         "$excel.Visible=$false;$excel.DisplayAlerts=$false;"
+        "$excel.AutomationSecurity=3;"
         "try{$wb=$excel.Workbooks.Open($src);$wb.SaveAs($dst,51);$wb.Close($false)}"
         "finally{$excel.Quit();[System.Runtime.InteropServices.Marshal]::ReleaseComObject($excel)|Out-Null}"
     )
@@ -208,9 +288,13 @@ def _save_uploaded_excel(file, prefix, uid):
     if lower.endswith(".xls") and not lower.endswith(".xlsx"):
         raw_path = os.path.join(UPLOAD_DIR, f"{prefix}_{uid}.xls")
         file.save(raw_path)
-        return _convert_xls(raw_path, uid, prefix)
+        _record_file_owner(raw_path)
+        converted_path = _convert_xls(raw_path, uid, prefix)
+        _record_file_owner(converted_path)
+        return converted_path
     path = os.path.join(UPLOAD_DIR, f"{prefix}_{uid}.xlsx")
     file.save(path)
+    _record_file_owner(path)
     return path
 
 
@@ -226,7 +310,7 @@ def _uploaded_excel_path(prefix, uid):
         return None
     for name in (f"{prefix}_{uid}.xlsx", f"{prefix}_converted_{uid}.xlsx"):
         path = os.path.join(UPLOAD_DIR, name)
-        if os.path.exists(path):
+        if os.path.exists(path) and _file_belongs_to_current_user(path):
             return path
     return None
 
@@ -242,6 +326,14 @@ def _save_or_reuse_uploaded_excel(file, prefix, uid=None):
 
 def _open_workbook(path, **kwargs):
     try:
+        with ZipFile(path) as archive:
+            entries = archive.infolist()
+            uncompressed_size = sum(entry.file_size for entry in entries)
+            if uncompressed_size > MAX_EXCEL_UNCOMPRESSED_BYTES:
+                raise ValueError("Excel file expands beyond the 200MB safety limit")
+            for entry in entries:
+                if entry.compress_size and entry.file_size / entry.compress_size > MAX_EXCEL_COMPRESSION_RATIO:
+                    raise ValueError("Excel file has an unsafe compression ratio")
         return openpyxl.load_workbook(path, **kwargs)
     except BadZipFile as exc:
         raise ValueError(BAD_EXCEL_ERROR) from exc

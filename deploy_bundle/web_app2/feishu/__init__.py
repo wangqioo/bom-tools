@@ -11,6 +11,7 @@ from shared import (
     request, jsonify,
     UPLOAD_DIR, OUTPUT_DIR, CACHE_DIR, _cell_str,
     _open_workbook, _resolve_feishu_base_url, _save_uploaded_excel, _save_or_reuse_uploaded_excel, _to_int,
+    _current_storage_owner,
 )
 from manufacturer_alias import lookup_manufacturer
 
@@ -18,9 +19,12 @@ os.makedirs(CACHE_DIR, exist_ok=True)
 
 # ── 服务端数据缓存（以 token + sheet_id 为粒度）─────────────────
 
+FEISHU_CACHE_TTL_SECONDS = 8 * 60 * 60
+
+
 def _mk_cache_key(token, sheet_id):
-    raw = f"{token}:{sheet_id}"
-    return hashlib.md5(raw.encode()).hexdigest()[:16]
+    raw = f"{_current_storage_owner()}:{token}:{sheet_id}"
+    return hashlib.sha256(raw.encode()).hexdigest()[:32]
 
 
 def _cache_path(key):
@@ -28,10 +32,10 @@ def _cache_path(key):
 
 
 def _write_cache(token, sheet_id, rows, row_count_at_cache=0):
-    """缓存单个 sheet 的全部行数据"""
+    """Cache a sheet for the current user only; tokens are not persisted."""
     key = _mk_cache_key(token, sheet_id)
     payload = {
-        "token": token,
+        "owner": _current_storage_owner(),
         "sheet_id": sheet_id,
         "fetched_at": time.time(),
         "row_count_at_cache": row_count_at_cache,
@@ -49,7 +53,13 @@ def _read_cache(key):
         return None
     try:
         with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
+            payload = json.load(f)
+        if payload.get("owner") != _current_storage_owner():
+            return None
+        if time.time() - float(payload.get("fetched_at") or 0) > FEISHU_CACHE_TTL_SECONDS:
+            os.remove(path)
+            return None
+        return payload
     except Exception:
         return None
 
@@ -60,7 +70,17 @@ def _delete_cache(token, sheet_id):
     path = _cache_path(key)
     existed = os.path.exists(path)
     if existed:
-        os.remove(path)
+        last_error = None
+        for _ in range(3):
+            try:
+                os.remove(path)
+                last_error = None
+                break
+            except PermissionError as exc:
+                last_error = exc
+                time.sleep(0.1)
+        if last_error and os.path.exists(path):
+            raise last_error
     return key, existed
 
 
@@ -200,15 +220,12 @@ def _hq_read_sheet(base_url, origin, user_id, token,
                 f"{sheet_id}!A{start}:{end_col}{end}",
                 timeout=90,
             )
-            if all_rows and batch:
-                batch = batch[1:]
             if not batch:
                 break
             all_rows.extend(batch)
             if progress_cb:
                 progress_cb(len(all_rows))
-            skip = 1 if start > 1 else 0
-            if len(batch) < expected - skip:
+            if len(batch) < expected:
                 break
             start = end + 1
         if all_rows:

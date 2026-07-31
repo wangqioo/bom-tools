@@ -14,6 +14,7 @@ from shared import (
     _cell_str,
     _open_workbook,
     _save_uploaded_excel,
+    _save_or_reuse_uploaded_excel,
     _to_int,
     get_column_letter,
     request,
@@ -463,21 +464,24 @@ def free_preview():
 def free_sheets():
     left_file = request.files.get("left_file")
     right_file = request.files.get("right_file")
-    if not left_file or not right_file:
-        return jsonify({"success": False, "error": "请上传两份 BOM 文件"})
+    left_uid_in = request.form.get("left_uid", "")
+    right_uid_in = request.form.get("right_uid", "")
+    if (not left_file and not left_uid_in) or (not right_file and not right_uid_in):
+        return jsonify({"success": False, "error": "Please upload both BOM files"})
     left_header_row = _to_int(request.form.get("left_header_row", 1), 1)
     right_header_row = _to_int(request.form.get("right_header_row", 1), 1)
     if left_header_row is None or right_header_row is None:
-        return jsonify({"success": False, "error": "表头行必须是大于等于 1 的数字"})
-    uid = str(uuid.uuid4())[:8]
+        return jsonify({"success": False, "error": "Header row must be a number greater than or equal to 1"})
     try:
-        left_path = _save_uploaded_excel(left_file, "bomcmp_free_left", uid)
-        right_path = _save_uploaded_excel(right_file, "bomcmp_free_right", uid)
+        left_uid, left_path = _save_or_reuse_uploaded_excel(left_file, "bomcmp_free_left", left_uid_in)
+        right_uid, right_path = _save_or_reuse_uploaded_excel(right_file, "bomcmp_free_right", right_uid_in)
         left_sheets, left_sheet, left_headers = _read_headers(left_path, request.form.get("left_sheet", ""), left_header_row)
         right_sheets, right_sheet, right_headers = _read_headers(right_path, request.form.get("right_sheet", ""), right_header_row)
         left_key, right_key = _detect_common_key(left_headers, right_headers)
         return jsonify({
             "success": True,
+            "left_uid": left_uid,
+            "right_uid": right_uid,
             "left_sheets": left_sheets,
             "left_current_sheet": left_sheet,
             "left_headers": left_headers,
@@ -531,6 +535,15 @@ def free_compare():
         right_compare_cols = [r for _, r in field_pairs]
         left_rows, left_dups, left_blank = _load_rows(left_path, config.get("left_sheet", ""), left_header_row, left_key_col, left_compare_cols)
         right_rows, right_dups, right_blank = _load_rows(right_path, config.get("right_sheet", ""), right_header_row, right_key_col, right_compare_cols)
+        if left_dups or right_dups:
+            details = []
+            if left_dups:
+                details.append("基准 BOM 重复键：" + "；".join(f"{key}（行 {', '.join(map(str, rows))}）" for key, rows in list(left_dups.items())[:5]))
+            if right_dups:
+                details.append("对比 BOM 重复键：" + "；".join(f"{key}（行 {', '.join(map(str, rows))}）" for key, rows in list(right_dups.items())[:5]))
+            raise ValueError("匹配键必须唯一；请修正重复数据或选择其他匹配键。" + " ".join(details))
+        if left_blank or right_blank:
+            raise ValueError(f"匹配键不能为空（基准 BOM 空键 {left_blank} 行，对比 BOM 空键 {right_blank} 行）。请修正后再比对。")
         common = sorted(set(left_rows) & set(right_rows))
         changed = [
             key for key in common

@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """Bug 閹绘劒姘﹂弽蹇曟窗 閳?Blueprint"""
 
 import json
@@ -11,7 +11,7 @@ from flask import Blueprint, abort, send_file
 from werkzeug.utils import secure_filename, safe_join
 
 from shared import request, jsonify
-from auth import current_user, record_activity, require_admin_json
+from auth import auth_enabled, current_user, record_activity, require_admin_json
 
 
 bug_report_bp = Blueprint('bug_report', __name__)
@@ -193,12 +193,16 @@ def api_bug_reports():
 
 @bug_report_bp.route('/api/bug_reports', methods=['POST'])
 def api_submit_bug_report():
-    reporter = _clean_text('reporter', 80)
-    employee_id = _clean_text('employee_id', 40)
+    user = current_user() or {}
+    reporter = str(user.get('display_name') or '').strip()
+    employee_id = str(user.get('employee_id') or '').strip()
+    if not auth_enabled():
+        reporter = _clean_text('reporter', 80)
+        employee_id = _clean_text('employee_id', 40)
     title = _clean_text('title', 120)
     description = _clean_text('description', 4000)
     if not reporter or not employee_id or not title or not description:
-        return jsonify({'success': False, 'error': '请填写姓名、工号、问题标题和问题描述'})
+        return jsonify({'success': False, 'error': '请填写问题标题和问题描述'})
 
     report_id = time.strftime('%Y%m%d%H%M%S') + '-' + uuid.uuid4().hex[:6]
     try:

@@ -25,6 +25,7 @@ from bom_checklist import _run_checks as _run_bom_checklist_checks  # noqa: E402
 from bom_compare import _save_uploaded_hq_excel  # noqa: E402
 from feishu import _hq_read_sheet, _is_preferred_level, _write_cache  # noqa: E402
 from manufacturer_alias import normalize_manufacturer_name  # noqa: E402
+from plm import PLM_HEADERS  # noqa: E402
 from shared import _save_uploaded_excel  # noqa: E402
 
 
@@ -108,14 +109,14 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         html = resp.get_data(as_text=True)
         self.assertIn("BOM Tools", html)
-        self.assertIn("\u786c\u4ef6\u8bbe\u8ba1\u8f85\u52a9\u5e73\u53f0 v2.2.6", html)
-        self.assertIn("css/app.css?v=2.2.6", html)
-        self.assertIn("js/app.js?v=2.2.6", html)
-        self.assertIn("version: \"2.2.6\"", html)
+        self.assertIn("\u786c\u4ef6\u8bbe\u8ba1\u8f85\u52a9\u5e73\u53f0 v2.2.9", html)
+        self.assertIn("css/app.css?v=2.2.9", html)
+        self.assertIn("js/app.js?v=2.2.9", html)
+        self.assertIn("version: \"2.2.9\"", html)
         self.assertIn("toolVersions", html)
         self.assertIn("currentUser", html)
         self.assertIn("free-bom-compare", html)
-        self.assertIn("1.1.4", html)
+        self.assertIn("1.1.5", html)
         self.assertIn("飞书优选库+关系库匹配", html)
         self.assertIn("BOM比对工具合集", html)
         self.assertIn("\u5c0f\u5de5\u5177\u5408\u96c6", html)
@@ -124,6 +125,9 @@ class WebAppTests(unittest.TestCase):
         self.assertIn("整机HQ BOM版本对比", html)
         self.assertIn("Cadence导出BOM对比HQ BOM", html)
         self.assertIn("\u5ba2\u6237BOM\u8f6c\u6362\u6210HQ\u683c\u5f0f\u5355\u677fBOM", html)
+        self.assertIn("BOM \u7ec4\u5e38\u7528\u5de5\u5177", html)
+        self.assertIn("\u901a\u7528 EE \u5de5\u5177", html)
+        self.assertIn("\u7cfb\u7edf\u4e0e\u652f\u6301", html)
 
 
     def test_plm_auto_defaults_account_from_logged_in_employee_id(self):
@@ -441,6 +445,7 @@ class WebAppTests(unittest.TestCase):
         values = [wb.active.cell(row=i, column=1).value for i in range(2, wb.active.max_row + 1)]
         wb.close()
         download_buf.close()
+        download.close()
         self.assertEqual(values, ["A001", "B002"])
 
     def test_customer_hq_detect_reuses_uploaded_file_by_uid(self):
@@ -1031,19 +1036,17 @@ class WebAppTests(unittest.TestCase):
         wb = openpyxl.load_workbook(WEB_APP / "outputs" / filename, data_only=True)
         ws = wb.active
         self.assertEqual(ws.title, "BOM")
-        self.assertEqual(ws.max_column, 19)
+        self.assertEqual(ws.max_column, len(PLM_HEADERS))
         self.assertEqual(ws["A1"].value, "\u6599\u53f7")
         self.assertEqual(ws["B1"].value, "HQ31200063SB0")
         self.assertEqual(ws["D1"].value, "Demo Board PCBA")
         self.assertEqual(ws["F1"].value, "DEMO")
         self.assertEqual(ws["H1"].value, "Tester")
-        self.assertEqual([ws.cell(row=3, column=i).value for i in range(1, 20)], [
-            "\u5e8f\u53f7", "\u6599\u53f7", "\u578b\u53f7", "\u7269\u6599\u63cf\u8ff0", "\u5355\u8017", "\u66ff\u4ee3\u5173\u7cfb", "\u4f4d\u53f7", "\u751f\u4ea7\u5382\u5bb6", "\u662f\u5426\u73af\u4fdd", "\u6e7f\u654f\u5c5e\u6027", "\u5907\u6ce8", "\u4e3b\u8f85BOM\u6807\u8bb0", "\u004d\u0042\u0047\u4f18\u9009\u5c5e\u6027", "\u0043\u0042\u0047\u4f18\u9009\u5c5e\u6027", "\u0044\u0042\u0047\u4f18\u9009\u5c5e\u6027", "\u4e3b\u5236\u63a7", "\u5b50\u5236\u63a7", "\u5b50\u5236\u63a7\u6570\u91cf", "\u0041\u0042\u0047\u4f18\u9009\u5c5e\u6027"
-        ])
+        self.assertEqual([ws.cell(row=3, column=i).value for i in range(1, 26)], PLM_HEADERS)
         self.assertEqual([ws["A4"].value, ws["B4"].value, ws["C4"].value, ws["D4"].value, ws["E4"].value, ws["G4"].value, ws["H4"].value], ["6", "HQ1", "M-A", "Cap 1uF", 2, "C1,C2", "MakerA"])
-        self.assertEqual([ws["I4"].value, ws["J4"].value, ws["M4"].value, ws["O4"].value, ws["P4"].value, ws["S4"].value], ["\u2160\u7ea7(\u65e0\u5364\u6b27\u76df\u73af\u4fdd)", "\u6e7f\u654f\u5668\u4ef6", "\u65e0", "\u9650\u9009", "SMT", "\u65e0"])
+        self.assertEqual([ws["I4"].value, ws["J4"].value, ws["M4"].value, ws["O4"].value, ws["P4"].value, ws["U4"].value], ["\u2160\u7ea7(\u65e0\u5364\u6b27\u76df\u73af\u4fdd)", "\u6e7f\u654f\u5668\u4ef6", "\u65e0", "\u9650\u9009", "SMT", "\u65e0"])
         self.assertEqual([ws["A5"].value, ws["B5"].value, ws["C5"].value, ws["D5"].value, ws["E5"].value, ws["G5"].value, ws["H5"].value], ["6", "HQ2", "M-B", "Cap 1uF", None, None, "MakerB"])
-        self.assertEqual([ws["M5"].value, ws["N5"].value, ws["O5"].value, ws["S5"].value], ["\u53ef\u9009", "\u9650\u9009", "\u4f18\u9009", "\u9650\u9009"])
+        self.assertEqual([ws["M5"].value, ws["N5"].value, ws["O5"].value, ws["U5"].value], ["\u53ef\u9009", "\u9650\u9009", "\u4f18\u9009", "\u9650\u9009"])
         self.assertEqual([ws["A6"].value, ws["B6"].value, ws["E6"].value, ws["G6"].value, ws["H6"].value], ["7", "HQ3", 4, "R1", "MakerC"])
         wb.close()
 

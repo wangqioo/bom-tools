@@ -11,6 +11,7 @@ import uuid
 from flask import Blueprint
 
 from shared import jsonify, request
+from auth import require_admin_json, record_activity
 
 
 manufacturer_alias_bp = Blueprint('manufacturer_alias', __name__)
@@ -127,6 +128,9 @@ def api_lookup_manufacturer_alias():
 
 @manufacturer_alias_bp.route('/api/manufacturer_aliases', methods=['POST'])
 def api_create_manufacturer_alias():
+    denied = require_admin_json()
+    if denied:
+        return denied
     canonical_name = _clean_form('canonical_name', 200)
     alias = _clean_form('alias', 200)
     source = _clean_form('source', 120)
@@ -163,19 +167,25 @@ def api_create_manufacturer_alias():
                 'existing': _row_to_alias(row) if row else None,
             })
         row = conn.execute('SELECT * FROM manufacturer_aliases WHERE id = ?', (item_id,)).fetchone()
-        return jsonify({'success': True, 'alias': _row_to_alias(row)})
+        item = _row_to_alias(row)
+        record_activity('manufacturer_alias_create', 'manufacturer_alias', item_id, {'alias': alias})
+        return jsonify({'success': True, 'alias': item})
     finally:
         conn.close()
 
 
 @manufacturer_alias_bp.route('/api/manufacturer_aliases/<alias_id>', methods=['DELETE'])
 def api_delete_manufacturer_alias(alias_id):
+    denied = require_admin_json()
+    if denied:
+        return denied
     conn = _connect()
     try:
         cur = conn.execute('DELETE FROM manufacturer_aliases WHERE id = ?', (alias_id,))
         conn.commit()
         if cur.rowcount <= 0:
             return jsonify({'success': False, 'error': '记录不存在'})
+        record_activity('manufacturer_alias_delete', 'manufacturer_alias', alias_id)
         return jsonify({'success': True})
     finally:
         conn.close()

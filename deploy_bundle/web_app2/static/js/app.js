@@ -99,7 +99,7 @@ const TOOLS = {
            desc:'\u7ef4\u62a4\u5ba2\u6237\u5382\u5546\u522b\u540d\u3001\u5927\u5c0f\u5199\u53d8\u4f53\u3001\u4e2d\u6587\u540d\u548c\u97f3\u8bd1\u540d\u5230 HQ \u89c4\u8303\u5382\u5546\u540d\u7684\u7cbe\u786e\u6620\u5c04\uff0c\u4f9b\u540e\u7eed\u5339\u914d\u6d41\u7a0b\u590d\u7528\u3002'},
   'pref-rate': {title:'查询BOM优选率', badge:toolVersion('pref-rate','1.0.0'), tpl:'tpl-pref-rate',
                desc:'按 HQ料号 在所有优选库缓存中查找优选等级，输出含优选率统计的 Excel 结果文件。'},
-  plm:    {title:'转换为上传PLM系统格式', badge:toolVersion('plm','1.7.1'),  tpl:'tpl-plm',
+  plm:    {title:'转换为上传PLM系统格式', badge:toolVersion('plm','1.7.2'),  tpl:'tpl-plm',
            desc:'将整机 BOM 配置表转换为 PLM 系统可导入的标准格式：序号、料号、单耗等25列，主供行填单耗，替代料自动标记主辅BOM标记。'},
   'plm-auto': {title:'PLM网页自动化', badge:toolVersion('plm-auto','1.2.0'), tpl:'tpl-plm-auto',
            desc:'自动登录 EIP/PLM，按标准流程上传文件、查询并导出结果。当前包含规格型号反查物料。'},
@@ -116,8 +116,19 @@ const TOOLS = {
   manual: {title:'工具说明书', badge:toolVersion('manual','1.0.0'), tpl:'tpl-manual',
            desc:'集中展示每个工具的处理逻辑、输入要求、关键规则和推荐使用步骤。'},
 };
+const TOOL_GROUPS = [
+  {key:'bom', title:'BOM 组常用工具'},
+  {key:'ee', title:'通用 EE 工具'},
+  {key:'support', title:'系统与支持'},
+];
+const TOOL_GROUP_BY_TOOL = {
+  bom:'bom', feishu:'bom', 'manufacturer-alias':'bom', 'pref-rate':'bom',
+  plm:'bom', 'bom-compare':'bom',
+  'plm-auto':'ee', 'bom-checklist':'ee', toolbox:'ee',
+  'admin-users':'support', manual:'support', 'about-project':'support',
+};
 let curTool = null;
-const APP_NOTICE_VERSION = '2026-05-19-manual-docs';
+const APP_NOTICE_VERSION = '2026-07-30-tool-groups';
 
 function initRefreshNotice(){
   const notice = $('refreshNotice');
@@ -139,21 +150,22 @@ function showOverview(){
   document.querySelectorAll('.sidebar nav a[data-tool]').forEach(x=>x.classList.remove('active'));
   $('toolTitle').textContent = 'BOM Tools';
   $('toolBadge').textContent = '硬件设计辅助平台 v' + APP_VERSION;
-  let html = '<div class="overview-grid">';
-  const orderedTools = Object.entries(TOOLS).sort(([a], [b])=>{
-    if(a === 'about-project') return 1;
-    if(b === 'about-project') return -1;
-    return 0;
-  });
-  for(const [key, t] of orderedTools){
-    const iconEl = document.querySelector('.sidebar nav a[data-tool="'+key+'"] .icon');
-    const icon = iconEl ? iconEl.textContent : '🛠';
-    html += '<div class="overview-card" onclick="switchTool(\''+key+'\')">' +
-      '<div class="oc-icon">'+icon+'</div>' +
-      '<div class="oc-body">' +
-        '<div class="oc-title">'+t.title+' <span class="oc-badge">'+t.badge+'</span></div>' +
-        '<div class="oc-desc">'+t.desc+'</div>' +
-      '</div></div>';
+  let html = '<div class="overview">';
+  for(const group of TOOL_GROUPS){
+    const tools = Object.entries(TOOLS).filter(([key])=>TOOL_GROUP_BY_TOOL[key] === group.key);
+    if(!tools.length) continue;
+    html += '<section class="overview-group"><h3 class="overview-group-title">'+group.title+'</h3><div class="overview-grid">';
+    for(const [key, t] of tools){
+      const iconEl = document.querySelector('.sidebar nav a[data-tool="'+key+'"] .icon');
+      const icon = iconEl ? iconEl.textContent : '🛠';
+      html += '<div class="overview-card" onclick="switchTool(\''+key+'\')">' +
+        '<div class="oc-icon">'+icon+'</div>' +
+        '<div class="oc-body">' +
+          '<div class="oc-title">'+t.title+' <span class="oc-badge">'+t.badge+'</span></div>' +
+          '<div class="oc-desc">'+t.desc+'</div>' +
+        '</div></div>';
+    }
+    html += '</div></section>';
   }
   html += '</div>';
   $('contentArea').innerHTML = html;
